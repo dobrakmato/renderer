@@ -1,0 +1,12 @@
+[package]
+name = "img2bf"
+version = "0.1.0"
+authors = ["Matej <dobrakmato@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+image = "0.22.1"
+lz4 = "1.23.1"
+clap = "2.33.0"
+zerocopy = "0.2.8"
+bf = { path = "../bf" }

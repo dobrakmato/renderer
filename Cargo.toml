@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "bf",
+    "img2bf",
+    "obj2bf",
+    "bfinfo",
+    "renderer"
+]

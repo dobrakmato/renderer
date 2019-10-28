@@ -1,0 +1,13 @@
+[package]
+name = "bf"
+version = "0.1.0"
+authors = ["Matej <dobrakmato@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+zerocopy = "0.2.8"
+zerocopy-derive = "0.1.4"
+static_assertions = "1.0.0"
+
+[dev-dependencies]
+matches = "0.1.8"
