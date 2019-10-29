@@ -8,6 +8,7 @@ use std::fs;
 use wavefront_obj::obj::parse;
 
 mod geo;
+mod math;
 mod perf;
 
 /// Derives output path from input path by changing the file's extension.
@@ -129,6 +130,7 @@ fn main() {
 
     // generate deduped indices
     // geo.dedupe_vertices();
+    geo.recalculate_normals();
 
     // rewrite to indexed (duplicate values)
 

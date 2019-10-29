@@ -1,33 +1,11 @@
-use std::fmt::{Display, Error, Formatter};
+use crate::math::Vec3;
+use wavefront_obj::obj::Object;
 use wavefront_obj::obj::Primitive::Triangle;
-use wavefront_obj::obj::{Object, TVertex, Vertex};
-
-// todo: simd
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
-pub struct Vec3<T> {
-    x: T,
-    y: T,
-    z: T,
-}
-
-impl<T> Vec3<T> {
-    fn new(x: T, y: T, z: T) -> Self {
-        Vec3 { x, y, z }
-    }
-}
-
-pub struct F64(f64);
-
-impl Display for F64 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_fmt(format_args!("{}", self.0))
-    }
-}
 
 pub struct Geometry {
-    pub positions: Vec<Vec3<F64>>,
-    pub normals: Vec<Vec3<F64>>,
-    pub tex_coords: Vec<Vec3<F64>>,
+    pub positions: Vec<Vec3<f64>>,
+    pub normals: Vec<Vec3<f64>>,
+    pub tex_coords: Vec<Vec3<f64>>,
     pub indices: Vec<usize>,
 }
 
@@ -41,11 +19,35 @@ impl Geometry {
         }
     }
 
-    pub fn push_vertex(&mut self, position: Vec3<F64>, normal: Vec3<F64>, tex_coord: Vec3<F64>) {
+    pub fn push_vertex(&mut self, position: Vec3<f64>, normal: Vec3<f64>, tex_coord: Vec3<f64>) {
         self.positions.push(position);
         self.normals.push(normal);
         self.tex_coords.push(tex_coord);
         self.indices.push(self.indices.len());
+    }
+
+    pub fn recalculate_normals(&mut self) {
+        /* in the first step we zero the normals */
+        self.normals.iter_mut().for_each(|it| *it = Vec3::default());
+
+        /* for each face we compute the normal and add it to all vertices */
+        for face in self.indices.chunks(3) {
+            let v0 = &self.positions[face[0]];
+            let v1 = &self.positions[face[1]];
+            let v2 = &self.positions[face[2]];
+
+            let v01 = v0 - v1;
+            let v02 = v0 - v2;
+
+            let normal = v02.cross(&v01);
+
+            self.normals[face[0]] += &normal;
+            self.normals[face[1]] += &normal;
+            self.normals[face[2]] += &normal;
+        }
+
+        /* we then normalize the vertices */
+        self.normals.iter_mut().for_each(|it| it.normalize());
     }
 
     pub fn dedupe_vertices(&mut self) {
@@ -58,6 +60,7 @@ impl Geometry {
 
     pub fn to_obj(&self) -> String {
         let mut buff = String::with_capacity(8192);
+
         for x in self.positions.iter() {
             buff.push_str(&format!("v {} {} {}\n", x.x, x.y, x.z))
         }
@@ -65,6 +68,7 @@ impl Geometry {
         for x in self.tex_coords.iter() {
             buff.push_str(&format!("vt {} {} {}\n", x.x, x.y, x.z))
         }
+
         for x in self.normals.iter() {
             buff.push_str(&format!("vn {} {} {}\n", x.x, x.y, x.z))
         }
@@ -90,6 +94,7 @@ impl From<&Object> for Geometry {
         }
 
         for x in obj.geometry.first().unwrap().shapes.iter() {
+            /* the library will automatically convert polygons to triangles */
             if let Triangle(
                 (vi, Some(ti), Some(ni)),
                 (vj, Some(tj), Some(nj)),
@@ -104,9 +109,9 @@ impl From<&Object> for Geometry {
                     let n = obj.normals.get(*n).unwrap();
 
                     g.push_vertex(
-                        Vec3::new(F64(v.x), F64(v.y), F64(v.z)),
-                        Vec3::new(F64(n.x), F64(n.y), F64(n.z)),
-                        Vec3::new(F64(t.u), F64(t.v), F64(t.w)),
+                        Vec3::new((v.x), (v.y), (v.z)),
+                        Vec3::new((n.x), (n.y), (n.z)),
+                        Vec3::new((t.u), (t.v), (t.w)),
                     );
                 }
             } else {
