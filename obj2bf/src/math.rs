@@ -44,7 +44,7 @@ macro_rules! zero_one_impl_float {
 zero_one_impl_float! { f32 f64 }
 
 // todo: simd
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vec3<T> {
     pub x: T,
     pub y: T,
@@ -112,17 +112,6 @@ where
     }
 }
 
-impl<T> Add<Self> for Vec3<T>
-where
-    T: Add<Output = T>,
-{
-    type Output = Vec3<T>;
-
-    fn add(self, rhs: Vec3<T>) -> Self::Output {
-        Vec3::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
-    }
-}
-
 impl<T> Add<Self> for &Vec3<T>
 where
     T: Add<Output = T> + Copy,
@@ -131,17 +120,6 @@ where
 
     fn add(self, rhs: &Vec3<T>) -> Self::Output {
         Vec3::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
-    }
-}
-
-impl<T> Sub<Self> for Vec3<T>
-where
-    T: Sub<Output = T>,
-{
-    type Output = Vec3<T>;
-
-    fn sub(self, rhs: Vec3<T>) -> Self::Output {
-        Vec3::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
     }
 }
 

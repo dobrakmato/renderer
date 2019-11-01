@@ -129,8 +129,14 @@ fn main() {
     // todo: optimize meshes (forsyth)
 
     // generate deduped indices
-    // geo.dedupe_vertices();
+    println!("dedup vertices now");
+    geo.dedup_vertices();
     geo.recalculate_normals();
+
+    println!("geo.positions={}", geo.positions.len());
+    println!("geo.normals={}", geo.normals.len());
+    println!("geo.tex_coords={}", geo.tex_coords.len());
+    println!("geo.indices={}", geo.indices.len());
 
     // rewrite to indexed (duplicate values)
 

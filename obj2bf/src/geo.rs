@@ -39,7 +39,7 @@ impl Geometry {
             let v01 = v0 - v1;
             let v02 = v0 - v2;
 
-            let normal = v02.cross(&v01);
+            let normal = v01.cross(&v02);
 
             self.normals[face[0]] += &normal;
             self.normals[face[1]] += &normal;
@@ -50,12 +50,41 @@ impl Geometry {
         self.normals.iter_mut().for_each(|it| it.normalize());
     }
 
-    pub fn dedupe_vertices(&mut self) {
-        // find unique vertices
+    pub fn dedup_vertices(&mut self) {
+        let mut new_positions = vec![];
+        let mut new_normals = vec![];
+        let mut new_tex_coords = vec![];
+        let mut new_indices = vec![];
 
-        // recreate index buffer
+        let mut tuples: Vec<(Vec3<f64>, Vec3<f64>, Vec3<f64>)> = vec![];
 
-        // replace positions, normals, texcoords
+        for x in self.indices.iter() {
+            let p = self.positions.get(*x).unwrap();
+            let n = self.normals.get(*x).unwrap();
+            let t = self.tex_coords.get(*x).unwrap();
+
+            let idx = tuples
+                .iter()
+                .position(|(it_p, _, _)| {
+                    let epsilon = 0.0001;
+                    (it_p.x - p.x).abs() < epsilon
+                        && (it_p.y - p.y).abs() < epsilon
+                        && (it_p.z - p.z).abs() < epsilon
+                })
+                .unwrap_or_else(|| {
+                    tuples.push((*p, *t, *n));
+                    new_positions.push(*p);
+                    new_normals.push(*n);
+                    new_tex_coords.push(*t);
+                    tuples.len() - 1
+                });
+            new_indices.push(idx);
+        }
+
+        std::mem::replace(&mut self.positions, new_positions);
+        std::mem::replace(&mut self.normals, new_normals);
+        std::mem::replace(&mut self.tex_coords, new_tex_coords);
+        std::mem::replace(&mut self.indices, new_indices);
     }
 
     pub fn to_obj(&self) -> String {
@@ -66,7 +95,7 @@ impl Geometry {
         }
 
         for x in self.tex_coords.iter() {
-            buff.push_str(&format!("vt {} {} {}\n", x.x, x.y, x.z))
+            buff.push_str(&format!("vt {} {}\n", x.x, x.y))
         }
 
         for x in self.normals.iter() {
@@ -109,9 +138,9 @@ impl From<&Object> for Geometry {
                     let n = obj.normals.get(*n).unwrap();
 
                     g.push_vertex(
-                        Vec3::new((v.x), (v.y), (v.z)),
-                        Vec3::new((n.x), (n.y), (n.z)),
-                        Vec3::new((t.u), (t.v), (t.w)),
+                        Vec3::new(v.x, v.y, v.z),
+                        Vec3::new(n.x, n.y, n.z),
+                        Vec3::new(t.u, t.v, t.w),
                     );
                 }
             } else {
