@@ -5,24 +5,31 @@ use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, DeviceExtensions, Features};
+use vulkano::format::{ClearValue, Format};
+use vulkano::image::{Dimensions, StorageImage};
 use vulkano::instance::debug::{DebugCallback, MessageSeverity, MessageType};
 use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice};
 use vulkano::pipeline::ComputePipeline;
 use vulkano::sync::GpuFuture;
 
-mod cs; /*{
-            vulkano_shaders::shader! {
-                ty: "compute",
-                path: "shaders/compute.glsl"
-            }
-        }*/
+mod cs;
+mod mandebrot_shader {
+    #[allow(dead_code)] // Used to force recompilation of shader change
+    const X: &str = include_str!("../shaders/mandelbrot.glsl");
+    vulkano_shaders::shader! {
+        ty: "compute",
+        path: "shaders/mandelbrot.glsl"
+    }
+}
 
 fn main() {
     let start = Instant::now();
     let app_info = app_info_from_cargo_toml!();
-    let extensions = InstanceExtensions::none();
+    let extensions = InstanceExtensions::supported_by_core().unwrap();
     let instance = Instance::new(Some(&app_info), &extensions, None)
         .unwrap_or_else(|e| panic!("cannot create vulkan instance: {:?}", e));
+
+    println!("extensions: {:?}", extensions);
     let _callback = DebugCallback::new(
         &instance,
         MessageSeverity::errors_and_warnings(),
@@ -141,4 +148,72 @@ fn main() {
     future.then_signal_fence().flush().unwrap();
 
     println!("b={:?}", &*buffer.read().unwrap());
+
+    let image = StorageImage::new(
+        device.clone(),
+        Dimensions::Dim2d {
+            width: 1024,
+            height: 1024,
+        },
+        Format::R8G8B8A8Unorm,
+        Some(queue.family()),
+    )
+    .unwrap_or_else(|e| panic!("cannot create image: {}", e));
+
+    let buffer = CpuAccessibleBuffer::from_iter(
+        device.clone(),
+        BufferUsage::all(),
+        (0..1024 * 1024 * 4).map(|_| 0u8),
+    )
+    .unwrap();
+
+    let command_buffer = AutoCommandBufferBuilder::new(device.clone(), queue.family())
+        .unwrap()
+        .clear_color_image(image.clone(), ClearValue::Float([1.0, 0.0, 0.0, 1.0]))
+        .unwrap()
+        .copy_image_to_buffer(image.clone(), buffer.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let future = command_buffer.execute(queue.clone()).unwrap();
+
+    future.then_signal_fence().flush().unwrap();
+
+    std::fs::write("img.raw", &*buffer.read().unwrap()).unwrap();
+
+    let mandelbrot_shader =
+        mandebrot_shader::Shader::load(device.clone()).expect("failed to created shader module");
+    let mandelbrot_pipeline = Arc::new(
+        ComputePipeline::new(device.clone(), &mandelbrot_shader.main_entry_point(), &())
+            .expect("failed to create pipeline"),
+    );
+
+    let set = Arc::new(
+        PersistentDescriptorSet::start(mandelbrot_pipeline.clone(), 0)
+            .add_image(image.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
+    );
+
+    let command_buffer = AutoCommandBufferBuilder::new(device.clone(), queue.family())
+        .unwrap()
+        .dispatch(
+            [1024 / 8, 1024 / 8, 1],
+            mandelbrot_pipeline.clone(),
+            set.clone(),
+            (),
+        )
+        .unwrap()
+        .copy_image_to_buffer(image.clone(), buffer.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let future = command_buffer.execute(queue.clone()).unwrap();
+
+    future.then_signal_fence().flush().unwrap();
+
+    std::fs::write("mandelbrot.raw", &*buffer.read().unwrap()).unwrap();
 }
