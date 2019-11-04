@@ -1,3 +1,4 @@
+![build status](https://github.com/dobrakmato/renderer/workflows/Rust/badge.svg)
 -----------------
 
 ### Prerequisites

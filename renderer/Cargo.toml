@@ -7,3 +7,5 @@ edition = "2018"
 [dependencies]
 vulkano = "0.16.0"
 vulkano-shaders = "0.16.0"
+vulkano-win = "0.16.0"
+winit = "0.19"
