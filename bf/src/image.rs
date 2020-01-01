@@ -1,3 +1,4 @@
+use static_assertions::assert_eq_size;
 use std::convert::TryFrom;
 
 /// Structure for representing all additional data the Image kind
@@ -26,11 +27,13 @@ impl ImageAdditional {
     }
 
     pub fn into_u64(self) -> u64 {
-        return unsafe { std::mem::transmute(self) };
+        // todo: check safety
+        unsafe { std::mem::transmute(self) }
     }
 
     pub fn from_u64(data: u64) -> Self {
-        return unsafe { std::mem::transmute(data) };
+        // todo: check safety
+        unsafe { std::mem::transmute(data) }
     }
 }
 
@@ -59,7 +62,7 @@ pub enum Format {
 }
 
 impl Format {
-    pub fn channels(&self) -> usize {
+    pub fn channels(&self) -> u8 {
         match self {
             Format::Dxt1 => 3,
             Format::Dxt3 => 4,
@@ -74,7 +77,7 @@ impl Format {
         }
     }
 
-    pub fn bits_per_pixel(&self) -> usize {
+    pub fn bits_per_pixel(&self) -> u16 {
         match self {
             Format::Dxt1 => 4,
             Format::Dxt3 => 8,
@@ -168,7 +171,7 @@ mod tests {
             _padding2: 0,
         };
 
-        let b = a.clone();
+        let b = a;
         let a_u64 = b.into_u64();
 
         assert_eq!(a, ImageAdditional::from_u64(a_u64));

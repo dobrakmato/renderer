@@ -34,6 +34,6 @@ pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, Error> {
     // transmute the slice
     match LayoutVerified::new_from_prefix(bytes) {
         None => Err(Error::NotEnoughDataOrUnaligned),
-        Some((header, data)) => Ok(File { header, data }),
+        Some((header, rest)) => Ok(File { header, data: rest }),
     }
 }

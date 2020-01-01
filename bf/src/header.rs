@@ -1,4 +1,5 @@
 use crate::Kind;
+use zerocopy::{AsBytes, FromBytes};
 
 /// Header of every BF file. All data inside the header is not
 /// compressed.

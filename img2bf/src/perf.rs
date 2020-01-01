@@ -1,4 +1,4 @@
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 pub struct Stopwatch<'a> {
     runs: u64,
@@ -81,7 +81,9 @@ impl<'a> Stopwatch<'a> {
 
     #[inline]
     pub fn avg_time(&self) -> f64 {
-        if self.runs == 0 { return 0.0; }
+        if self.runs == 0 {
+            return 0.0;
+        }
         self.total_time as f64 / self.runs as f64
     }
 }
@@ -98,7 +100,7 @@ mod tests {
 
         assert_eq!(root.runs(), 0);
         assert_eq!(root.total_time().as_micros(), 0);
-        assert_eq!(root.avg_time(), 0.0);
+        assert!(root.avg_time() < std::f64::EPSILON);
         assert_eq!(root.last_time(), 0);
         assert_eq!(root.name(), "root");
     }
@@ -113,10 +115,10 @@ mod tests {
 
         assert_eq!(root.runs(), 1);
         assert_ne!(root.total_time().as_micros(), 0);
-        assert_ne!(root.avg_time(), 0.0);
+        assert!(root.avg_time() > 0.0);
         assert_ne!(root.last_time(), 0);
         assert_eq!(root.last_time(), root.total_time().as_micros() as u64);
-        assert_eq!(root.last_time() as f64, root.avg_time());
+        assert!(root.last_time() as f64 - root.avg_time() < std::f64::EPSILON);
     }
 
     #[test]

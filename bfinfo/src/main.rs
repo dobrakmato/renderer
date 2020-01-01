@@ -66,44 +66,46 @@ fn main() {
         .map_err(|e| panic!("payload decompression failed: {}", e))
         .unwrap();
 
-    if let Kind::Image = kind {
-        let additional = ImageAdditional::from_u64(header.additional);
-        let mut level = 0;
-        let format = Format::try_from(additional.format).expect("invalid format value");
-        let mut width = additional.width;
-        let mut height = additional.height;
-        let mut index = 0;
-        while index < uncompressed.len() {
-            let size = width as usize * height as usize * format.bits_per_pixel() / 8;
-            println!(
-                "mipmap level={} width={} height={} size={}",
-                level, width, height, size
-            );
-            let mipmap = &uncompressed[index..index + size];
+    match kind {
+        Kind::Image => {
+            let additional = ImageAdditional::from_u64(header.additional);
+            let mut level = 0;
+            let format = Format::try_from(additional.format).expect("invalid format value");
+            let mut width = additional.width;
+            let mut height = additional.height;
+            let mut index = 0;
+            while index < uncompressed.len() {
+                let size = width as usize * height as usize * format.bits_per_pixel() as usize / 8;
+                println!(
+                    "mipmap level={} width={} height={} size={}",
+                    level, width, height, size
+                );
+                let mipmap = &uncompressed[index..index + size];
 
-            if matches.is_present("dump") {
-                let decoder =
-                    DXTDecoder::new(mipmap, width as u32, height as u32, DXTVariant::DXT1)
-                        .map_err(|e| panic!("cannot create dxt decoder: {}", e))
+                if matches.is_present("dump") {
+                    let decoder =
+                        DXTDecoder::new(mipmap, width as u32, height as u32, DXTVariant::DXT1)
+                            .map_err(|e| panic!("cannot create dxt decoder: {}", e))
+                            .unwrap();
+                    let raw = decoder
+                        .read_image()
+                        .map_err(|e| panic!("cannot decode dxt data: {}", e))
                         .unwrap();
-                let raw = decoder
-                    .read_image()
-                    .map_err(|e| panic!("cannot decode dxt data: {}", e))
-                    .unwrap();
-                let img = ImageBuffer::from_raw(width as u32, height as u32, raw)
-                    .map(DynamicImage::ImageRgb8)
-                    .expect("cannot create image buffer from decoded data");
-                img.save_with_format(format!("dump_mipmap{}.png", level), ImageFormat::PNG)
-                    .map_err(|e| panic!("cannot save dumped file: {}", e))
-                    .unwrap();
-            }
+                    let img = ImageBuffer::from_raw(width as u32, height as u32, raw)
+                        .map(DynamicImage::ImageRgb8)
+                        .expect("cannot create image buffer from decoded data");
+                    img.save_with_format(format!("dump_mipmap{}.png", level), ImageFormat::PNG)
+                        .map_err(|e| panic!("cannot save dumped file: {}", e))
+                        .unwrap();
+                }
 
-            width /= 2;
-            height /= 2;
-            level += 1;
-            index += size;
+                width /= 2;
+                height /= 2;
+                level += 1;
+                index += size;
+            }
         }
-    } else {
-        eprintln!("Sorry, this type is not yet supported!");
+        Kind::Geometry => {}
+        _ => eprintln!("Sorry, this type is not yet supported!"),
     }
 }

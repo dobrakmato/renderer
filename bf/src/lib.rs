@@ -1,16 +1,11 @@
-#[macro_use]
-extern crate static_assertions;
-#[macro_use]
-extern crate zerocopy_derive;
-
-mod image;
+mod file;
 mod geometry;
 mod header;
-mod file;
+mod image;
 mod kind;
 
-pub use kind::Kind;
-pub use file::{File, load_bf_from_bytes, Error};
-pub use header::{Header, BF_MAGIC, BF_MAX_SUPPORTED_VERSION};
+pub use file::{load_bf_from_bytes, Error, File};
 pub use geometry::{GeometryList, GeometryListType};
-pub use image::{ImageAdditional, ImageType, Format, ColorSpace};
+pub use header::{Header, BF_MAGIC, BF_MAX_SUPPORTED_VERSION};
+pub use image::{ColorSpace, Format, ImageAdditional, ImageType};
+pub use kind::Kind;

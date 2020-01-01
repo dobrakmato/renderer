@@ -6,7 +6,7 @@ use crate::perf::Stopwatch;
 use bf::{Format, Header, ImageAdditional, Kind};
 use clap::{App, Arg, ArgMatches};
 use image::dxt::{DXTEncoder, DXTVariant};
-use image::{ColorType, DynamicImage, FilterType, GenericImageView};
+use image::{DynamicImage, FilterType, GenericImageView};
 use lz4::block::compress;
 use lz4::block::CompressionMode::HIGHCOMPRESSION;
 use std::convert::TryFrom;
@@ -58,16 +58,6 @@ impl<'a> Default for Timers<'a> {
             lz4: Stopwatch::new("lz4"),
             save: Stopwatch::new("save"),
         }
-    }
-}
-
-// copied from image create because it is not exported
-pub fn num_components(c: ColorType) -> usize {
-    match c {
-        ColorType::Gray(_) => 1,
-        ColorType::GrayA(_) => 2,
-        ColorType::RGB(_) | ColorType::Palette(_) | ColorType::BGR(_) => 3,
-        ColorType::RGBA(_) | ColorType::BGRA(_) => 4,
     }
 }
 
@@ -145,10 +135,9 @@ fn main() {
     let output_format = Format::try_from(matches.value_of("format").unwrap())
         .expect("invalid output format specified");
 
-    // todo: remove and use the function from `image` crate when PR 1002 is merged
     timers.channels.start();
-    if num_components(input_image.color()) != output_format.channels() {
-        if num_components(input_image.color()) > output_format.channels() {
+    if input_image.color().channel_count() != output_format.channels() {
+        if input_image.color().channel_count() > output_format.channels() {
             input_image = DynamicImage::ImageRgb8(input_image.to_rgb());
         } else {
             input_image = DynamicImage::ImageRgba8(input_image.to_rgba());
@@ -227,7 +216,6 @@ fn main() {
         .write_all(&compressed.as_mut_slice())
         .expect("cannot write to output file");
     out_file.flush().expect("cannot write to output file");
-    ;
     timers.save.end();
 
     println!(
