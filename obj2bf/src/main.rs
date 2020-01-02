@@ -4,6 +4,7 @@ use clap::{App, Arg, ArgMatches};
 
 use crate::geo::Geometry;
 use crate::perf::Stopwatch;
+use std::convert::TryFrom;
 use std::fs;
 use wavefront_obj::obj::parse;
 
@@ -90,7 +91,7 @@ fn main() {
         .arg(
             Arg::with_name("LOD_LEVELS")
                 .long("lod-levels")
-                .help("Specify number of LOD levels generated")
+                .help("Specify number of LOD levels to generate")
                 .takes_value(true),
         )
         .arg(
@@ -118,7 +119,7 @@ fn main() {
         .iter()
         .find(|it| !it.geometry.is_empty())
         .expect("no object with non-empty geometry found!");
-    let mut geo = Geometry::from(obj);
+    let geo = Geometry::try_from(obj).ok().unwrap();
 
     println!("geo.positions={}", geo.positions.len());
     println!("geo.normals={}", geo.normals.len());
@@ -128,21 +129,11 @@ fn main() {
     // todo: generate lods (simplify mesh)
     // todo: optimize meshes (forsyth)
 
-    // generate deduped indices
-    println!("dedup vertices now");
-    geo.dedup_vertices();
-    geo.recalculate_normals();
-
-    println!("geo.positions={}", geo.positions.len());
-    println!("geo.normals={}", geo.normals.len());
-    println!("geo.tex_coords={}", geo.tex_coords.len());
-    println!("geo.indices={}", geo.indices.len());
-
     // rewrite to indexed (duplicate values)
 
     // compress
     // save
-    fs::write("dump.obj", geo.to_obj());
+    fs::write("dump.obj", geo.to_obj()).unwrap();
 
     //println!("raw={} compressed={} ratio={}", bf_header.uncompressed, bf_header.compressed, 100.0 * bf_header.compressed as f32 / bf_header.uncompressed as f32);
     println!("time load={}ms", timers.load.total_time().as_millis());

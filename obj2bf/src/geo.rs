@@ -1,31 +1,20 @@
 use crate::math::Vec3;
+use std::convert::TryFrom;
 use wavefront_obj::obj::Object;
 use wavefront_obj::obj::Primitive::Triangle;
 
+#[derive(Default)]
 pub struct Geometry {
     pub positions: Vec<Vec3<f64>>,
     pub normals: Vec<Vec3<f64>>,
     pub tex_coords: Vec<Vec3<f64>>,
+    /* 3 consecutive values represent one triangle (when correctly aligned) */
     pub indices: Vec<usize>,
 }
 
 impl Geometry {
-    pub fn new() -> Self {
-        Self {
-            positions: vec![],
-            normals: vec![],
-            tex_coords: vec![],
-            indices: vec![],
-        }
-    }
-
-    pub fn push_vertex(&mut self, position: Vec3<f64>, normal: Vec3<f64>, tex_coord: Vec3<f64>) {
-        self.positions.push(position);
-        self.normals.push(normal);
-        self.tex_coords.push(tex_coord);
-        self.indices.push(self.indices.len());
-    }
-
+    /// Recalculates the vertex normals by summing face normals on each
+    /// vertex. Old normals are discarded.
     pub fn recalculate_normals(&mut self) {
         /* in the first step we zero the normals */
         self.normals.iter_mut().for_each(|it| *it = Vec3::default());
@@ -50,56 +39,21 @@ impl Geometry {
         self.normals.iter_mut().for_each(|it| it.normalize());
     }
 
-    pub fn dedup_vertices(&mut self) {
-        let mut new_positions = vec![];
-        let mut new_normals = vec![];
-        let mut new_tex_coords = vec![];
-        let mut new_indices = vec![];
-
-        let mut tuples: Vec<(Vec3<f64>, Vec3<f64>, Vec3<f64>)> = vec![];
-
-        for x in self.indices.iter() {
-            let p = self.positions.get(*x).unwrap();
-            let n = self.normals.get(*x).unwrap();
-            let t = self.tex_coords.get(*x).unwrap();
-
-            let idx = tuples
-                .iter()
-                .position(|(it_p, _, _)| {
-                    let epsilon = 0.0001;
-                    (it_p.x - p.x).abs() < epsilon
-                        && (it_p.y - p.y).abs() < epsilon
-                        && (it_p.z - p.z).abs() < epsilon
-                })
-                .unwrap_or_else(|| {
-                    tuples.push((*p, *t, *n));
-                    new_positions.push(*p);
-                    new_normals.push(*n);
-                    new_tex_coords.push(*t);
-                    tuples.len() - 1
-                });
-            new_indices.push(idx);
-        }
-
-        std::mem::replace(&mut self.positions, new_positions);
-        std::mem::replace(&mut self.normals, new_normals);
-        std::mem::replace(&mut self.tex_coords, new_tex_coords);
-        std::mem::replace(&mut self.indices, new_indices);
-    }
-
+    /// Generates and .OBJ format representation of this geometry. The
+    /// resulting OBJ file is returned as String.
     pub fn to_obj(&self) -> String {
         let mut buff = String::with_capacity(8192);
 
-        for x in self.positions.iter() {
-            buff.push_str(&format!("v {} {} {}\n", x.x, x.y, x.z))
+        for v in self.positions.iter() {
+            buff.push_str(&format!("v {} {} {}\n", v.x, v.y, v.z))
         }
 
-        for x in self.tex_coords.iter() {
-            buff.push_str(&format!("vt {} {}\n", x.x, x.y))
+        for t in self.tex_coords.iter() {
+            buff.push_str(&format!("vt {} {}\n", t.x, t.y))
         }
 
-        for x in self.normals.iter() {
-            buff.push_str(&format!("vn {} {} {}\n", x.x, x.y, x.z))
+        for n in self.normals.iter() {
+            buff.push_str(&format!("vn {} {} {}\n", n.x, n.y, n.z))
         }
 
         for face in self.indices.chunks(3) {
@@ -114,13 +68,29 @@ impl Geometry {
     }
 }
 
-impl From<&Object> for Geometry {
-    fn from(obj: &Object) -> Self {
-        let mut g = Self::new();
+// todo: add non-exhaustive annotation (when stable)
+pub enum ObjImportError {
+    TooManyGeometries,
+    NoGeometries,
+    UnsupportedPrimitive,
+}
 
-        if obj.geometry.len() != 1 {
-            panic!("cannot convert .obj file with multiple or zero geometries");
+impl TryFrom<&Object> for Geometry {
+    type Error = ObjImportError;
+
+    /// Converts Wavefront Object instance to Geometry. This function
+    /// expects the object to have exactly one geometry inside and
+    /// the geometry may not contain points or lines. If any of these
+    /// constraints are violated the conversion fails.
+    fn try_from(obj: &Object) -> Result<Self, Self::Error> {
+        if obj.geometry.is_empty() {
+            return Err(ObjImportError::NoGeometries);
+        } else if obj.geometry.len() > 1 {
+            return Err(ObjImportError::TooManyGeometries);
         }
+
+        let mut triplets: Vec<(usize, usize, usize)> = Vec::new();
+        let mut g = Self::default();
 
         for x in obj.geometry.first().unwrap().shapes.iter() {
             /* the library will automatically convert polygons to triangles */
@@ -132,21 +102,34 @@ impl From<&Object> for Geometry {
             {
                 // todo: unroll
                 for (v, t, n) in [(vi, ti, ni), (vj, tj, nj), (vk, tk, nk)].iter() {
-                    /* indices are guaranteed to be valid by the library */
-                    let v = obj.vertices.get(*v).unwrap();
-                    let t = obj.tex_vertices.get(*t).unwrap();
-                    let n = obj.normals.get(*n).unwrap();
+                    let triplet = (*v, *t, *n);
+                    let idx = triplets
+                        .iter()
+                        .position(|it| *it == triplet)
+                        .unwrap_or_else(|| {
+                            triplets.push(triplet);
 
-                    g.push_vertex(
-                        Vec3::new(v.x, v.y, v.z),
-                        Vec3::new(n.x, n.y, n.z),
-                        Vec3::new(t.u, t.v, t.w),
-                    );
+                            /* Safe: indices are guaranteed to be valid by the library */
+                            let (v, t, n) = unsafe {
+                                let v = obj.vertices.get_unchecked(*v);
+                                let t = obj.tex_vertices.get_unchecked(*t);
+                                let n = obj.normals.get_unchecked(*n);
+                                (v, t, n)
+                            };
+
+                            g.positions.push(Vec3::new(v.x, v.y, v.z));
+                            g.normals.push(Vec3::new(n.x, n.y, n.z));
+                            g.tex_coords.push(Vec3::new(t.u, t.v, t.w));
+
+                            triplets.len() - 1
+                        });
+
+                    g.indices.push(idx);
                 }
             } else {
-                panic!("non-triangle primitives are not supported");
+                return Err(ObjImportError::UnsupportedPrimitive);
             }
         }
-        g
+        Ok(g)
     }
 }
