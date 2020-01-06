@@ -120,6 +120,7 @@ pub struct File<'a> {
     pub container: Data<'a>,
 }
 
+#[derive(Debug)]
 pub enum Error {
     InvalidMagic,
     UnsupportedVersion,
