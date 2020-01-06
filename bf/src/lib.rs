@@ -81,6 +81,15 @@ pub enum VertexDataFormat {
     PositionNormalUv,
 }
 
+impl VertexDataFormat {
+    #[inline]
+    pub fn size_of_one_vertex(self) -> usize {
+        match self {
+            VertexDataFormat::PositionNormalUv => std::mem::size_of::<f32>() * 8,
+        }
+    }
+}
+
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum IndexType {
     U8,
@@ -90,7 +99,7 @@ pub enum IndexType {
 
 impl IndexType {
     #[inline]
-    pub fn size_of_one_element(self) -> usize {
+    pub fn size_of_one_index(self) -> usize {
         match self {
             IndexType::U8 => std::mem::size_of::<u8>(),
             IndexType::U16 => std::mem::size_of::<u16>(),
