@@ -120,6 +120,33 @@ pub struct File<'a> {
     pub container: Data<'a>,
 }
 
+impl<'a> File<'a> {
+    // Creates a new File object with specified Data.
+    fn with_data(data: Data<'a>) -> Self {
+        File {
+            magic: BF_MAGIC,
+            version: BF_VERSION,
+            container: data,
+        }
+    }
+
+    /// Creates a new File object with correct header and specified
+    /// container value.
+    pub fn create_uncompressed(container: Container<'a>) -> Self {
+        Self::with_data(Data::Compressed(Compressed::new(container)))
+    }
+
+    /// Creates a new File object with correct header and specified
+    /// container value which will be compressed when this object
+    /// will be serialized.
+    ///
+    /// Note: This method does not perform any serialization and
+    /// returns instantly.
+    pub fn create_compressed(container: Container<'a>) -> Self {
+        Self::with_data(Data::Uncompressed(container))
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     InvalidMagic,
