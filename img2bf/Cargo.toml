@@ -6,7 +6,5 @@ edition = "2018"
 
 [dependencies]
 image = "0.22.3"
-lz4 = "1.23.1"
-clap = "2.33.0"
-zerocopy = "0.2.8"
+structopt = "0.3.7"
 bf = { path = "../bf" }

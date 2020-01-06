@@ -1,40 +1,43 @@
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::perf::Stopwatch;
-use bf::{Format, Header, ImageAdditional, Kind};
-use clap::{App, Arg, ArgMatches};
+use bf::{save_bf_to_bytes, Container, File, Format, Image};
 use image::dxt::{DXTEncoder, DXTVariant};
 use image::{DynamicImage, FilterType, GenericImageView};
-use lz4::block::compress;
-use lz4::block::CompressionMode::HIGHCOMPRESSION;
-use std::convert::TryFrom;
-use zerocopy::AsBytes;
+use structopt::StructOpt;
 
 mod perf;
 
-/// Derives output path from input path by changing the file's extension.
-pub fn derive_output_from(input: &str) -> PathBuf {
-    let stem = Path::new(input)
-        .file_stem()
-        .expect("input file is not a valid file");
+#[derive(StructOpt, Debug)]
+#[structopt(name = "img2bf")]
+struct Opt {
+    #[structopt(short, long, parse(from_os_str))]
+    input: PathBuf,
 
-    let mut owned = stem.to_owned();
-    owned.push(".bf");
-    PathBuf::from(owned)
+    #[structopt(short, long, parse(from_os_str))]
+    output: PathBuf,
+
+    #[structopt(short, long, parse(try_from_str = parse_format))]
+    format: Format,
+
+    #[structopt(short, long)]
+    not_v_flip: bool,
 }
 
-/// Creates Path-like objects for input and output file from the arguments
-/// passed to the application.
-pub fn derive_input_and_output(matches: &ArgMatches) -> (PathBuf, PathBuf) {
-    let input = matches.value_of("input").unwrap();
-    let output = match matches.value_of("output") {
-        None => derive_output_from(input),
-        Some(t) => PathBuf::from(t),
-    };
-    let input = PathBuf::from(input);
-    (input, output)
+fn parse_format(src: &str) -> Result<Format, &'static str> {
+    match src.to_lowercase().as_str() {
+        "dxt1" => Ok(Format::Dxt1),
+        "dxt3" => Ok(Format::Dxt3),
+        "dxt5" => Ok(Format::Dxt5),
+        "rgb" => Ok(Format::Rgb8),
+        "rgba" => Ok(Format::Rgba8),
+        "srgb_dxt1" => Ok(Format::SrgbDxt1),
+        "srgb_dxt3" => Ok(Format::SrgbDxt3),
+        "srgb_dxt5" => Ok(Format::SrgbDxt5),
+        "srgb" => Ok(Format::Rgb8),
+        "srgba" => Ok(Format::Rgba8),
+        _ => Err("unknown format"),
+    }
 }
 
 struct Timers<'a> {
@@ -43,7 +46,6 @@ struct Timers<'a> {
     channels: Stopwatch<'a>,
     mipmaps: Stopwatch<'a>,
     dxt: Stopwatch<'a>,
-    lz4: Stopwatch<'a>,
     save: Stopwatch<'a>,
 }
 
@@ -55,7 +57,6 @@ impl<'a> Default for Timers<'a> {
             channels: Stopwatch::new("channels"),
             mipmaps: Stopwatch::new("mipmaps"),
             dxt: Stopwatch::new("dxt"),
-            lz4: Stopwatch::new("lz4"),
             save: Stopwatch::new("save"),
         }
     }
@@ -63,59 +64,11 @@ impl<'a> Default for Timers<'a> {
 
 fn main() {
     let mut timers = Timers::default();
-
-    let matches = App::new("img2bf")
-        .version("1.0")
-        .author("Matej K. <dobrakmato@gmail.com>")
-        .about("Converts basic image format to BF optimized format")
-        .arg(
-            Arg::with_name("content")
-                .long("content")
-                .value_name("CONTENT_PATH")
-                .help("Specifies the content root directory to import the file into")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("input")
-                .short("in")
-                .long("input")
-                .value_name("INPUT_FILE")
-                .help("Path to file to convert / import")
-                .required(true)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("output")
-                .short("out")
-                .long("output")
-                .value_name("OUTPUT_FILE")
-                .help("Path to output file to generate")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("format")
-                .short("f")
-                .long("format")
-                .value_name("FORMAT")
-                .help("One of: DXT1, DXT3, DXT5, RGB8, RGBA8") // todo: generate variants from enum
-                .required(true)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("not-vflip")
-                .short("v")
-                .long("not-vflip")
-                .help("Do not vertically flip image during conversion"),
-        )
-        .get_matches();
-
-    let (input, output) = derive_input_and_output(&matches);
+    let opt = Opt::from_args();
 
     // 1. load image
     timers.load.start();
-    let mut input_image = image::open(input)
-        .map_err(|e| panic!("cannot load input file as image: {}", e))
-        .unwrap();
+    let mut input_image = image::open(opt.input).expect("cannot load input file as image");
     timers.load.end();
 
     let (width, height) = (input_image.width(), input_image.height());
@@ -126,18 +79,16 @@ fn main() {
 
     // 2. vflip
     timers.vflip.start();
-    if !matches.is_present("not-vflip") {
+    if !opt.not_v_flip {
         input_image = input_image.flipv();
     }
     timers.vflip.end();
 
     // 3. rgba <-> rgb
-    let output_format = Format::try_from(matches.value_of("format").unwrap())
-        .expect("invalid output format specified");
 
     timers.channels.start();
-    if input_image.color().channel_count() != output_format.channels() {
-        if input_image.color().channel_count() > output_format.channels() {
+    if input_image.color().channel_count() != opt.format.channels() {
+        if input_image.color().channel_count() > opt.format.channels() {
             input_image = DynamicImage::ImageRgb8(input_image.to_rgb());
         } else {
             input_image = DynamicImage::ImageRgba8(input_image.to_rgba());
@@ -176,7 +127,7 @@ fn main() {
             storage
         };
 
-        let result = match output_format {
+        let result = match opt.format {
             // we need to perform dxt compression
             Format::SrgbDxt1 | Format::Dxt1 => dxt(DXTVariant::DXT1),
             Format::SrgbDxt3 | Format::Dxt3 => dxt(DXTVariant::DXT3),
@@ -190,40 +141,22 @@ fn main() {
     }
     timers.dxt.end();
 
-    // 5. compress with lz4
-    timers.lz4.start();
-    let mut compressed = compress(payload.as_slice(), Some(HIGHCOMPRESSION(16)), false)
-        .map_err(|e| panic!("compression failed: {}", e))
-        .unwrap();
-    timers.lz4.end();
-
     // 6. write file_out
     timers.save.start();
-    let bf_header = Header::new(
-        Kind::Image,
-        1,
-        ImageAdditional::new(width as u16, height as u16, output_format as u8).into_u64(),
-        payload.len() as u64,
-        compressed.len() as u64,
-    );
-    let mut out_file = File::create(output)
-        .map_err(|e| panic!("cannot open output file: {}", e))
-        .unwrap();
-    out_file
-        .write_all(&bf_header.as_bytes())
-        .expect("cannot write to output file");
-    out_file
-        .write_all(&compressed.as_mut_slice())
-        .expect("cannot write to output file");
-    out_file.flush().expect("cannot write to output file");
+    let file = File::create_compressed(Container::Image(Image {
+        format: opt.format,
+        width: width as u16,
+        height: height as u16,
+        mipmap_data: payload.as_slice(),
+    }));
+
+    std::fs::write(
+        opt.output,
+        save_bf_to_bytes(&file).expect("cannot serialize image"),
+    )
+    .expect("cannot write data to disk");
     timers.save.end();
 
-    println!(
-        "raw={} compressed={} ratio={}",
-        bf_header.uncompressed,
-        bf_header.compressed,
-        100.0 * bf_header.compressed as f32 / bf_header.uncompressed as f32
-    );
     println!("time load={}ms", timers.load.total_time().as_millis());
     println!("time vflip={}ms", timers.vflip.total_time().as_millis());
     println!(
@@ -232,6 +165,5 @@ fn main() {
     );
     println!("time mipmaps={}ms", timers.mipmaps.total_time().as_millis());
     println!("time dxt={}ms", timers.dxt.total_time().as_millis());
-    println!("time lz4={}ms", timers.lz4.total_time().as_millis());
     println!("time save={}ms", timers.save.total_time().as_millis());
 }
