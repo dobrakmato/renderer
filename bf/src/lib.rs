@@ -90,10 +90,10 @@ pub enum IndexType {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Geometry<'a> {
-    vertex_format: VertexDataFormat,
-    vertex_data: &'a [u8],
-    index_type: IndexType,
-    index_data: &'a [u8],
+    pub vertex_format: VertexDataFormat,
+    pub vertex_data: &'a [u8],
+    pub index_type: IndexType,
+    pub index_data: &'a [u8],
 }
 
 #[derive(Debug, Serialize, Deserialize)]
