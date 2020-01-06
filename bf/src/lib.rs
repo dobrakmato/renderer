@@ -187,6 +187,13 @@ fn verify_bf_file_header(file: File) -> Result<File, Error> {
 /// and `bincode` deserialization succeeds this function returns
 /// File object. Error is returned otherwise.
 pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, Error> {
+    // verify magic even before trying to deserialize. this can
+    // prevent confusing errors when deserialization fails in the
+    // middle of file of wrong format
+    if u16::from_le_bytes([bytes[0], bytes[1]]) != BF_MAGIC {
+        return Err(Error::InvalidMagic);
+    }
+
     config()
         .little_endian()
         .deserialize(bytes)
