@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 
 pub mod lz4;
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ColorSpace {
     Linear,
     Srgb,
 }
 
-#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Format {
     Dxt1,
     Dxt3,
@@ -25,7 +25,7 @@ pub enum Format {
 }
 
 impl Format {
-    pub fn channels(&self) -> u8 {
+    pub fn channels(self) -> u8 {
         match self {
             Format::Dxt1 => 3,
             Format::Dxt3 => 4,
@@ -40,7 +40,7 @@ impl Format {
         }
     }
 
-    pub fn bits_per_pixel(&self) -> u16 {
+    pub fn bits_per_pixel(self) -> u16 {
         match self {
             Format::Dxt1 => 4,
             Format::Dxt3 => 8,
@@ -55,7 +55,7 @@ impl Format {
         }
     }
 
-    pub fn color_space(&self) -> ColorSpace {
+    pub fn color_space(self) -> ColorSpace {
         match self {
             Format::SrgbDxt1 => ColorSpace::Srgb,
             Format::SrgbDxt3 => ColorSpace::Srgb,
@@ -75,17 +75,28 @@ pub struct Image<'a> {
     pub mipmap_data: &'a [u8],
 }
 
-#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum VertexDataFormat {
     // vec3 (pos), vec3(nor), vec2(uv)
     PositionNormalUv,
 }
 
-#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum IndexType {
     U8,
     U16,
     U32,
+}
+
+impl IndexType {
+    #[inline]
+    pub fn size_of_one_element(self) -> usize {
+        match self {
+            IndexType::U8 => std::mem::size_of::<u8>(),
+            IndexType::U16 => std::mem::size_of::<u16>(),
+            IndexType::U32 => std::mem::size_of::<u32>(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
