@@ -66,7 +66,17 @@ fn handle_image(image: Image, dump: bool) {
     }
 }
 
-fn handle_geometry(_: Geometry) {
+fn handle_geometry(geo: Geometry) {
     println!("geometry");
-    eprintln!("this type is not yet supported!");
+
+    println!("vertex_data_format={:?}", geo.vertex_format);
+    println!("index_type={:?}", geo.index_type);
+    println!(
+        "vertices={}",
+        geo.vertex_data.len() / geo.vertex_format.size_of_one_vertex()
+    );
+    println!(
+        "indices={}",
+        geo.index_data.len() / geo.index_type.size_of_one_index()
+    );
 }

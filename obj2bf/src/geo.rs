@@ -1,4 +1,6 @@
 use crate::math::Vec3;
+use bf::{IndexType, VertexDataFormat};
+use byteorder::{LittleEndian, WriteBytesExt};
 use std::convert::TryFrom;
 use wavefront_obj::obj::Object;
 use wavefront_obj::obj::Primitive::Triangle;
@@ -65,6 +67,84 @@ impl Geometry {
             ))
         }
         buff
+    }
+
+    /// Encodes this geometry into byte buffer containing
+    /// bytes with format (layout, padding) specified by `VertexDataFormat`
+    /// parameter.
+    pub fn generate_vertex_data(&self, format: VertexDataFormat) -> Vec<u8> {
+        // the only supported format
+        assert_eq!(format, VertexDataFormat::PositionNormalUv);
+
+        let capacity = (self.positions.len() * std::mem::size_of::<f32>() * 3)
+            + (self.normals.len() * std::mem::size_of::<f32>() * 3)
+            + (self.tex_coords.len() * std::mem::size_of::<f32>() * 2);
+        let mut buf = Vec::with_capacity(capacity);
+
+        assert_eq!(self.positions.len(), self.normals.len());
+        assert_eq!(self.positions.len(), self.tex_coords.len());
+
+        let pos_iter = self.positions.iter();
+        let nor_iter = self.normals.iter();
+        let uv_iter = self.tex_coords.iter();
+
+        pos_iter
+            .zip(nor_iter)
+            .zip(uv_iter)
+            .for_each(|((pos, nor), uv)| {
+                buf.write_f32::<LittleEndian>(pos.x as f32).unwrap();
+                buf.write_f32::<LittleEndian>(pos.y as f32).unwrap();
+                buf.write_f32::<LittleEndian>(pos.z as f32).unwrap();
+
+                buf.write_f32::<LittleEndian>(nor.x as f32).unwrap();
+                buf.write_f32::<LittleEndian>(nor.y as f32).unwrap();
+                buf.write_f32::<LittleEndian>(nor.z as f32).unwrap();
+
+                buf.write_f32::<LittleEndian>(uv.x as f32).unwrap();
+                buf.write_f32::<LittleEndian>(uv.y as f32).unwrap();
+            });
+
+        buf
+    }
+
+    /// Returns the `IndexType` which is considered the best to store
+    /// this geometry index data. The type returned depends on number
+    /// of indices in this geometry. Current algorithm returns the
+    /// smallest type that can be used to encode this geometry.
+    pub fn suggest_index_type(&self) -> IndexType {
+        if self.indices.len() < std::u8::MAX as usize {
+            return IndexType::U8;
+        }
+        if self.indices.len() < std::u16::MAX as usize {
+            return IndexType::U16;
+        }
+
+        IndexType::U32
+    }
+
+    /// Encodes this geometry index data into byte buffer with the
+    /// index type specified by `index_type` parameter.
+    ///
+    /// This function expects the specified `IndexType` is valid
+    /// and the index buffer can be encoded with it. It is best to
+    /// use `suggest_index_type` to determine index type for geometry.
+    pub fn generate_index_data(&self, index_type: IndexType) -> Vec<u8> {
+        let capacity = self.indices.len() * index_type.size_of_one_index();
+        let mut buf = Vec::with_capacity(capacity);
+
+        match index_type {
+            IndexType::U8 => assert!(self.indices.len() <= std::u8::MAX as usize),
+            IndexType::U16 => assert!(self.indices.len() <= std::u16::MAX as usize),
+            IndexType::U32 => assert!(self.indices.len() <= std::u32::MAX as usize),
+        }
+
+        self.indices.iter().for_each(|x| match index_type {
+            IndexType::U8 => buf.write_u8(*x as u8).unwrap(),
+            IndexType::U16 => buf.write_u16::<LittleEndian>(*x as u16).unwrap(),
+            IndexType::U32 => buf.write_u32::<LittleEndian>(*x as u32).unwrap(),
+        });
+
+        buf
     }
 }
 

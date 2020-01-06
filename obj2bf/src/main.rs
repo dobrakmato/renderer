@@ -72,11 +72,16 @@ fn main() {
     std::fs::write("dump.obj", geo.to_obj()).unwrap();
 
     timers.save.start();
+    let vertex_format = VertexDataFormat::PositionNormalUv;
+    let vertex_data = geo.generate_vertex_data(vertex_format);
+    let index_type = geo.suggest_index_type();
+    let index_data = geo.generate_index_data(index_type);
+
     let file = File::create_compressed(Container::Geometry(Geometry {
-        vertex_format: VertexDataFormat::PositionNormalUv,
-        vertex_data: &[],
-        index_type: IndexType::U16,
-        index_data: &[],
+        vertex_format,
+        index_type,
+        vertex_data: vertex_data.as_slice(),
+        index_data: index_data.as_slice(),
     }));
 
     std::fs::write(
