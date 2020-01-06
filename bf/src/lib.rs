@@ -117,7 +117,7 @@ pub struct File<'a> {
     pub magic: u16,
     pub version: u8,
     #[serde(borrow)]
-    pub data: Data<'a>, // todo: rename to `data`
+    pub data: Data<'a>,
 }
 
 impl<'a> File<'a> {
