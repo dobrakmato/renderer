@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 
 pub mod lz4;
 
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub enum ColorSpace {
     Linear,
     Srgb,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Format {
     Dxt1,
     Dxt3,
@@ -75,13 +75,13 @@ pub struct Image<'a> {
     pub mipmap_data: &'a [u8],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum VertexDataFormat {
     // vec3 (pos), vec3(nor), vec2(uv)
     PositionNormalUv,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum IndexType {
     U8,
     U16,
