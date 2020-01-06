@@ -22,7 +22,7 @@ fn main() {
     println!("magic={} (ok)", file.magic);
     println!("version={}", file.version);
 
-    let container = match file.container {
+    let container = match file.data {
         Data::Compressed(c) => c.0,
         Data::Uncompressed(c) => c,
     };
