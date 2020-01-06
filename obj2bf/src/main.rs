@@ -1,38 +1,22 @@
-use std::path::{Path, PathBuf};
-
-use clap::{App, Arg, ArgMatches};
-
-use crate::geo::Geometry;
 use crate::perf::Stopwatch;
+use bf::{save_bf_to_bytes, Container, File, Geometry, IndexType, VertexDataFormat};
 use std::convert::TryFrom;
-use std::fs;
+use std::path::PathBuf;
+use structopt::StructOpt;
 use wavefront_obj::obj::parse;
 
 mod geo;
 mod math;
 mod perf;
 
-/// Derives output path from input path by changing the file's extension.
-pub fn derive_output_from(input: &str) -> PathBuf {
-    let stem = Path::new(input)
-        .file_stem()
-        .expect("input file is not a valid file");
+#[derive(StructOpt, Debug)]
+#[structopt(name = "obj2bf")]
+struct Opt {
+    #[structopt(short, long, parse(from_os_str))]
+    input: PathBuf,
 
-    let mut owned = stem.to_owned();
-    owned.push(".bf");
-    PathBuf::from(owned)
-}
-
-/// Creates Path-like objects for input and output file from the arguments
-/// passed to the application.
-pub fn derive_input_and_output(matches: &ArgMatches) -> (PathBuf, PathBuf) {
-    let input = matches.value_of("input").unwrap();
-    let output = match matches.value_of("output") {
-        None => derive_output_from(input),
-        Some(t) => PathBuf::from(t),
-    };
-    let input = PathBuf::from(input);
-    (input, output)
+    #[structopt(short, long, parse(from_os_str))]
+    output: PathBuf,
 }
 
 struct Timers<'a> {
@@ -40,7 +24,6 @@ struct Timers<'a> {
     lods: Stopwatch<'a>,
     normalize: Stopwatch<'a>,
     optimize: Stopwatch<'a>,
-    lz4: Stopwatch<'a>,
     save: Stopwatch<'a>,
 }
 
@@ -51,7 +34,6 @@ impl<'a> Default for Timers<'a> {
             lods: Stopwatch::new("lods"),
             normalize: Stopwatch::new("normalize"),
             optimize: Stopwatch::new("optimize"),
-            lz4: Stopwatch::new("lz4"),
             save: Stopwatch::new("save"),
         }
     }
@@ -59,67 +41,23 @@ impl<'a> Default for Timers<'a> {
 
 fn main() {
     let mut timers = Timers::default();
-
-    let matches = App::new("obj2bf")
-        .version("1.0")
-        .author("Matej K. <dobrakmato@gmail.com>")
-        .about("Converts OBJ file format to BF optimized format")
-        .arg(
-            Arg::with_name("content")
-                .long("content")
-                .value_name("CONTENT_PATH")
-                .help("Specifies the content root directory to import the file into")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("input")
-                .short("i")
-                .long("input")
-                .value_name("INPUT_FILE")
-                .help("Path to file to convert / import")
-                .required(true)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("output")
-                .short("o")
-                .long("output")
-                .value_name("OUTPUT_FILE")
-                .help("Path to output file to generate")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("LOD_LEVELS")
-                .long("lod-levels")
-                .help("Specify number of LOD levels to generate")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("optimize")
-                .long("optimize")
-                .help("Optimize the mesh for cache accesses"),
-        )
-        .get_matches();
-
-    let (input, output) = derive_input_and_output(&matches);
+    let opt = Opt::from_args();
 
     timers.load.start();
-    let cnts = std::fs::read_to_string(&input)
-        .map_err(|e| panic!("cannot read file: {}", e))
-        .unwrap();
-    let obj = parse(cnts)
-        .map_err(|e| panic!("cannot parse obj file: {:?}", e))
-        .unwrap();
+    let cnts = std::fs::read_to_string(opt.input).expect("cannot read input file");
+    let obj = parse(cnts).expect("cannot parse input file");
     timers.load.end();
 
     println!("objects={}", obj.objects.len());
 
+    timers.normalize.start();
     let obj = obj
         .objects
         .iter()
         .find(|it| !it.geometry.is_empty())
         .expect("no object with non-empty geometry found!");
-    let geo = Geometry::try_from(obj).ok().unwrap();
+    let geo = geo::Geometry::try_from(obj).ok().unwrap();
+    timers.normalize.end();
 
     println!("geo.positions={}", geo.positions.len());
     println!("geo.normals={}", geo.normals.len());
@@ -129,11 +67,24 @@ fn main() {
     // todo: generate lods (simplify mesh)
     // todo: optimize meshes (forsyth)
 
-    // rewrite to indexed (duplicate values)
-
     // compress
     // save
-    fs::write("dump.obj", geo.to_obj()).unwrap();
+    std::fs::write("dump.obj", geo.to_obj()).unwrap();
+
+    timers.save.start();
+    let file = File::create_compressed(Container::Geometry(Geometry {
+        vertex_format: VertexDataFormat::PositionNormalUv,
+        vertex_data: &[],
+        index_type: IndexType::U16,
+        index_data: &[],
+    }));
+
+    std::fs::write(
+        opt.output,
+        save_bf_to_bytes(&file).expect("cannot serialize image"),
+    )
+    .expect("cannot write data to disk");
+    timers.save.end();
 
     //println!("raw={} compressed={} ratio={}", bf_header.uncompressed, bf_header.compressed, 100.0 * bf_header.compressed as f32 / bf_header.uncompressed as f32);
     println!("time load={}ms", timers.load.total_time().as_millis());
@@ -146,6 +97,5 @@ fn main() {
         "time optimize={}ms",
         timers.optimize.total_time().as_millis()
     );
-    println!("time lz4={}ms", timers.lz4.total_time().as_millis());
     println!("time save={}ms", timers.save.total_time().as_millis());
 }
