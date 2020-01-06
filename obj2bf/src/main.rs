@@ -16,7 +16,7 @@ struct Opt {
     input: PathBuf,
 
     #[structopt(short, long, parse(from_os_str))]
-    output: PathBuf,
+    output: Option<PathBuf>,
 }
 
 struct Timers<'a> {
@@ -44,7 +44,7 @@ fn main() {
     let opt = Opt::from_args();
 
     timers.load.start();
-    let cnts = std::fs::read_to_string(opt.input).expect("cannot read input file");
+    let cnts = std::fs::read_to_string(&opt.input).expect("cannot read input file");
     let obj = parse(cnts).expect("cannot parse input file");
     timers.load.end();
 
@@ -80,7 +80,7 @@ fn main() {
     }));
 
     std::fs::write(
-        opt.output,
+        opt.output.unwrap_or(opt.input.with_extension("bf")),
         save_bf_to_bytes(&file).expect("cannot serialize image"),
     )
     .expect("cannot write data to disk");

@@ -15,7 +15,7 @@ struct Opt {
     input: PathBuf,
 
     #[structopt(short, long, parse(from_os_str))]
-    output: PathBuf,
+    output: Option<PathBuf>,
 
     #[structopt(short, long, parse(try_from_str = parse_format))]
     format: Format,
@@ -68,7 +68,7 @@ fn main() {
 
     // 1. load image
     timers.load.start();
-    let mut input_image = image::open(opt.input).expect("cannot load input file as image");
+    let mut input_image = image::open(&opt.input).expect("cannot load input file as image");
     timers.load.end();
 
     let (width, height) = (input_image.width(), input_image.height());
@@ -151,7 +151,7 @@ fn main() {
     }));
 
     std::fs::write(
-        opt.output,
+        opt.output.unwrap_or(opt.input.with_extension("bf")),
         save_bf_to_bytes(&file).expect("cannot serialize image"),
     )
     .expect("cannot write data to disk");
