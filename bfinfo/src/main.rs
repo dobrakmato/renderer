@@ -50,18 +50,13 @@ fn handle_image(image: Image, dump: bool) {
 
         if dump {
             let decoder = DXTDecoder::new(mipmap, width as u32, height as u32, DXTVariant::DXT1)
-                .map_err(|e| panic!("cannot create dxt decoder: {}", e))
-                .unwrap();
-            let raw = decoder
-                .read_image()
-                .map_err(|e| panic!("cannot decode dxt data: {}", e))
-                .unwrap();
+                .expect("cannot create dxt decoder");
+            let raw = decoder.read_image().expect("cannot decode dxt data");
             let img = ImageBuffer::from_raw(width as u32, height as u32, raw)
                 .map(DynamicImage::ImageRgb8)
                 .expect("cannot create image buffer from decoded data");
             img.save_with_format(format!("dump_mipmap{}.png", level), ImageFormat::PNG)
-                .map_err(|e| panic!("cannot save dumped file: {}", e))
-                .unwrap();
+                .expect("cannot save dumped file");
         }
 
         width /= 2;

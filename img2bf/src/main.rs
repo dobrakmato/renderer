@@ -85,7 +85,6 @@ fn main() {
     timers.vflip.end();
 
     // 3. rgba <-> rgb
-
     timers.channels.start();
     if input_image.color().channel_count() != opt.format.channels() {
         if input_image.color().channel_count() > opt.format.channels() {
@@ -122,8 +121,7 @@ fn main() {
             let mut storage: Vec<u8> = vec![];
             DXTEncoder::new(&mut storage)
                 .encode(raw, img.width(), img.height(), variant)
-                .map_err(|e| panic!("dxt compression failed: {}", e))
-                .unwrap();
+                .expect("dxt compression failed");
             storage
         };
 
