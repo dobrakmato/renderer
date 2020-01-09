@@ -5,7 +5,10 @@ use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::format::ClearValue;
+use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
+use vulkano::image::{AttachmentImage, ImageUsage};
+use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::swapchain;
@@ -43,25 +46,6 @@ fn main() {
     let queue = app.queues.get(0).unwrap();
     let swapchain_format = app.swapchain.format();
 
-    let render_pass = Arc::new(
-        vulkano::single_pass_renderpass!(
-            app.device.clone(),
-            attachments: {
-                color: {
-                    load: Clear,
-                    store: Store,
-                    format: swapchain_format,
-                    samples: 1,
-                }
-            },
-            pass: {
-                color: [color],
-                depth_stencil: {}
-            }
-        )
-        .unwrap(),
-    );
-
     // upload vertex data to gpu
     let bytes =
         std::fs::read("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf")
@@ -98,6 +82,32 @@ fn main() {
     let vs = basic_vert::Shader::load(app.device.clone()).unwrap();
     let fs = basic_frag::Shader::load(app.device.clone()).unwrap();
 
+    // define a render pass object with one pass
+    let render_pass = Arc::new(
+        vulkano::single_pass_renderpass!(
+            app.device.clone(),
+            attachments: {
+                color: {
+                    load: Clear,
+                    store: Store,
+                    format: swapchain_format,
+                    samples: 1,
+                },
+                depth: {
+                    load: Clear,
+                    store: DontCare,
+                    format: Format::D16Unorm,
+                    samples: 1,
+                }
+            },
+            pass: {
+                color: [color],
+                depth_stencil: {depth}
+            }
+        )
+        .unwrap(),
+    );
+
     // create basic pipeline for drawing
     let dims = app.swapchain.dimensions();
     let pipeline = Arc::new(
@@ -115,9 +125,10 @@ fn main() {
                 .iter()
                 .cloned(),
             )
+            .depth_stencil(DepthStencil::simple_depth_test())
             .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
             .build(app.device.clone())
-            .unwrap(),
+            .expect("cannot create graphics pipeline"),
     );
 
     // create framebuffers for each swapchain image
@@ -125,10 +136,23 @@ fn main() {
         .swapchain_images
         .iter()
         .map(|image| {
+            let depth = AttachmentImage::with_usage(
+                app.device.clone(),
+                dims,
+                Format::D16Unorm,
+                ImageUsage {
+                    transient_attachment: true,
+                    input_attachment: true,
+                    ..ImageUsage::none()
+                },
+            )
+            .unwrap();
+
             Arc::new(
-                // todo: why Arc<>?
                 Framebuffer::start(render_pass.clone())
                     .add(image.clone())
+                    .unwrap()
+                    .add(depth)
                     .unwrap()
                     .build()
                     .unwrap(),
@@ -158,7 +182,10 @@ fn main() {
                 .begin_render_pass(
                     framebuffer,
                     false,
-                    vec![ClearValue::Float([0.0, 0.0, 0.0, 0.0])],
+                    vec![
+                        ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                        ClearValue::Depth(1.0),
+                    ],
                 )
                 .unwrap()
                 .draw_indexed(
