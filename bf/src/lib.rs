@@ -165,6 +165,20 @@ impl<'a> File<'a> {
     pub fn create_compressed(container: Container<'a>) -> Self {
         Self::with_data(Data::Uncompressed(container))
     }
+
+    fn container(self) -> Container<'a> {
+        match self.data {
+            Data::Compressed(c) => c.0,
+            Data::Uncompressed(x) => x,
+        }
+    }
+
+    pub fn try_to_geometry(self) -> Result<Geometry<'a>, ()> {
+        match self.container() {
+            Container::Image(_) => Err(()),
+            Container::Geometry(g) => Ok(g),
+        }
+    }
 }
 
 #[derive(Debug)]
