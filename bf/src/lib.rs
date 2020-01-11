@@ -75,6 +75,28 @@ pub struct Image<'a> {
     pub mipmap_data: &'a [u8],
 }
 
+impl<'a> Image<'a> {
+    /// Returns the number of mip-maps stored in `mipmap_data` buffer
+    /// of this Image struct. If the Image contains only one level of
+    /// mip-maps this function returns 1.
+    pub fn mipmap_count(&self) -> u32 {
+        // todo: make recurrent relation O(1)
+        let mut count = 0u32;
+        let mut index = 0;
+        let mut width = self.width;
+        let mut height = self.height;
+
+        while index < self.mipmap_data.len() {
+            index += width as usize * height as usize * self.format.bits_per_pixel() as usize / 8;
+            count += 1;
+            width /= 2;
+            height /= 2;
+        }
+
+        count
+    }
+}
+
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum VertexDataFormat {
     // vec3 (pos), vec3(nor), vec2(uv)
@@ -175,8 +197,15 @@ impl<'a> File<'a> {
 
     pub fn try_to_geometry(self) -> Result<Geometry<'a>, ()> {
         match self.container() {
-            Container::Image(_) => Err(()),
             Container::Geometry(g) => Ok(g),
+            _ => Err(()),
+        }
+    }
+
+    pub fn try_to_image(self) -> Result<Image<'a>, ()> {
+        match self.container() {
+            Container::Image(i) => Ok(i),
+            _ => Err(()),
         }
     }
 }
