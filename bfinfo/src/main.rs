@@ -35,6 +35,7 @@ fn main() {
 
 fn handle_image(image: Image, dump: bool) {
     println!("image");
+    println!("format={:?}", image.format);
     println!("mipmaps={}", image.mipmap_count());
 
     let mut width = image.width;
