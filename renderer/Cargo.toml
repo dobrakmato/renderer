@@ -5,6 +5,7 @@ authors = ["Matej <dobrakmato@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+cgmath = "0.17.0"
 bf = { path = "../bf" }
 log = "0.4.8"
 simple_logger = "1.4.0"

@@ -23,6 +23,7 @@ impl Window {
     /// Creates a new window and initialized the surface and
     /// swapchain objects for specified device and queue.
     pub fn new() -> Self {
+        // todo: STEP 1: initialize vulkan instance
         let app_info = app_info_from_cargo_toml!();
         let extensions = vulkano_win::required_extensions();
         let instance = Instance::new(
@@ -36,6 +37,16 @@ impl Window {
         debug!("supported extensions: {:?}", supported_extensions);
         debug!("loaded extensions: {:?}", extensions);
 
+        // todo: STEP 2: create a windows and event loop
+        let events_loop = EventsLoop::new();
+        let surface = WindowBuilder::new()
+            .with_title("window")
+            .with_dimensions(LogicalSize::new(1600.0, 900.0))
+            .with_resizable(false)
+            .build_vk_surface(&events_loop, instance.clone())
+            .expect("cannot create window");
+
+        // todo: STEP 3: create logical device and queues for dispatching commands
         // todo: support choosing a GPU
         let physical = PhysicalDevice::enumerate(&instance)
             .inspect(|device| {
@@ -60,14 +71,6 @@ impl Window {
             "max_uniform_buffer_range: {}",
             physical.limits().max_uniform_buffer_range()
         );
-
-        let events_loop = EventsLoop::new();
-        let surface = WindowBuilder::new()
-            .with_title("window")
-            .with_dimensions(LogicalSize::new(1600.0, 900.0))
-            .with_resizable(false)
-            .build_vk_surface(&events_loop, instance.clone())
-            .expect("cannot create window");
 
         // find first queue that we can use to do graphics
         let graphical_queue_family = physical
@@ -95,6 +98,7 @@ impl Window {
 
         let queues = queues.collect::<Vec<_>>();
 
+        // todo: STEP 4: create swapchain for rendering to window
         let caps = surface
             .capabilities(device.physical_device())
             .expect("cannot get surface capabilities");
@@ -162,13 +166,33 @@ pub struct BasicVertex {
 }
 
 impl BasicVertex {
-    pub fn slice_from_bytes(bytes: &[u8]) -> &[BasicVertex] {
+    /// Unsafe: it is unsafe to read the data from the returned
+    /// slice as it may be mis-aligned.
+    pub(crate) unsafe fn slice_from_bytes(bytes: &[u8]) -> &[BasicVertex] {
         assert_eq!(bytes.len() % std::mem::size_of::<BasicVertex>(), 0);
 
-        // todo: is this safe?
         let ptr = bytes.as_ptr() as *const BasicVertex;
-        unsafe { std::slice::from_raw_parts(ptr, bytes.len() / std::mem::size_of::<BasicVertex>()) }
+        std::slice::from_raw_parts(ptr, bytes.len() / std::mem::size_of::<BasicVertex>())
     }
 }
 
 vulkano::impl_vertex!(BasicVertex, position, normal, uv);
+
+struct Frame {}
+
+impl Frame {
+    fn draw() {}
+}
+
+enum Pass {
+    Shadows,
+    Skybox,
+    GBuffer,
+    IndirectLighting,
+    DirectLighting,
+    Particles,
+    Composite,
+    PostProcessing,
+    UI,
+    Finished,
+}

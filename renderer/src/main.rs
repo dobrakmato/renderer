@@ -1,20 +1,27 @@
+use crate::image::ToVulkanFormat;
 use crate::render::{BasicVertex, Window};
 use bf::load_bf_from_bytes;
-use log::warn;
+use cgmath::{vec3, Deg, Matrix4, PerspectiveFov, Point3, Rad};
+use log::{info, warn};
 use std::sync::Arc;
-use vulkano::buffer::{BufferUsage, ImmutableBuffer};
+use std::time::Instant;
+use vulkano::buffer::{BufferUsage, CpuBufferPool, ImmutableBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::format::ClearValue;
 use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
-use vulkano::image::{AttachmentImage, ImageUsage};
+use vulkano::image::{AttachmentImage, Dimensions, ImageUsage, ImmutableImage, MipmapsCount};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
+use vulkano::sampler::Sampler;
+use vulkano::sampler::{Filter, MipmapMode, SamplerAddressMode};
 use vulkano::swapchain;
 use vulkano::sync::GpuFuture;
 use winit::{Event, WindowEvent};
 
+mod image;
 mod render;
 
 mod basic_vert {
@@ -46,6 +53,8 @@ fn main() {
     let queue = app.queues.get(0).unwrap();
     let swapchain_format = app.swapchain.format();
 
+    info!("loading geometry and image data...");
+
     // upload vertex data to gpu
     let bytes =
         std::fs::read("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf")
@@ -53,7 +62,7 @@ fn main() {
     let file = load_bf_from_bytes(bytes.as_slice()).expect("cannot decode bf file");
     let geometry = file.try_to_geometry().unwrap();
 
-    let vertices = BasicVertex::slice_from_bytes(geometry.vertex_data);
+    let vertices = unsafe { BasicVertex::slice_from_bytes(geometry.vertex_data) };
     let indices = unsafe {
         std::slice::from_raw_parts(
             geometry.index_data.as_ptr() as *const u16, // todo: safety?
@@ -77,6 +86,32 @@ fn main() {
     )
     .expect("cannot allocate memory for vertex buffer");
     future.then_signal_fence_and_flush().ok();
+
+    let bytes = std::fs::read(
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",
+    )
+    .expect("cannot read file");
+    let file = load_bf_from_bytes(bytes.as_slice()).expect("cannot decode bf file");
+    let image = file.try_to_image().unwrap();
+    let mipmap0 = &image.mipmap_data[0..(image.width as usize
+        * image.height as usize
+        * image.format.bits_per_pixel() as usize
+        / 8)
+        + 3078]; // todo: fix vulkano bug - wrong calculated size
+
+    let (image, future) = ImmutableImage::from_iter(
+        mipmap0.iter().cloned(),
+        Dimensions::Dim2d {
+            width: image.width as u32,
+            height: image.height as u32,
+        },
+        image.format.to_vulkan_format(),
+        queue.clone(),
+    )
+    .expect("cannot allocate image");
+    future.then_signal_fence_and_flush().ok();
+
+    info!("data loaded!");
 
     // create shaders on gpu from precompiled spir-v code
     let vs = basic_vert::Shader::load(app.device.clone()).unwrap();
@@ -131,6 +166,35 @@ fn main() {
             .expect("cannot create graphics pipeline"),
     );
 
+    // create sampler
+    let sampler = Sampler::new(
+        app.device.clone(),
+        Filter::Linear,
+        Filter::Linear,
+        MipmapMode::Linear,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
+        0.0,
+        16.0,
+        1.0,
+        100.0,
+    )
+    .expect("cannot create sampler");
+
+    // create descriptor set 0
+    let descriptor_set0 = Arc::new(
+        PersistentDescriptorSet::start(pipeline.clone(), 0)
+            .add_sampled_image(image.clone(), sampler.clone())
+            .expect("cannot add sampled image to descriptor set")
+            .build()
+            .expect("cannot build descriptor set"),
+    );
+
+    // create uniform buffer for descriptor set 1
+    struct MatrixData(Matrix4<f32>, Matrix4<f32>, Matrix4<f32>);
+    let ubo_matrix_data_pool = CpuBufferPool::<MatrixData>::uniform_buffer(app.device.clone());
+
     // create framebuffers for each swapchain image
     let framebuffers = app
         .swapchain_images
@@ -163,6 +227,7 @@ fn main() {
     // main game-loop
     let mut previous_frame_end: Box<dyn GpuFuture> =
         Box::new(vulkano::sync::now(app.device.clone()));
+    let start = Instant::now();
     loop {
         previous_frame_end.cleanup_finished(); // todo: why is this here?
 
@@ -173,6 +238,33 @@ fn main() {
                 Err(err) => panic!("{:?}", err), // device unplugged or window resized
             };
         let framebuffer = framebuffers[image_num].clone();
+
+        // simple update: recalculate mvp for our object
+        let scale = Matrix4::from_scale(0.03);
+        let rotation = Matrix4::from_angle_y(Deg(start.elapsed().as_secs_f32() * 60.0));
+        let translate = Matrix4::from_translation(vec3(0.0, 0.0, 0.0));
+        let view = Matrix4::look_at(
+            Point3::new(0.3, 0.3, 1.0),
+            Point3::new(0.0, 0.0, 0.0),
+            vec3(0.0, -1.0, 0.0),
+        );
+        let projection: Matrix4<f32> = PerspectiveFov {
+            fovy: Deg(90.0).into(),
+            aspect: 16.0 / 9.0,
+            near: 0.01,
+            far: 100.0,
+        }
+        .into();
+        let mvp = MatrixData(translate * scale * rotation, view, projection);
+        let ubo = ubo_matrix_data_pool
+            .next(mvp)
+            .expect("cannot create next sub-buffer");
+
+        let per_object_descriptor_set = PersistentDescriptorSet::start(pipeline.clone(), 1)
+            .add_buffer(ubo)
+            .expect("cannot add ubo to pds set=1")
+            .build()
+            .expect("cannot build pds set=1");
 
         // start building the command buffer that will contain all
         // rendering commands for this frame.
@@ -193,8 +285,8 @@ fn main() {
                     &DynamicState::none(),
                     vertex_buffer.clone(),
                     index_buffer.clone(),
-                    (),
-                    (),
+                    (descriptor_set0.clone(), per_object_descriptor_set),
+                    start.elapsed().as_secs_f32(),
                 )
                 .unwrap()
                 .end_render_pass()
