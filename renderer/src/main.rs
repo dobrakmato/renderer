@@ -1,24 +1,28 @@
 use crate::image::ToVulkanFormat;
 use crate::render::{BasicVertex, Window};
 use bf::load_bf_from_bytes;
-use cgmath::{vec3, Deg, Matrix4, PerspectiveFov, Point3, Rad};
-use log::{info, warn};
+use cgmath::{vec3, Deg, Matrix4, PerspectiveFov, Point3};
+use log::{error, info, warn};
+use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
 use std::time::Instant;
 use vulkano::buffer::{BufferUsage, CpuBufferPool, ImmutableBuffer};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::command_buffer::{
+    AutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferExecFuture, DynamicState,
+};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
+use vulkano::device::{Device, Queue};
 use vulkano::format::ClearValue;
 use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
-use vulkano::image::{AttachmentImage, Dimensions, ImageUsage, ImmutableImage, MipmapsCount};
+use vulkano::image::{AttachmentImage, Dimensions, ImageUsage, ImmutableImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::Sampler;
 use vulkano::sampler::{Filter, MipmapMode, SamplerAddressMode};
 use vulkano::swapchain;
-use vulkano::sync::GpuFuture;
+use vulkano::sync::{GpuFuture, NowFuture};
 use winit::{Event, WindowEvent};
 
 mod image;
@@ -42,35 +46,45 @@ mod basic_frag {
     }
 }
 
-fn main() {
-    simple_logger::init().unwrap();
-
-    #[cfg(debug_assertions)]
-    warn!("this is a debug build. performance may hurt.");
-
-    let mut app = Window::new();
-
-    let queue = app.queues.get(0).unwrap();
-    let swapchain_format = app.swapchain.format();
-
-    info!("loading geometry and image data...");
-
-    // upload vertex data to gpu
-    let bytes =
-        std::fs::read("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf")
-            .expect("cannot read file");
+fn load_geometry(
+    queue: Arc<Queue>,
+    file: &str,
+) -> (
+    Arc<ImmutableBuffer<[BasicVertex]>>,
+    Arc<ImmutableBuffer<[u16]>>,
+) {
+    let bytes = std::fs::read(file).expect("cannot read file");
     let file = load_bf_from_bytes(bytes.as_slice()).expect("cannot decode bf file");
-    let geometry = file.try_to_geometry().unwrap();
+    let geometry = file.try_to_geometry().expect("bf file is not geometry");
 
-    let vertices = unsafe { BasicVertex::slice_from_bytes(geometry.vertex_data) };
-    let indices = unsafe {
-        std::slice::from_raw_parts(
-            geometry.index_data.as_ptr() as *const u16, // todo: safety?
-            geometry.index_data.len() / 2,
-        )
-    };
+    // dummy Vecs to extend life-time of variables
+    let mut vertex_vec = Vec::new();
+    let mut index_vec = Vec::new();
 
-    // todo: why we need to iter.clone() ???
+    /// This function either just returns the transmuted slice
+    /// or performs a copy if the data is misaligned.
+    fn possible_non_zero_copy<'a, T: TriviallyTransmutable>(
+        bytes: &'a [u8],
+        possible_owner: &'a mut std::vec::Vec<T>,
+    ) -> &'a [T] {
+        match safe_transmute::transmute_many_pedantic::<T>(bytes) {
+            Ok(safe) => safe,
+            Err(Error::Unaligned(e)) => {
+                error!(
+                    "cannot zero-copy unaligned &[{:?}] data: {:?}",
+                    std::any::type_name::<T>(),
+                    e
+                );
+                *possible_owner = e.copy();
+                possible_owner.as_slice()
+            }
+            Err(e) => panic!("Unexpected error: {}", e),
+        }
+    }
+
+    let vertices = possible_non_zero_copy::<BasicVertex>(geometry.vertex_data, &mut vertex_vec);
+    let indices = possible_non_zero_copy::<u16>(geometry.index_data, &mut index_vec);
+
     let (vertex_buffer, future) = ImmutableBuffer::from_iter(
         vertices.iter().cloned(),
         BufferUsage::vertex_buffer(),
@@ -86,6 +100,28 @@ fn main() {
     )
     .expect("cannot allocate memory for vertex buffer");
     future.then_signal_fence_and_flush().ok();
+
+    (vertex_buffer, index_buffer)
+}
+
+fn main() {
+    simple_logger::init().unwrap();
+
+    #[cfg(debug_assertions)]
+    warn!("this is a debug build. performance may hurt.");
+
+    let mut app = Window::new();
+
+    let queue = app.queues.get(0).unwrap();
+    let swapchain_format = app.swapchain.format();
+
+    info!("loading geometry and image data...");
+
+    // upload vertex data to gpu
+    let (vertex_buffer, index_buffer) = load_geometry(
+        queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf",
+    );
 
     let bytes = std::fs::read(
         "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",

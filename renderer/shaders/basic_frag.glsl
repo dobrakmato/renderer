@@ -12,19 +12,18 @@ struct LightData {
     sampler2D shadowMap;
 };
 
-struct MaterialData {
-    vec3 albedo_color;
-    vec3 emission_color;
-    sampler2D albedo_map;
-    sampler2D normal_map;
-    sampler2D metallic_map;
-    sampler2D roughness_map;
-    sampler2D occlusion_map;
-    sampler2D emission_map;
-    sampler2D height_map;
-};
-
-layout(set = 0, binding = 0) uniform sampler2D base_texture;
+// material textures
+layout(set = 0, binding = 0) uniform sampler2D albedo_map;
+// layout(set = 0, binding = 1) uniform sampler2D normal_map;
+// layout(set = 0, binding = 2) uniform sampler2D metallic_map;
+// layout(set = 0, binding = 3) uniform sampler2D roughness_map;
+// layout(set = 0, binding = 4) uniform sampler2D occlusion_map;
+// layout(set = 0, binding = 5) uniform sampler2D emission_map;
+// layout(set = 0, binding = 6) uniform sampler2D height_map;
+// layout(set = 0, binding = 7) uniform MaterialData {
+//     vec3 albedo_color;
+//     vec3 emissive_color;
+// } material_data;
 
 layout(push_constant) uniform PushConstants {
     float time;
@@ -36,7 +35,7 @@ void main() {
     vec3 color = vec3(0.9, 0.9, 0.6) / 2;
     vec3 result = (dot(normal, dir) * color) + vec3(0.45, 0.45, 0.5);
 
-    vec3 base_color = texture(base_texture, uv).xyz;
+    vec3 base_color = texture(albedo_map, uv).xyz;
 
     f_color = vec4(base_color * result, 1.0);
 }

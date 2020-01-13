@@ -1,6 +1,8 @@
 use bf::Format as BfFormat;
 use vulkano::format::Format;
 
+/// Trait used to implement conversion from `bf::Format` to
+/// `vulkano::format::Format`.
 pub trait ToVulkanFormat {
     fn to_vulkan_format(&self) -> Format;
 }

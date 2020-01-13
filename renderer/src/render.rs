@@ -1,4 +1,5 @@
 use log::{debug, info};
+use safe_transmute::TriviallyTransmutable;
 use std::sync::Arc;
 use vulkano::app_info_from_cargo_toml;
 use vulkano::device::{Device, DeviceExtensions, Queue};
@@ -158,23 +159,14 @@ impl Window {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct BasicVertex {
     position: [f32; 3],
     normal: [f32; 3],
     uv: [f32; 2],
 }
 
-impl BasicVertex {
-    /// Unsafe: it is unsafe to read the data from the returned
-    /// slice as it may be mis-aligned.
-    pub(crate) unsafe fn slice_from_bytes(bytes: &[u8]) -> &[BasicVertex] {
-        assert_eq!(bytes.len() % std::mem::size_of::<BasicVertex>(), 0);
-
-        let ptr = bytes.as_ptr() as *const BasicVertex;
-        std::slice::from_raw_parts(ptr, bytes.len() / std::mem::size_of::<BasicVertex>())
-    }
-}
+unsafe impl TriviallyTransmutable for BasicVertex {}
 
 vulkano::impl_vertex!(BasicVertex, position, normal, uv);
 
