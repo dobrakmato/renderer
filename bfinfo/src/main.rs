@@ -38,33 +38,26 @@ fn handle_image(image: Image, dump: bool) {
     println!("format={:?}", image.format);
     println!("mipmaps={}", image.mipmap_count());
 
-    let mut width = image.width;
-    let mut height = image.height;
-    let mut level = 0;
-    let mut index = 0;
-    while index < image.mipmap_data.len() {
-        let size = width as usize * height as usize * image.format.bits_per_pixel() as usize / 8;
+    for (idx, mipmap) in image.mipmaps().enumerate() {
+        let size = mipmap.width * mipmap.height * image.format.bits_per_pixel() as usize / 8;
         println!(
             "mipmap level={} width={} height={} size={}",
-            level, width, height, size
+            idx, mipmap.width, mipmap.height, size
         );
-        let mipmap = &image.mipmap_data[index..index + size];
 
         if dump {
-            let decoder = DXTDecoder::new(mipmap, width as u32, height as u32, DXTVariant::DXT1)
+            let width = mipmap.width as u32;
+            let height = mipmap.height as u32;
+
+            let decoder = DXTDecoder::new(mipmap.data, width, height, DXTVariant::DXT1)
                 .expect("cannot create dxt decoder");
             let raw = decoder.read_image().expect("cannot decode dxt data");
-            let img = ImageBuffer::from_raw(width as u32, height as u32, raw)
+            let img = ImageBuffer::from_raw(width, height, raw)
                 .map(DynamicImage::ImageRgb8)
                 .expect("cannot create image buffer from decoded data");
-            img.save_with_format(format!("dump_mipmap{}.png", level), ImageFormat::PNG)
+            img.save_with_format(format!("dump_mipmap{}.png", idx), ImageFormat::PNG)
                 .expect("cannot save dumped file");
         }
-
-        width /= 2;
-        height /= 2;
-        level += 1;
-        index += size;
     }
 }
 

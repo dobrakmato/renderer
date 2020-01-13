@@ -95,6 +95,53 @@ impl<'a> Image<'a> {
 
         count
     }
+
+    /// Returns iterator that splits the `mipmap_data` bytes slice into
+    /// type that represents individual mip-maps in this Image.
+    pub fn mipmaps(&self) -> MipMaps<'a> {
+        MipMaps {
+            data: self.mipmap_data,
+            format: self.format,
+            width: self.width as usize,
+            height: self.height as usize,
+            index: 0,
+        }
+    }
+}
+
+pub struct MipMaps<'a> {
+    data: &'a [u8],
+    format: Format,
+    index: usize,
+    width: usize,
+    height: usize,
+}
+
+pub struct MipMap<'a> {
+    pub data: &'a [u8],
+    pub width: usize,
+    pub height: usize,
+}
+
+impl<'a> Iterator for MipMaps<'a> {
+    type Item = MipMap<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.data.len() {
+            let start = self.index;
+            let len = self.width * self.height * self.format.bits_per_pixel() as usize / 8;
+
+            self.index += len;
+            self.width /= 2;
+            self.height /= 2;
+            return Some(MipMap {
+                data: &self.data[start..start + len],
+                width: self.width * 2,
+                height: self.height * 2,
+            });
+        }
+        None
+    }
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]

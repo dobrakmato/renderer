@@ -1,0 +1,57 @@
+[d] - [bf] use bincode & serde
+[d] - [bfutils] use structopt
+[d] - [r] pouzit mailbox, a az potom fifo
+
+- [opt][bf] make mipmap_count() O(1) by computing recurrent relation
+- [opt][obj2bf] fix O(n^2) vertex compare algo stored in btree instead of Vec
+- [obj2bf] decide how does recalculate_normals() work with duped (on import) vertices
+- [gh] revisit gh actions and setup coverage testing
+- [matmake] tool to generate material file from images and configuration
+- [img2bf] use intel_tex crate to provide BC7 and better compression & image quality
+
+- [opt][r] move transfer operations into transfer queue
+- [r] use debug_markers in rendering pipeline with UnsafeCommandBufferBuilder
+- [r] use transient images as framebuffer attachment's in render pass
+- [r] get rid of .unwrap() from everywhere
+- [r] oddelit winit of vulkano
+- [r] nepouzivat vulkano-shaders
+- [r] vyrobit shader hot-realoding
+- [r] support choosing of gpu when multiple gpus on computer
+- [r] support for sparse memory bindings
+- [r] support for BC7 and modern DXT compression formats
+
+- [r/io] rework loading pipeline to reduce copies and time
+- [r/io] load resources asynchronously
+
+Device (vulkan devices etc...)
+Window (winit abstraction)
+EventLoop (winit & input)
+Input (input abstraction)
+Graphics (low level graphics api)
+
+Resource<T> (potentially unloaded resource)
+
+Mesh<VDef, I>
+ - IBO
+ - VBO
+Texture
+
+Material
+ - descriptor_set
+ - textures...
+Light
+Camera
+
+
+MeshComp
+MatComp
+TransformComp
+LightComp
+RigidbodyComp
+CameraComp
+
+bf
+log
+vulkano
+winit
+
