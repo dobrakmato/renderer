@@ -1,31 +1,31 @@
 use crate::image::ToVulkanFormat;
+use crate::mesh::Mesh;
 use crate::render::{BasicVertex, Window};
-use bf::load_bf_from_bytes;
+use bf::{load_bf_from_bytes, IndexType};
 use cgmath::{vec3, Deg, Matrix4, PerspectiveFov, Point3};
 use log::{error, info, warn};
 use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
 use std::time::Instant;
 use vulkano::buffer::{BufferUsage, CpuBufferPool, ImmutableBuffer};
-use vulkano::command_buffer::{
-    AutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferExecFuture, DynamicState,
-};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferExecFuture, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
-use vulkano::device::{Device, Queue};
+use vulkano::device::Queue;
 use vulkano::format::ClearValue;
 use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
-use vulkano::image::{AttachmentImage, Dimensions, ImageUsage, ImmutableImage};
+use vulkano::image::{AttachmentImage, Dimensions, ImageAccess, ImageUsage, ImmutableImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::Sampler;
 use vulkano::sampler::{Filter, MipmapMode, SamplerAddressMode};
 use vulkano::swapchain;
-use vulkano::sync::{GpuFuture, NowFuture};
+use vulkano::sync::GpuFuture;
 use winit::{Event, WindowEvent};
 
 mod image;
+mod mesh;
 mod render;
 
 mod basic_vert {
@@ -46,13 +46,9 @@ mod basic_frag {
     }
 }
 
-fn load_geometry(
-    queue: Arc<Queue>,
-    file: &str,
-) -> (
-    Arc<ImmutableBuffer<[BasicVertex]>>,
-    Arc<ImmutableBuffer<[u16]>>,
-) {
+/// This function loads a geometry BF file into GPU
+/// memory and returns vertex and index buffers.
+fn load_geometry(queue: Arc<Queue>, file: &str) -> Mesh<BasicVertex, u16> {
     let bytes = std::fs::read(file).expect("cannot read file");
     let file = load_bf_from_bytes(bytes.as_slice()).expect("cannot decode bf file");
     let geometry = file.try_to_geometry().expect("bf file is not geometry");
@@ -82,26 +78,58 @@ fn load_geometry(
         }
     }
 
+    // todo: support multiple index types
+    assert_eq!(geometry.index_type, IndexType::U16);
+
     let vertices = possible_non_zero_copy::<BasicVertex>(geometry.vertex_data, &mut vertex_vec);
     let indices = possible_non_zero_copy::<u16>(geometry.index_data, &mut index_vec);
 
-    let (vertex_buffer, future) = ImmutableBuffer::from_iter(
-        vertices.iter().cloned(),
-        BufferUsage::vertex_buffer(),
-        queue.clone(),
-    )
-    .expect("cannot allocate memory for vertex buffer");
-    future.then_signal_fence_and_flush().ok();
+    fn create_buffer_wait<T: 'static + Clone + Send + Sync>(
+        data: &[T],
+        usage: BufferUsage,
+        queue: Arc<Queue>,
+    ) -> Arc<ImmutableBuffer<[T]>> {
+        let (buffer, future) = ImmutableBuffer::from_iter(data.iter().cloned(), usage, queue)
+            .expect("cannot allocate memory for buffer");
+        future.then_signal_fence_and_flush().ok();
+        buffer
+    }
 
-    let (index_buffer, future) = ImmutableBuffer::from_iter(
-        indices.iter().cloned(),
-        BufferUsage::index_buffer(),
-        queue.clone(),
-    )
-    .expect("cannot allocate memory for vertex buffer");
-    future.then_signal_fence_and_flush().ok();
+    let vertex_buffer = create_buffer_wait(vertices, BufferUsage::vertex_buffer(), queue.clone());
+    let index_buffer = create_buffer_wait(indices, BufferUsage::index_buffer(), queue);
 
-    (vertex_buffer, index_buffer)
+    Mesh {
+        vertex_buffer,
+        index_buffer,
+    }
+}
+
+/// This function loads an image BF file into GPU
+/// memory and returns immutable image.
+fn load_image(queue: Arc<Queue>, file: &str) -> Arc<ImmutableImage<Format>> {
+    let bytes = std::fs::read(file).expect("cannot read file");
+    let file = load_bf_from_bytes(bytes.as_slice()).expect("cannot decode bf file");
+    let image = file.try_to_image().expect("bf file is not image");
+
+    // todo: support multiple mipmaps
+    let mipmap0 = &image.mipmap_data[0..(image.width as usize
+        * image.height as usize
+        * image.format.bits_per_pixel() as usize
+        / 8)
+        + 3078]; // todo: fix vulkano bug - wrong calculated size
+
+    let (image, future) = ImmutableImage::from_iter(
+        mipmap0.iter().cloned(),
+        Dimensions::Dim2d {
+            width: image.width as u32,
+            height: image.height as u32,
+        },
+        image.format.to_vulkan_format(),
+        queue,
+    )
+    .expect("cannot allocate image");
+    future.then_signal_fence_and_flush().ok();
+    image
 }
 
 fn main() {
@@ -116,37 +144,15 @@ fn main() {
     let swapchain_format = app.swapchain.format();
 
     info!("loading geometry and image data...");
-
-    // upload vertex data to gpu
-    let (vertex_buffer, index_buffer) = load_geometry(
+    let rock_mesh = load_geometry(
         queue.clone(),
         "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf",
     );
 
-    let bytes = std::fs::read(
-        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",
-    )
-    .expect("cannot read file");
-    let file = load_bf_from_bytes(bytes.as_slice()).expect("cannot decode bf file");
-    let image = file.try_to_image().unwrap();
-    let mipmap0 = &image.mipmap_data[0..(image.width as usize
-        * image.height as usize
-        * image.format.bits_per_pixel() as usize
-        / 8)
-        + 3078]; // todo: fix vulkano bug - wrong calculated size
-
-    let (image, future) = ImmutableImage::from_iter(
-        mipmap0.iter().cloned(),
-        Dimensions::Dim2d {
-            width: image.width as u32,
-            height: image.height as u32,
-        },
-        image.format.to_vulkan_format(),
+    let image = load_image(
         queue.clone(),
-    )
-    .expect("cannot allocate image");
-    future.then_signal_fence_and_flush().ok();
-
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",
+    );
     info!("data loaded!");
 
     // create shaders on gpu from precompiled spir-v code
@@ -319,8 +325,8 @@ fn main() {
                 .draw_indexed(
                     pipeline.clone(),
                     &DynamicState::none(),
-                    vertex_buffer.clone(),
-                    index_buffer.clone(),
+                    rock_mesh.vertex_buffer.clone(),
+                    rock_mesh.index_buffer.clone(),
                     (descriptor_set0.clone(), per_object_descriptor_set),
                     start.elapsed().as_secs_f32(),
                 )
