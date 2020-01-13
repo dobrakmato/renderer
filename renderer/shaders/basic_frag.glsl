@@ -29,7 +29,6 @@ layout(push_constant) uniform PushConstants {
     float time;
 } push_constants;
 
-
 void main() {
     vec3 dir = normalize(vec3(0.8, -0.5, -0.8));
     vec3 color = vec3(0.9, 0.9, 0.6) / 2;

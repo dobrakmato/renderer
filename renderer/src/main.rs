@@ -7,14 +7,16 @@ use log::{error, info, warn};
 use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
 use std::time::Instant;
-use vulkano::buffer::{BufferUsage, CpuBufferPool, ImmutableBuffer};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferExecFuture, DynamicState};
+use vulkano::buffer::{
+    BufferSlice, BufferUsage, CpuAccessibleBuffer, CpuBufferPool, ImmutableBuffer,
+};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::Queue;
 use vulkano::format::ClearValue;
 use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
-use vulkano::image::{AttachmentImage, Dimensions, ImageAccess, ImageUsage, ImmutableImage};
+use vulkano::image::{AttachmentImage, Dimensions, ImageLayout, ImageUsage, ImmutableImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
@@ -27,24 +29,7 @@ use winit::{Event, WindowEvent};
 mod image;
 mod mesh;
 mod render;
-
-mod basic_vert {
-    #[allow(dead_code)] // Used to force recompilation of shader change
-    const X: &str = include_str!("../shaders/basic_vert.glsl");
-    vulkano_shaders::shader! {
-        ty: "vertex",
-        path: "shaders/basic_vert.glsl"
-    }
-}
-
-mod basic_frag {
-    #[allow(dead_code)] // Used to force recompilation of shader change
-    const X: &str = include_str!("../shaders/basic_frag.glsl");
-    vulkano_shaders::shader! {
-        ty: "fragment",
-        path: "shaders/basic_frag.glsl"
-    }
-}
+mod shaders;
 
 /// This function loads a geometry BF file into GPU
 /// memory and returns vertex and index buffers.
@@ -111,25 +96,66 @@ fn load_image(queue: Arc<Queue>, file: &str) -> Arc<ImmutableImage<Format>> {
     let file = load_bf_from_bytes(bytes.as_slice()).expect("cannot decode bf file");
     let image = file.try_to_image().expect("bf file is not image");
 
-    // todo: support multiple mipmaps
-    let mipmap0 = &image.mipmap_data[0..(image.width as usize
-        * image.height as usize
-        * image.format.bits_per_pixel() as usize
-        / 8)
-        + 3078]; // todo: fix vulkano bug - wrong calculated size
+    // todo: rewrite to unsafe code to allocate single buffer and copy all mipmaps
+    //       in one vkCmdCopyBufferToImage call using multiple regions
 
-    let (image, future) = ImmutableImage::from_iter(
-        mipmap0.iter().cloned(),
+    // create image on the gpu and allocate memory for it
+    let (immutable, init) = ImmutableImage::uninitialized(
+        queue.device().clone(),
         Dimensions::Dim2d {
             width: image.width as u32,
             height: image.height as u32,
         },
         image.format.to_vulkan_format(),
-        queue,
+        image.mipmap_count(),
+        ImageUsage {
+            transfer_destination: true,
+            sampled: true,
+            ..ImageUsage::none()
+        },
+        ImageLayout::ShaderReadOnlyOptimal,
+        Some(queue.family()),
     )
-    .expect("cannot allocate image");
+    .expect("cannot create immutable image");
+    let init = Arc::new(init);
+
+    let mut cb = AutoCommandBufferBuilder::new(queue.device().clone(), queue.family()).unwrap();
+
+    for (idx, mipmap) in image.mipmaps().enumerate() {
+        // todo: bug in vulkano #1292
+        let mut padded = mipmap.data.to_vec();
+        padded.extend_from_slice(&[0u8; 4096]);
+
+        let source = CpuAccessibleBuffer::from_iter(
+            queue.device().clone(),
+            BufferUsage::transfer_source(),
+            padded.iter().cloned(),
+        )
+        .unwrap();
+
+        cb = cb
+            .copy_buffer_to_image_dimensions(
+                source,
+                init.clone(),
+                [0, 0, 0],
+                [mipmap.width as u32, mipmap.height as u32, 1],
+                0,
+                1,
+                idx as u32,
+            )
+            .unwrap();
+    }
+
+    let cb = cb.build().unwrap();
+
+    let future = match cb.execute(queue) {
+        Ok(f) => f,
+        Err(_) => unreachable!(),
+    };
+
     future.then_signal_fence_and_flush().ok();
-    image
+
+    immutable
 }
 
 fn main() {
@@ -156,8 +182,8 @@ fn main() {
     info!("data loaded!");
 
     // create shaders on gpu from precompiled spir-v code
-    let vs = basic_vert::Shader::load(app.device.clone()).unwrap();
-    let fs = basic_frag::Shader::load(app.device.clone()).unwrap();
+    let vs = shaders::basic_vert::Shader::load(app.device.clone()).unwrap();
+    let fs = shaders::basic_frag::Shader::load(app.device.clone()).unwrap();
 
     // define a render pass object with one pass
     let render_pass = Arc::new(
@@ -271,7 +297,7 @@ fn main() {
         Box::new(vulkano::sync::now(app.device.clone()));
     let start = Instant::now();
     loop {
-        previous_frame_end.cleanup_finished(); // todo: why is this here?
+        previous_frame_end.cleanup_finished();
 
         // acquire next framebuffer to write to
         let (image_num, acquire_future) =

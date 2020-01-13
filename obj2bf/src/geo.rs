@@ -180,7 +180,6 @@ impl TryFrom<&Object> for Geometry {
                 (vk, Some(tk), Some(nk)),
             ) = x.primitive
             {
-                // todo: unroll
                 for (v, t, n) in [(vi, ti, ni), (vj, tj, nj), (vk, tk, nk)].iter() {
                     let triplet = (*v, *t, *n);
                     let idx = triplets

@@ -10,6 +10,7 @@ use vulkano_win::VkSurfaceBuild;
 use winit::dpi::LogicalSize;
 use winit::{EventsLoop, WindowBuilder};
 
+#[allow(dead_code)]
 pub struct Window {
     pub(crate) event_loop: EventsLoop,
     pub(crate) surface: Arc<Surface<winit::Window>>,

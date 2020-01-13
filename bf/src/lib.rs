@@ -117,10 +117,16 @@ pub struct MipMaps<'a> {
     height: usize,
 }
 
+/// Struct representing a single mip-map of the parent Image object.
 pub struct MipMap<'a> {
+    /// Raw bytes in `format` data type of this mip-map.
     pub data: &'a [u8],
+    /// Width of this mip-map in pixels.
     pub width: usize,
+    /// Height of this mip-map in pixels.
     pub height: usize,
+    /// Offset in bytes to the original `mipmap_data` bytes slice.
+    pub offset: usize,
 }
 
 impl<'a> Iterator for MipMaps<'a> {
@@ -138,6 +144,7 @@ impl<'a> Iterator for MipMaps<'a> {
                 data: &self.data[start..start + len],
                 width: self.width * 2,
                 height: self.height * 2,
+                offset: start,
             });
         }
         None
