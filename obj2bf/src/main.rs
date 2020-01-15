@@ -17,6 +17,18 @@ struct Opt {
 
     #[structopt(short, long, parse(from_os_str))]
     output: Option<PathBuf>,
+
+    #[structopt(long, parse(try_from_str = parse_index_type))]
+    index_type: Option<IndexType>,
+}
+
+fn parse_index_type(src: &str) -> Result<IndexType, &'static str> {
+    match src.to_lowercase().as_str() {
+        "u8" => Ok(IndexType::U8),
+        "u16" => Ok(IndexType::U16),
+        "u32" => Ok(IndexType::U32),
+        _ => Err("unknown format"),
+    }
 }
 
 struct Timers<'a> {
@@ -74,7 +86,7 @@ fn main() {
     timers.save.start();
     let vertex_format = VertexDataFormat::PositionNormalUv;
     let vertex_data = geo.generate_vertex_data(vertex_format);
-    let index_type = geo.suggest_index_type();
+    let index_type = opt.index_type.unwrap_or_else(|| geo.suggest_index_type());
     let index_data = geo.generate_index_data(index_type);
 
     let file = File::create_compressed(Container::Geometry(Geometry {
