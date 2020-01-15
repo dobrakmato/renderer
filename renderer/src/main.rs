@@ -1,7 +1,10 @@
+use crate::camera::{Camera, PerspectiveCamera};
 use crate::io::{load_geometry, load_image};
 use crate::render::BasicVertex;
 use crate::window::{SwapChain, Window};
-use cgmath::{vec3, Deg, Matrix4, PerspectiveFov, Point3};
+use cgmath::{
+    vec3, Deg, InnerSpace, Matrix4, PerspectiveFov, Point3, Quaternion, Rotation, Vector3, Zero,
+};
 use log::{error, info, warn};
 use std::sync::Arc;
 use std::time::Instant;
@@ -17,8 +20,9 @@ use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::Sampler;
 use vulkano::sampler::{Filter, MipmapMode, SamplerAddressMode};
-use winit::{Event, WindowEvent};
+use winit::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 
+mod camera;
 mod image;
 mod io;
 mod mesh;
@@ -63,9 +67,17 @@ fn main() {
         app.graphical_queue.clone(),
         "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf",
     );
-    let image = load_image(
+    let plane_mesh = load_geometry(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf",
+    );
+    let rock_albedo = load_image(
         app.graphical_queue.clone(),
         "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",
+    );
+    let basic = load_image(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf",
     );
     info!("data loaded!");
 
@@ -128,9 +140,9 @@ fn main() {
         Filter::Linear,
         Filter::Linear,
         MipmapMode::Linear,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::Repeat,
+        SamplerAddressMode::Repeat,
+        SamplerAddressMode::Repeat,
         0.0,
         16.0,
         1.0,
@@ -139,9 +151,17 @@ fn main() {
     .expect("cannot create sampler");
 
     // create descriptor set 0
-    let descriptor_set0 = Arc::new(
+    let descriptor_set0_rock = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
-            .add_sampled_image(image.clone(), sampler.clone())
+            .add_sampled_image(rock_albedo.clone(), sampler.clone())
+            .expect("cannot add sampled image to descriptor set")
+            .build()
+            .expect("cannot build descriptor set"),
+    );
+
+    let descriptor_set0_basic = Arc::new(
+        PersistentDescriptorSet::start(pipeline.clone(), 0)
+            .add_sampled_image(basic.clone(), sampler.clone())
             .expect("cannot add sampled image to descriptor set")
             .build()
             .expect("cannot build descriptor set"),
@@ -150,6 +170,8 @@ fn main() {
     // create uniform buffer for descriptor set 1
     struct MatrixData(Matrix4<f32>, Matrix4<f32>, Matrix4<f32>);
     let ubo_matrix_data_pool = CpuBufferPool::<MatrixData>::uniform_buffer(app.device.clone());
+    let ubo_matrix_data_pool_plane =
+        CpuBufferPool::<MatrixData>::uniform_buffer(app.device.clone());
 
     // create framebuffers for each swapchain image
     let framebuffers = swapchain
@@ -180,34 +202,47 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
+    let mut camera = PerspectiveCamera {
+        position: Point3::new(0.0, 3.0, 0.0),
+        forward: vec3(1.0, 0.0, 0.0),
+        up: vec3(0.0, -1.0, 0.0),
+        fov: Deg(90.0).into(),
+        aspect_ratio: 16.0 / 9.0,
+        near: 0.01,
+        far: 100.0,
+    };
     let start = Instant::now();
     loop {
         swapchain = swapchain.render_frame(|image_num| {
             let scale = Matrix4::from_scale(0.03);
             let rotation = Matrix4::from_angle_y(Deg(start.elapsed().as_secs_f32() * 60.0));
-            let translate = Matrix4::from_translation(vec3(0.0, 0.0, 0.0));
-            let view = Matrix4::look_at(
-                Point3::new(0.3, 0.3, 1.0),
-                Point3::new(0.0, 0.0, 0.0),
-                vec3(0.0, -1.0, 0.0),
+            let translate = Matrix4::from_translation(vec3(0.0, 1.0, 0.0));
+            let mvp = MatrixData(
+                translate * scale * rotation,
+                camera.view_matrix(),
+                camera.projection_matrix(),
             );
-            let projection: Matrix4<f32> = PerspectiveFov {
-                fovy: Deg(90.0).into(),
-                aspect: 16.0 / 9.0,
-                near: 0.01,
-                far: 100.0,
-            }
-            .into();
-            let mvp = MatrixData(translate * scale * rotation, view, projection);
-            let ubo = ubo_matrix_data_pool
+            let ubo_rock = ubo_matrix_data_pool
                 .next(mvp)
                 .expect("cannot create next sub-buffer");
-
             let per_object_descriptor_set = PersistentDescriptorSet::start(pipeline.clone(), 1)
-                .add_buffer(ubo)
+                .add_buffer(ubo_rock)
                 .expect("cannot add ubo to pds set=1")
                 .build()
                 .expect("cannot build pds set=1");
+
+            let scale = Matrix4::from_nonuniform_scale(10.0, 1.0, 10.0);
+            let mvp = MatrixData(scale, camera.view_matrix(), camera.projection_matrix());
+            let ubo_plane = ubo_matrix_data_pool_plane
+                .next(mvp)
+                .expect("cannot create next sub-buffer");
+
+            let per_object_descriptor_set_plane =
+                PersistentDescriptorSet::start(pipeline.clone(), 1)
+                    .add_buffer(ubo_plane)
+                    .expect("cannot add ubo to pds set=1")
+                    .build()
+                    .expect("cannot build pds set=1");
 
             let framebuffer = framebuffers[image_num].clone();
 
@@ -229,7 +264,19 @@ fn main() {
                     &DynamicState::none(),
                     rock_mesh.vertex_buffer.clone(),
                     rock_mesh.index_buffer.clone(),
-                    (descriptor_set0.clone(), per_object_descriptor_set),
+                    (descriptor_set0_rock.clone(), per_object_descriptor_set),
+                    start.elapsed().as_secs_f32(),
+                )
+                .unwrap()
+                .draw_indexed(
+                    pipeline.clone(),
+                    &DynamicState::none(),
+                    plane_mesh.vertex_buffer.clone(),
+                    plane_mesh.index_buffer.clone(),
+                    (
+                        descriptor_set0_basic.clone(),
+                        per_object_descriptor_set_plane,
+                    ),
                     start.elapsed().as_secs_f32(),
                 )
                 .unwrap()
@@ -248,6 +295,23 @@ fn main() {
             } = ev
             {
                 done = true
+            }
+
+            if let Event::DeviceEvent { event, .. } = ev {
+                if let DeviceEvent::Key(k) = event {
+                    if let Some(t) = k.virtual_keycode {
+                        let speed = if k.modifiers.shift { 0.1 } else { 0.05 };
+                        match t {
+                            VirtualKeyCode::A => camera.move_left(speed),
+                            VirtualKeyCode::D => camera.move_right(speed),
+                            VirtualKeyCode::S => camera.move_backward(speed),
+                            VirtualKeyCode::W => camera.move_forward(speed),
+                            VirtualKeyCode::Space => camera.move_up(speed),
+                            VirtualKeyCode::LControl => camera.move_down(speed),
+                            _ => {}
+                        }
+                    }
+                }
             }
         });
         if done {

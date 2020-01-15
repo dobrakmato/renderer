@@ -5,11 +5,25 @@ layout(location = 1) in vec2 uv;
 
 layout(location = 0) out vec4 f_color;
 
-struct LightData {
+struct DirectionalLight {
     vec3 direction;
     float intensity;
     vec3 color;
     sampler2D shadowMap;
+};
+
+struct PointLight {
+    vec3 position;
+    vec3 color;
+    float intensity;
+};
+
+
+struct SpotLight {
+    vec3 position;
+    float angle;
+    vec3 color;
+    float intensity;
 };
 
 // material textures
@@ -23,6 +37,7 @@ layout(set = 0, binding = 0) uniform sampler2D albedo_map;
 // layout(set = 0, binding = 7) uniform MaterialData {
 //     vec3 albedo_color;
 //     vec3 emissive_color;
+//     float alpha_cutoff;
 // } material_data;
 
 layout(push_constant) uniform PushConstants {
@@ -30,7 +45,7 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 void main() {
-    vec3 dir = normalize(vec3(0.8, -0.5, -0.8));
+    vec3 dir = normalize(vec3(0, 0.5, 0));
     vec3 color = vec3(0.9, 0.9, 0.6) / 2;
     vec3 result = (dot(normal, dir) * color) + vec3(0.45, 0.45, 0.5);
 

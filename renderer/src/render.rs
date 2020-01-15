@@ -11,21 +11,17 @@ unsafe impl TriviallyTransmutable for BasicVertex {}
 
 vulkano::impl_vertex!(BasicVertex, position, normal, uv);
 
-struct Frame {}
+trait Pass<VDef, VSkinnedDef> {}
 
-impl Frame {
-    fn draw() {}
-}
+// kazdy subpass ma svoj secondary command buffer
+// secondary sa potom joinu do primary v render pass
 
-enum Pass {
-    Shadows,
-    Skybox,
-    GBuffer,
-    IndirectLighting,
-    DirectLighting,
-    Particles,
-    Composite,
-    PostProcessing,
-    UI,
+enum SubPass {
+    Cube,
     Finished,
 }
+
+// render graph
+// - kazdy node vytvori secondary command buffer
+// - ked sa spajaju tak sa join!
+// - ked sa rozdeluju tak idu na rozne queue
