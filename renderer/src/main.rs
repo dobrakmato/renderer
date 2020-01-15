@@ -1,9 +1,11 @@
 use crate::camera::{Camera, PerspectiveCamera};
+use crate::input::Input;
 use crate::io::{load_geometry, load_image};
 use crate::render::BasicVertex;
 use crate::window::{SwapChain, Window};
 use cgmath::{
-    vec3, Deg, InnerSpace, Matrix4, PerspectiveFov, Point3, Quaternion, Rotation, Vector3, Zero,
+    vec3, Deg, InnerSpace, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Rotation, Vector3,
+    Zero,
 };
 use log::{error, info, warn};
 use std::sync::Arc;
@@ -20,10 +22,12 @@ use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::Sampler;
 use vulkano::sampler::{Filter, MipmapMode, SamplerAddressMode};
-use winit::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
+use winit::dpi::LogicalPosition;
+use winit::{DeviceEvent, Event, MouseCursor, VirtualKeyCode, WindowEvent};
 
 mod camera;
 mod image;
+mod input;
 mod io;
 mod mesh;
 mod render;
@@ -202,6 +206,10 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
+    app.surface.window().grab_cursor(true).unwrap();
+    app.surface.window().hide_cursor(true);
+
+    let mut input = Input::default();
     let mut camera = PerspectiveCamera {
         position: Point3::new(0.0, 3.0, 0.0),
         forward: vec3(1.0, 0.0, 0.0),
@@ -288,34 +296,52 @@ fn main() {
 
         /* handle input & poll events */
         let mut done = false;
-        app.event_loop.poll_events(|ev| {
-            if let Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } = ev
-            {
-                done = true
-            }
-
-            if let Event::DeviceEvent { event, .. } = ev {
+        app.event_loop.poll_events(|ev| match ev {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => done = true,
+                WindowEvent::Focused(focus) => input.set_input_state(focus),
+                _ => {}
+            },
+            Event::DeviceEvent { event, .. } => {
                 if let DeviceEvent::Key(k) = event {
-                    if let Some(t) = k.virtual_keycode {
-                        let speed = if k.modifiers.shift { 0.1 } else { 0.05 };
-                        match t {
-                            VirtualKeyCode::A => camera.move_left(speed),
-                            VirtualKeyCode::D => camera.move_right(speed),
-                            VirtualKeyCode::S => camera.move_backward(speed),
-                            VirtualKeyCode::W => camera.move_forward(speed),
-                            VirtualKeyCode::Space => camera.move_up(speed),
-                            VirtualKeyCode::LControl => camera.move_down(speed),
-                            _ => {}
-                        }
+                    input.handle_event(k)
+                }
+                if let DeviceEvent::MouseMotion { delta } = event {
+                    if input.input_enabled {
+                        println!("{:?}", delta);
+                        camera.rotate(Rad(delta.0 as f32 * 0.001), Rad(delta.1 as f32 * 0.001))
                     }
                 }
             }
+            _ => {}
         });
         if done {
             break;
+        }
+
+        /* game update for next frame */
+        let speed = if input.is_key_down(VirtualKeyCode::LShift) {
+            0.01
+        } else {
+            0.005
+        };
+        if input.is_key_down(VirtualKeyCode::A) {
+            camera.move_left(speed)
+        }
+        if input.is_key_down(VirtualKeyCode::D) {
+            camera.move_right(speed)
+        }
+        if input.is_key_down(VirtualKeyCode::S) {
+            camera.move_backward(speed)
+        }
+        if input.is_key_down(VirtualKeyCode::W) {
+            camera.move_forward(speed)
+        }
+        if input.is_key_down(VirtualKeyCode::Space) {
+            camera.move_up(speed)
+        }
+        if input.is_key_down(VirtualKeyCode::LControl) {
+            camera.move_down(speed)
         }
     }
 }

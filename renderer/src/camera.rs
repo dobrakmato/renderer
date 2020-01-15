@@ -1,4 +1,4 @@
-use cgmath::{Matrix4, PerspectiveFov, Point3, Rad, Vector3};
+use cgmath::{InnerSpace, Matrix4, PerspectiveFov, Point3, Rad, Transform, Vector3};
 
 pub trait Camera<T> {
     fn projection_matrix(&self) -> Matrix4<T>;
@@ -46,6 +46,15 @@ impl PerspectiveCamera {
     #[inline]
     pub fn move_down(&mut self, amount: f32) {
         self.move_up(-amount);
+    }
+
+    #[inline]
+    pub fn rotate(&mut self, dx: Rad<f32>, dy: Rad<f32>) {
+        let right = self.forward.cross(self.up).normalize();
+
+        let rx = Matrix4::from_angle_y(dx);
+        let ry = Matrix4::from_axis_angle(right, dy);
+        self.forward = (rx * ry).transform_vector(self.forward).normalize();
     }
 }
 
