@@ -21,7 +21,7 @@ struct Opt {
     format: Format,
 
     #[structopt(short, long)]
-    not_v_flip: bool,
+    v_flip: bool,
 }
 
 fn parse_format(src: &str) -> Result<Format, &'static str> {
@@ -79,7 +79,7 @@ fn main() {
 
     // 2. vflip
     timers.vflip.start();
-    if !opt.not_v_flip {
+    if opt.v_flip {
         input_image = input_image.flipv();
     }
     timers.vflip.end();
