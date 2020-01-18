@@ -1,18 +1,20 @@
 use crate::camera::{Camera, PerspectiveCamera};
 use crate::input::Input;
 use crate::io::{load_geometry, load_image};
+use crate::pod::{MaterialData, MatrixData};
 use crate::render::BasicVertex;
 use crate::window::{SwapChain, Window};
 use cgmath::{
-    vec3, Deg, InnerSpace, Matrix4, PerspectiveFov, Point3, Quaternion, Rad, Rotation, Vector3,
-    Zero,
+    vec3, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
+    Vector3, Zero,
 };
 use log::{error, info, warn};
 use std::sync::Arc;
 use std::time::Instant;
-use vulkano::buffer::CpuBufferPool;
+use vulkano::buffer::{BufferUsage, CpuBufferPool, ImmutableBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
+use vulkano::device::Queue;
 use vulkano::format::ClearValue;
 use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
@@ -22,14 +24,16 @@ use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::Sampler;
 use vulkano::sampler::{Filter, MipmapMode, SamplerAddressMode};
-use winit::dpi::LogicalPosition;
-use winit::{DeviceEvent, Event, MouseCursor, VirtualKeyCode, WindowEvent};
+use vulkano::sync::GpuFuture;
+use winit::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 
 mod camera;
 mod image;
 mod input;
 mod io;
+mod material;
 mod mesh;
+mod pod;
 mod render;
 mod shaders;
 mod window;
@@ -38,6 +42,16 @@ pub struct Configuration {
     pub fullscreen: bool,
     pub resolution: [u16; 2],
     pub gpu: usize,
+}
+
+fn make_ubo<T>(queue: Arc<Queue>, data: T) -> Arc<ImmutableBuffer<T>>
+where
+    T: 'static + Send + Sync + Sized,
+{
+    let (buff, fut) = ImmutableBuffer::from_data(data, BufferUsage::uniform_buffer(), queue)
+        .expect("cannot allocate ubo!");
+    fut.then_signal_fence_and_flush().ok();
+    buff
 }
 
 fn main() {
@@ -62,6 +76,22 @@ fn main() {
         app.graphical_queue.clone(),
     );
 
+    // create sampler
+    let sampler = Sampler::new(
+        app.device.clone(),
+        Filter::Linear,
+        Filter::Linear,
+        MipmapMode::Linear,
+        SamplerAddressMode::Repeat,
+        SamplerAddressMode::Repeat,
+        SamplerAddressMode::Repeat,
+        0.0,
+        16.0,
+        1.0,
+        100.0,
+    )
+    .expect("cannot create sampler");
+
     // initialize renderer
     let queue = app.graphical_queue.clone();
     let swapchain_format = swapchain.swapchain.format();
@@ -70,6 +100,10 @@ fn main() {
     let rock_mesh = load_geometry(
         app.graphical_queue.clone(),
         "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf",
+    );
+    let icosphere_mesh = load_geometry(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf",
     );
     let plane_mesh = load_geometry(
         app.graphical_queue.clone(),
@@ -88,10 +122,12 @@ fn main() {
     // create shaders on gpu from precompiled spir-v code
     let vs = shaders::basic_vert::Shader::load(app.device.clone()).unwrap();
     let fs = shaders::basic_frag::Shader::load(app.device.clone()).unwrap();
+    let sky_vs = shaders::sky_vert::Shader::load(app.device.clone()).unwrap();
+    let sky_fs = shaders::sky_frag::Shader::load(app.device.clone()).unwrap();
 
     // define a render pass object with one pass
     let render_pass = Arc::new(
-        vulkano::single_pass_renderpass!(
+        vulkano::ordered_passes_renderpass!(
             app.device.clone(),
             attachments: {
                 color: {
@@ -107,10 +143,18 @@ fn main() {
                     samples: 1,
                 }
             },
-            pass: {
-                color: [color],
-                depth_stencil: {depth}
-            }
+            passes: [
+                {
+                    color: [color],
+                    depth_stencil: {depth},
+                    input: []
+                },
+                {
+                     color: [color],
+                     depth_stencil: {depth},
+                     input: []
+                }
+            ]
         )
         .unwrap(),
     );
@@ -133,49 +177,85 @@ fn main() {
                 .cloned(),
             )
             .depth_stencil(DepthStencil::simple_depth_test())
+            .cull_mode_back()
+            .front_face_clockwise()
             .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
             .build(app.device.clone())
             .expect("cannot create graphics pipeline"),
     );
 
-    // create sampler
-    let sampler = Sampler::new(
-        app.device.clone(),
-        Filter::Linear,
-        Filter::Linear,
-        MipmapMode::Linear,
-        SamplerAddressMode::Repeat,
-        SamplerAddressMode::Repeat,
-        SamplerAddressMode::Repeat,
-        0.0,
-        16.0,
-        1.0,
-        100.0,
-    )
-    .expect("cannot create sampler");
-
-    // create descriptor set 0
-    let descriptor_set0_rock = Arc::new(
-        PersistentDescriptorSet::start(pipeline.clone(), 0)
-            .add_sampled_image(rock_albedo.clone(), sampler.clone())
-            .expect("cannot add sampled image to descriptor set")
-            .build()
-            .expect("cannot build descriptor set"),
+    let skybox_pipeline = Arc::new(
+        GraphicsPipeline::start()
+            .vertex_input_single_buffer::<BasicVertex>()
+            .vertex_shader(sky_vs.main_entry_point(), ())
+            .fragment_shader(sky_fs.main_entry_point(), ())
+            .triangle_list()
+            .viewports(
+                [Viewport {
+                    origin: [0.0, 0.0],
+                    dimensions: [dims[0] as f32, dims[1] as f32],
+                    depth_range: 0.0..1.0,
+                }]
+                .iter()
+                .cloned(),
+            )
+            .depth_stencil(DepthStencil::simple_depth_test())
+            .render_pass(Subpass::from(render_pass.clone(), 1).unwrap())
+            .build(app.device.clone())
+            .expect("cannot create aky pipeline"),
     );
 
-    let descriptor_set0_basic = Arc::new(
+    // create descriptor set 0
+    let rock_material = Arc::new(
+        PersistentDescriptorSet::start(pipeline.clone(), 0)
+            .add_sampled_image(rock_albedo.clone(), sampler.clone())
+            .unwrap()
+            .add_buffer(make_ubo(
+                queue.clone(),
+                MaterialData {
+                    albedo_color: vec3(1.0, 1.0, 1.0),
+                    alpha_cutoff: 0.0,
+                },
+            ))
+            .unwrap()
+            .build()
+            .expect("cannot build pds"),
+    );
+
+    let white_material = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
             .add_sampled_image(basic.clone(), sampler.clone())
-            .expect("cannot add sampled image to descriptor set")
+            .unwrap()
+            .add_buffer(make_ubo(
+                queue.clone(),
+                MaterialData {
+                    albedo_color: vec3(1.0, 1.0, 1.0),
+                    alpha_cutoff: 0.0,
+                },
+            ))
+            .unwrap()
             .build()
-            .expect("cannot build descriptor set"),
+            .expect("cannot build pds"),
+    );
+
+    let orange_material = Arc::new(
+        PersistentDescriptorSet::start(pipeline.clone(), 0)
+            .add_sampled_image(basic.clone(), sampler.clone())
+            .unwrap()
+            .add_buffer(make_ubo(
+                queue.clone(),
+                MaterialData {
+                    albedo_color: vec3(1.0, 0.5, 0.0),
+                    alpha_cutoff: 0.0,
+                },
+            ))
+            .unwrap()
+            .build()
+            .expect("cannot build pds"),
     );
 
     // create uniform buffer for descriptor set 1
-    struct MatrixData(Matrix4<f32>, Matrix4<f32>, Matrix4<f32>);
-    let ubo_matrix_data_pool = CpuBufferPool::<MatrixData>::uniform_buffer(app.device.clone());
-    let ubo_matrix_data_pool_plane =
-        CpuBufferPool::<MatrixData>::uniform_buffer(app.device.clone());
+    let matrix_data_pool = CpuBufferPool::<MatrixData>::uniform_buffer(app.device.clone());
 
     // create framebuffers for each swapchain image
     let framebuffers = swapchain
@@ -225,13 +305,12 @@ fn main() {
             let scale = Matrix4::from_scale(0.03);
             let rotation = Matrix4::from_angle_y(Deg(start.elapsed().as_secs_f32() * 60.0));
             let translate = Matrix4::from_translation(vec3(0.0, 1.0, 0.0));
-            let mvp = MatrixData(
-                translate * scale * rotation,
-                camera.view_matrix(),
-                camera.projection_matrix(),
-            );
-            let ubo_rock = ubo_matrix_data_pool
-                .next(mvp)
+            let ubo_rock = matrix_data_pool
+                .next(MatrixData {
+                    model: translate * scale * rotation,
+                    view: camera.view_matrix(),
+                    projection: camera.projection_matrix(),
+                })
                 .expect("cannot create next sub-buffer");
             let per_object_descriptor_set = PersistentDescriptorSet::start(pipeline.clone(), 1)
                 .add_buffer(ubo_rock)
@@ -240,9 +319,12 @@ fn main() {
                 .expect("cannot build pds set=1");
 
             let scale = Matrix4::from_nonuniform_scale(10.0, 1.0, 10.0);
-            let mvp = MatrixData(scale, camera.view_matrix(), camera.projection_matrix());
-            let ubo_plane = ubo_matrix_data_pool_plane
-                .next(mvp)
+            let ubo_plane = matrix_data_pool
+                .next(MatrixData {
+                    model: scale,
+                    view: camera.view_matrix(),
+                    projection: camera.projection_matrix(),
+                })
                 .expect("cannot create next sub-buffer");
 
             let per_object_descriptor_set_plane =
@@ -253,6 +335,21 @@ fn main() {
                     .expect("cannot build pds set=1");
 
             let framebuffer = framebuffers[image_num].clone();
+
+            let ubo_sky = matrix_data_pool
+                .next(MatrixData {
+                    model: Matrix4::from_scale(20.0),
+                    view: camera.view_matrix(),
+                    projection: camera.projection_matrix(),
+                })
+                .expect("cannot create next sub-buffer");
+
+            let per_object_descriptor_set_sky =
+                PersistentDescriptorSet::start(skybox_pipeline.clone(), 0)
+                    .add_buffer(ubo_sky)
+                    .expect("cannot add ubo to pds set=1")
+                    .build()
+                    .expect("cannot build pds set=1");
 
             // start building the command buffer that will contain all
             // rendering commands for this frame.
@@ -272,7 +369,7 @@ fn main() {
                     &DynamicState::none(),
                     rock_mesh.vertex_buffer.clone(),
                     rock_mesh.index_buffer.clone(),
-                    (descriptor_set0_rock.clone(), per_object_descriptor_set),
+                    (rock_material.clone(), per_object_descriptor_set),
                     start.elapsed().as_secs_f32(),
                 )
                 .unwrap()
@@ -281,11 +378,19 @@ fn main() {
                     &DynamicState::none(),
                     plane_mesh.vertex_buffer.clone(),
                     plane_mesh.index_buffer.clone(),
-                    (
-                        descriptor_set0_basic.clone(),
-                        per_object_descriptor_set_plane,
-                    ),
+                    (white_material.clone(), per_object_descriptor_set_plane),
                     start.elapsed().as_secs_f32(),
+                )
+                .unwrap()
+                .next_subpass(false)
+                .unwrap()
+                .draw_indexed(
+                    skybox_pipeline.clone(),
+                    &DynamicState::none(),
+                    icosphere_mesh.vertex_buffer.clone(),
+                    icosphere_mesh.index_buffer.clone(),
+                    per_object_descriptor_set_sky,
+                    (camera.position, start.elapsed().as_secs_f32()),
                 )
                 .unwrap()
                 .end_render_pass()
@@ -308,7 +413,6 @@ fn main() {
                 }
                 if let DeviceEvent::MouseMotion { delta } = event {
                     if input.input_enabled {
-                        println!("{:?}", delta);
                         camera.rotate(Rad(delta.0 as f32 * 0.001), Rad(delta.1 as f32 * 0.001))
                     }
                 }
@@ -318,6 +422,10 @@ fn main() {
         if done {
             break;
         }
+
+        app.surface
+            .window()
+            .set_title(&format!("{:?}", camera.position));
 
         /* game update for next frame */
         let speed = if input.is_key_down(VirtualKeyCode::LShift) {

@@ -18,7 +18,6 @@ struct PointLight {
     float intensity;
 };
 
-
 struct SpotLight {
     vec3 position;
     float angle;
@@ -34,22 +33,21 @@ layout(set = 0, binding = 0) uniform sampler2D albedo_map;
 // layout(set = 0, binding = 4) uniform sampler2D occlusion_map;
 // layout(set = 0, binding = 5) uniform sampler2D emission_map;
 // layout(set = 0, binding = 6) uniform sampler2D height_map;
-// layout(set = 0, binding = 7) uniform MaterialData {
-//     vec3 albedo_color;
-//     vec3 emissive_color;
-//     float alpha_cutoff;
-// } material_data;
+layout(set = 0, binding = 1) uniform MaterialData {
+    vec3 albedo_color;
+    float alpha_cutoff;
+} material_data;
 
 layout(push_constant) uniform PushConstants {
     float time;
 } push_constants;
 
 void main() {
-    vec3 dir = normalize(vec3(0, 0.5, 0));
-    vec3 color = vec3(0.9, 0.9, 0.6) / 2;
-    vec3 result = (dot(normal, dir) * color) + vec3(0.45, 0.45, 0.5);
+    vec3 dir = normalize(vec3(0.8, 0.5, 0));
+    vec3 color = vec3(0.9, 0.9, 0.9) / 2;
+    vec3 result = (dot(normal, dir) * color) + vec3(0.25, 0.25, 0.25);
 
     vec3 base_color = texture(albedo_map, uv).xyz;
 
-    f_color = vec4(base_color * result, 1.0);
+    f_color = vec4(material_data.albedo_color * base_color * result, 1.0);
 }

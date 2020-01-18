@@ -5,6 +5,7 @@ pub trait Camera<T> {
     fn view_matrix(&self) -> Matrix4<T>;
 }
 
+// todo: separate camera (render) from camera (movement/script)
 // todo: use quaternion for camera rotation
 pub struct PerspectiveCamera {
     pub position: Point3<f32>,
