@@ -1,7 +1,8 @@
 use crate::camera::{Camera, PerspectiveCamera};
+use crate::hosek::make_hosek_wilkie_params;
 use crate::input::Input;
 use crate::io::{load_geometry, load_image};
-use crate::pod::{MaterialData, MatrixData};
+use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
 use crate::render::BasicVertex;
 use crate::window::{SwapChain, Window};
 use cgmath::{
@@ -28,6 +29,7 @@ use vulkano::sync::GpuFuture;
 use winit::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 
 mod camera;
+mod hosek;
 mod image;
 mod input;
 mod io;
@@ -256,6 +258,8 @@ fn main() {
 
     // create uniform buffer for descriptor set 1
     let matrix_data_pool = CpuBufferPool::<MatrixData>::uniform_buffer(app.device.clone());
+    let hosek_wilkie_sky_pool =
+        CpuBufferPool::<HosekWilkieParams>::uniform_buffer(app.device.clone());
 
     // create framebuffers for each swapchain image
     let framebuffers = swapchain
@@ -299,6 +303,7 @@ fn main() {
         near: 0.01,
         far: 100.0,
     };
+    let mut sun_dir = Vector3::new(0.0, 1.0, 0.0);
     let start = Instant::now();
     loop {
         swapchain = swapchain.render_frame(|image_num| {
@@ -351,6 +356,18 @@ fn main() {
                     .build()
                     .expect("cannot build pds set=1");
 
+            let t = start.elapsed().as_secs_f32() * 0.25;
+            sun_dir = vec3(t.sin(), t.cos(), 0.0);
+
+            let ubo_sky_hw = hosek_wilkie_sky_pool
+                .next(make_hosek_wilkie_params(sun_dir, 2.0, vec3(0.4, 0.4, 0.4)))
+                .unwrap();
+            let sky_hw_params = PersistentDescriptorSet::start(skybox_pipeline.clone(), 1)
+                .add_buffer(ubo_sky_hw)
+                .expect("cannot add ubo to pds set=1")
+                .build()
+                .expect("cannot build pds set=1");
+
             // start building the command buffer that will contain all
             // rendering commands for this frame.
             AutoCommandBufferBuilder::primary_one_time_submit(app.device.clone(), queue.family())
@@ -389,7 +406,7 @@ fn main() {
                     &DynamicState::none(),
                     icosphere_mesh.vertex_buffer.clone(),
                     icosphere_mesh.index_buffer.clone(),
-                    per_object_descriptor_set_sky,
+                    (per_object_descriptor_set_sky, sky_hw_params),
                     (camera.position, start.elapsed().as_secs_f32()),
                 )
                 .unwrap()

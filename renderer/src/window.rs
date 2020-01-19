@@ -3,7 +3,8 @@ use log::{debug, info};
 use std::sync::Arc;
 use vulkano::command_buffer::CommandBuffer;
 use vulkano::device::{Device, DeviceExtensions, DeviceOwned, Queue};
-use vulkano::image::SwapchainImage;
+use vulkano::format::Format;
+use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice};
 use vulkano::swapchain::{ColorSpace, PresentMode, Surface, SurfaceTransform, Swapchain};
 use vulkano::sync::GpuFuture;
@@ -42,7 +43,7 @@ impl SwapChain {
         let format = caps
             .supported_formats
             .iter()
-            .find(|(_, cs)| *cs == ColorSpace::SrgbNonLinear)
+            .find(|(f, _)| *f == Format::B8G8R8A8Srgb)
             .map(|(f, _)| *f)
             .expect("cannot find srgb non-linear color space format!");
 
@@ -54,6 +55,7 @@ impl SwapChain {
             PresentMode::Fifo
         };
         info!("using present_mode={:?}", present_mode);
+        info!("using format={:?}", format);
 
         // here we create a swapchain with previously decided arguments
         let (swapchain, images) = Swapchain::new(
@@ -63,7 +65,11 @@ impl SwapChain {
             format,
             dimensions,
             1,
-            caps.supported_usage_flags,
+            ImageUsage {
+                color_attachment: true,
+                transfer_destination: true,
+                ..ImageUsage::none()
+            },
             &graphical_queue,
             SurfaceTransform::Identity,
             alpha,
