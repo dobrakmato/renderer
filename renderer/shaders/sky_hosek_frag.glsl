@@ -42,7 +42,7 @@ vec3 hosek_wilkie2(vec3 sun_dir, vec3 view_dir) {
     const vec3 up = vec3(0.0, 1.0, 0.0);
 
     float sun_dot_view = max(0.0, dot(sun_dir, view_dir));
-    float view_dot_up = max(0.0, dot(view_dir, up));
+    float view_dot_up = dot(view_dir, up);
 
     float gamma = acos(sun_dot_view);
 

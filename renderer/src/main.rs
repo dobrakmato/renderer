@@ -20,7 +20,7 @@ use vulkano::format::ClearValue;
 use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
 use vulkano::image::{AttachmentImage, ImageUsage};
-use vulkano::pipeline::depth_stencil::DepthStencil;
+use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::Sampler;
@@ -201,7 +201,13 @@ fn main() {
                 .iter()
                 .cloned(),
             )
-            .depth_stencil(DepthStencil::simple_depth_test())
+            .depth_stencil(DepthStencil {
+                depth_compare: Compare::LessOrEqual,
+                depth_write: false,
+                depth_bounds_test: DepthBounds::Disabled,
+                stencil_front: Default::default(),
+                stencil_back: Default::default(),
+            })
             .render_pass(Subpass::from(render_pass.clone(), 1).unwrap())
             .build(app.device.clone())
             .expect("cannot create aky pipeline"),
@@ -298,12 +304,12 @@ fn main() {
         position: Point3::new(0.0, 3.0, 0.0),
         forward: vec3(1.0, 0.0, 0.0),
         up: vec3(0.0, -1.0, 0.0),
-        fov: Deg(90.0).into(),
+        fov: Deg(120.0).into(),
         aspect_ratio: 16.0 / 9.0,
         near: 0.01,
         far: 100.0,
     };
-    let mut sun_dir = Vector3::new(0.0, 1.0, 0.0);
+    let mut sun_dir = Vector3::new(1.0, 0.4, 0.0).normalize();
     let start = Instant::now();
     loop {
         swapchain = swapchain.render_frame(|image_num| {
@@ -323,7 +329,7 @@ fn main() {
                 .build()
                 .expect("cannot build pds set=1");
 
-            let scale = Matrix4::from_nonuniform_scale(10.0, 1.0, 10.0);
+            let scale = Matrix4::from_nonuniform_scale(30.0, 1.0, 30.0);
             let ubo_plane = matrix_data_pool
                 .next(MatrixData {
                     model: scale,
@@ -343,7 +349,7 @@ fn main() {
 
             let ubo_sky = matrix_data_pool
                 .next(MatrixData {
-                    model: Matrix4::from_scale(20.0),
+                    model: Matrix4::from_scale(200.0),
                     view: camera.view_matrix(),
                     projection: camera.projection_matrix(),
                 })
@@ -356,11 +362,11 @@ fn main() {
                     .build()
                     .expect("cannot build pds set=1");
 
-            let t = start.elapsed().as_secs_f32() * 0.25;
+            let t = start.elapsed().as_secs_f32() * 0.125;
             sun_dir = vec3(t.sin(), t.cos(), 0.0);
 
             let ubo_sky_hw = hosek_wilkie_sky_pool
-                .next(make_hosek_wilkie_params(sun_dir, 2.0, vec3(0.4, 0.4, 0.4)))
+                .next(make_hosek_wilkie_params(sun_dir, 1.0, vec3(1.0, 0.0, 0.0)))
                 .unwrap();
             let sky_hw_params = PersistentDescriptorSet::start(skybox_pipeline.clone(), 1)
                 .add_buffer(ubo_sky_hw)
