@@ -2,14 +2,21 @@ use safe_transmute::TriviallyTransmutable;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct BasicVertex {
-    position: [f32; 3],
-    normal: [f32; 3],
-    uv: [f32; 2],
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct PositionOnlyVertex {
+    pub position: [f32; 3],
 }
 
 unsafe impl TriviallyTransmutable for BasicVertex {}
+unsafe impl TriviallyTransmutable for PositionOnlyVertex {}
 
 vulkano::impl_vertex!(BasicVertex, position, normal, uv);
+vulkano::impl_vertex!(PositionOnlyVertex, position);
 
 trait Pass<VDef, VSkinnedDef> {}
 

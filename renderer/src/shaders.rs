@@ -33,3 +33,21 @@ pub mod sky_frag {
         path: "shaders/sky_hosek_frag.glsl"
     }
 }
+
+pub mod tonemap_vert {
+    #[allow(dead_code)] // Used to force recompilation of shader change
+    const X: &str = include_str!("../shaders/tonemap_vert.glsl");
+    vulkano_shaders::shader! {
+        ty: "vertex",
+        path: "shaders/tonemap_vert.glsl"
+    }
+}
+
+pub mod tonemap_frag {
+    #[allow(dead_code)] // Used to force recompilation of shader change
+    const X: &str = include_str!("../shaders/tonemap_frag.glsl");
+    vulkano_shaders::shader! {
+        ty: "fragment",
+        path: "shaders/tonemap_frag.glsl"
+    }
+}

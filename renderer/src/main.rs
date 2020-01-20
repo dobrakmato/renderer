@@ -3,7 +3,7 @@ use crate::hosek::make_hosek_wilkie_params;
 use crate::input::Input;
 use crate::io::{load_geometry, load_image};
 use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
-use crate::render::BasicVertex;
+use crate::render::{BasicVertex, PositionOnlyVertex};
 use crate::window::{SwapChain, Window};
 use cgmath::{
     vec3, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
@@ -121,19 +121,57 @@ fn main() {
     );
     info!("data loaded!");
 
+    // initialize useful quad mesh
+    let (quad_vertex_buffer, future1) = ImmutableBuffer::from_iter(
+        (&[
+            PositionOnlyVertex {
+                position: [-1.0, -1.0, 0.0],
+            },
+            PositionOnlyVertex {
+                position: [1.0, -1.0, 0.0],
+            },
+            PositionOnlyVertex {
+                position: [1.0, 1.0, 0.0],
+            },
+            PositionOnlyVertex {
+                position: [-1.0, 1.0, 0.0],
+            },
+        ])
+            .iter()
+            .cloned(),
+        BufferUsage::vertex_buffer(),
+        app.graphical_queue.clone(),
+    )
+    .unwrap();
+    let (quad_index_buffer, future2) = ImmutableBuffer::from_iter(
+        (&[0u16, 1, 2, 0, 2, 3]).iter().cloned(),
+        BufferUsage::index_buffer(),
+        app.graphical_queue.clone(),
+    )
+    .unwrap();
+    future1.join(future2).then_signal_fence_and_flush().ok();
+
     // create shaders on gpu from precompiled spir-v code
     let vs = shaders::basic_vert::Shader::load(app.device.clone()).unwrap();
     let fs = shaders::basic_frag::Shader::load(app.device.clone()).unwrap();
     let sky_vs = shaders::sky_vert::Shader::load(app.device.clone()).unwrap();
     let sky_fs = shaders::sky_frag::Shader::load(app.device.clone()).unwrap();
+    let tonemap_vs = shaders::tonemap_vert::Shader::load(app.device.clone()).unwrap();
+    let tonemap_fs = shaders::tonemap_frag::Shader::load(app.device.clone()).unwrap();
 
     // define a render pass object with one pass
     let render_pass = Arc::new(
         vulkano::ordered_passes_renderpass!(
             app.device.clone(),
             attachments: {
-                color: {
+                hdr: {
                     load: Clear,
+                    store: DontCare,
+                    format: Format::B10G11R11UfloatPack32,
+                    samples: 1,
+                },
+                color: {
+                    load: DontCare,
                     store: Store,
                     format: swapchain_format,
                     samples: 1,
@@ -147,14 +185,19 @@ fn main() {
             },
             passes: [
                 {
-                    color: [color],
+                    color: [hdr],
+                    depth_stencil: {depth},
+                    input: []
+                },
+                {
+                    color: [hdr],
                     depth_stencil: {depth},
                     input: []
                 },
                 {
                      color: [color],
-                     depth_stencil: {depth},
-                     input: []
+                     depth_stencil: {},
+                     input: [hdr]
                 }
             ]
         )
@@ -213,6 +256,26 @@ fn main() {
             .expect("cannot create aky pipeline"),
     );
 
+    let tonemap_pipeline = Arc::new(
+        GraphicsPipeline::start()
+            .vertex_input_single_buffer::<PositionOnlyVertex>()
+            .vertex_shader(tonemap_vs.main_entry_point(), ())
+            .fragment_shader(tonemap_fs.main_entry_point(), ())
+            .triangle_list()
+            .viewports(
+                [Viewport {
+                    origin: [0.0, 0.0],
+                    dimensions: [dims[0] as f32, dims[1] as f32],
+                    depth_range: 0.0..1.0,
+                }]
+                .iter()
+                .cloned(),
+            )
+            .render_pass(Subpass::from(render_pass.clone(), 2).unwrap())
+            .build(app.device.clone())
+            .expect("cannot build tonemap graphics pipeline"),
+    );
+
     // create descriptor set 0
     let rock_material = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
@@ -267,28 +330,49 @@ fn main() {
     let hosek_wilkie_sky_pool =
         CpuBufferPool::<HosekWilkieParams>::uniform_buffer(app.device.clone());
 
+    // create additional render buffers
+    let depth_buffer = AttachmentImage::with_usage(
+        app.device.clone(),
+        dims,
+        Format::D16Unorm,
+        ImageUsage {
+            transient_attachment: true,
+            depth_stencil_attachment: true,
+            ..ImageUsage::none()
+        },
+    )
+    .unwrap();
+    let hdr_buffer = AttachmentImage::with_usage(
+        app.device.clone(),
+        dims,
+        Format::B10G11R11UfloatPack32,
+        ImageUsage {
+            transient_attachment: true,
+            input_attachment: true,
+            ..ImageUsage::none()
+        },
+    )
+    .unwrap();
+    let tonemap_descriptor_set = Arc::new(
+        PersistentDescriptorSet::start(tonemap_pipeline.clone(), 0)
+            .add_image(hdr_buffer.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
+    );
+
     // create framebuffers for each swapchain image
     let framebuffers = swapchain
         .images
         .iter()
         .map(|color| {
-            let depth = AttachmentImage::with_usage(
-                app.device.clone(),
-                dims,
-                Format::D16Unorm,
-                ImageUsage {
-                    transient_attachment: true,
-                    depth_stencil_attachment: true,
-                    ..ImageUsage::none()
-                },
-            )
-            .unwrap();
-
             Arc::new(
                 Framebuffer::start(render_pass.clone())
+                    .add(hdr_buffer.clone())
+                    .unwrap()
                     .add(color.clone())
                     .unwrap()
-                    .add(depth)
+                    .add(depth_buffer.clone())
                     .unwrap()
                     .build()
                     .unwrap(),
@@ -309,10 +393,10 @@ fn main() {
         near: 0.01,
         far: 100.0,
     };
-    let mut sun_dir = Vector3::new(1.0, 0.4, 0.0).normalize();
+    let mut sun_dir = Vector3::new(1.0, 0.1, 0.0).normalize();
     let start = Instant::now();
     loop {
-        swapchain = swapchain.render_frame(|image_num| {
+        swapchain = swapchain.render_frame(|image_num, color_attachment| {
             let scale = Matrix4::from_scale(0.03);
             let rotation = Matrix4::from_angle_y(Deg(start.elapsed().as_secs_f32() * 60.0));
             let translate = Matrix4::from_translation(vec3(0.0, 1.0, 0.0));
@@ -363,10 +447,10 @@ fn main() {
                     .expect("cannot build pds set=1");
 
             let t = start.elapsed().as_secs_f32() * 0.125;
-            sun_dir = vec3(t.sin(), t.cos(), 0.0);
+            // sun_dir = vec3(t.sin(), t.cos(), 0.0);
 
             let ubo_sky_hw = hosek_wilkie_sky_pool
-                .next(make_hosek_wilkie_params(sun_dir, 1.0, vec3(1.0, 0.0, 0.0)))
+                .next(make_hosek_wilkie_params(sun_dir, 10.0, vec3(0.0, 0.0, 0.0)))
                 .unwrap();
             let sky_hw_params = PersistentDescriptorSet::start(skybox_pipeline.clone(), 1)
                 .add_buffer(ubo_sky_hw)
@@ -382,7 +466,8 @@ fn main() {
                     framebuffer,
                     false,
                     vec![
-                        ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                        ClearValue::Float([0.0, 0.0, 0.0, 1.0]),
+                        ClearValue::None,
                         ClearValue::Depth(1.0),
                     ],
                 )
@@ -414,6 +499,17 @@ fn main() {
                     icosphere_mesh.index_buffer.clone(),
                     (per_object_descriptor_set_sky, sky_hw_params),
                     (camera.position, start.elapsed().as_secs_f32()),
+                )
+                .unwrap()
+                .next_subpass(false)
+                .unwrap()
+                .draw_indexed(
+                    tonemap_pipeline.clone(),
+                    &DynamicState::none(),
+                    quad_vertex_buffer.clone(),
+                    quad_index_buffer.clone(),
+                    tonemap_descriptor_set.clone(),
+                    (),
                 )
                 .unwrap()
                 .end_render_pass()

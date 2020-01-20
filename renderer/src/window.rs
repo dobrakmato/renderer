@@ -94,7 +94,10 @@ impl SwapChain {
 
     /// Renders the single frame using the provided `render_fn` on the
     /// main graphical queue passed to the constructor of this struct.
-    pub fn render_frame<F: FnMut(usize) -> Cb, Cb>(mut self, mut render_fn: F) -> Self
+    pub fn render_frame<F: FnMut(usize, Arc<SwapchainImage<winit::Window>>) -> Cb, Cb>(
+        mut self,
+        mut render_fn: F,
+    ) -> Self
     where
         Cb: CommandBuffer + 'static,
     {
@@ -107,7 +110,8 @@ impl SwapChain {
             Err(err) => panic!("{:?}", err), // device unplugged or window resized
         };
 
-        let command_buffer = render_fn(idx);
+        let color_attachment = self.images[idx].clone();
+        let command_buffer = render_fn(idx, color_attachment);
 
         // wait for image to be available and then present drawn the image
         // to screen.
