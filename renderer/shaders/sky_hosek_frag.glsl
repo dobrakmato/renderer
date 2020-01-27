@@ -50,7 +50,6 @@ vec3 hosek_wilkie2(vec3 sun_dir, vec3 view_dir) {
 }
 
 void main() {
-    float time = push_constants.time * 0.5;
     vec3 view_dir = position - push_constants.camera_position;
 
     vec3 result = hosek_wilkie2(params.sun_direction, normalize(view_dir)) * 0.05;

@@ -3821,12 +3821,12 @@ pub static DATASETS_RGB_RAD: [&'static [f32; 120]; 3] =
 
 #[rustfmt::skip]
 fn evaluate_spline(dataset: &[f32], start: usize, stride: usize, value: f32) -> f32 {
-        1.0  * (1.0 - value).powi(5) *                    dataset[start + 0 * stride] +
-        5.0  * (1.0 - value).powi(4) * value.powi(1) * dataset[start + 1 * stride] +
+    1.0 * (1.0 - value).powi(5) * dataset[start + 0 * stride] +
+        5.0 * (1.0 - value).powi(4) * value.powi(1) * dataset[start + 1 * stride] +
         10.0 * (1.0 - value).powi(3) * value.powi(2) * dataset[start + 2 * stride] +
         10.0 * (1.0 - value).powi(2) * value.powi(3) * dataset[start + 3 * stride] +
-        5.0  * (1.0 - value).powi(1) * value.powi(4) * dataset[start + 4 * stride] +
-        1.0  *                            value.powi(5) * dataset[start + 5 * stride]
+        5.0 * (1.0 - value).powi(1) * value.powi(4) * dataset[start + 4 * stride] +
+        1.0 * value.powi(5) * dataset[start + 5 * stride]
 }
 
 fn evaluate(dataset: &[f32], stride: usize, turbidity: f32, albedo: f32, sun_theta: f32) -> f32 {
@@ -3892,7 +3892,7 @@ pub fn make_hosek_wilkie_params(
         )
     }
 
-    HosekWilkieParams {
+    let params = HosekWilkieParams {
         a: e(0, turbidity, albedo, sun_theta),
         b: e(1, turbidity, albedo, sun_theta),
         c: e(2, turbidity, albedo, sun_theta),
@@ -3918,5 +3918,7 @@ pub fn make_hosek_wilkie_params(
         padding7: 0.0,
         padding8: 0.0,
         padding9: 0.0,
-    }
+    };
+
+    params
 }

@@ -39,13 +39,13 @@ layout(set = 0, binding = 1) uniform MaterialData {
 } material_data;
 
 layout(push_constant) uniform PushConstants {
-    float time;
+    vec4 sun_dir;
 } push_constants;
 
 void main() {
-    vec3 dir = normalize(vec3(0.8, 0.5, 0));
-    vec3 color = vec3(0.9, 0.9, 0.9) / 2;
-    vec3 result = (dot(normal, dir) * color) + vec3(0.25, 0.25, 0.25);
+    vec3 dir = normalize(push_constants.sun_dir.xyz);
+    vec3 color = vec3(0.7, 0.7, 0.7);
+    vec3 result = (dot(normal, dir) * color);
 
     vec3 base_color = texture(albedo_map, uv).xyz;
 

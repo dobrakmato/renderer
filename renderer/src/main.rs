@@ -397,6 +397,17 @@ fn main() {
     let start = Instant::now();
     loop {
         swapchain = swapchain.render_frame(|image_num, color_attachment| {
+            let t = start.elapsed().as_secs_f32() * 0.125;
+            sun_dir = vec3(t.sin(), t.cos(), 0.0);
+
+            let params = make_hosek_wilkie_params(sun_dir, 2.0, vec3(0.0, 0.0, 0.0));
+            let ubo_sky_hw = hosek_wilkie_sky_pool.next(params).unwrap();
+            let sky_hw_params = PersistentDescriptorSet::start(skybox_pipeline.clone(), 1)
+                .add_buffer(ubo_sky_hw)
+                .expect("cannot add ubo to pds set=1")
+                .build()
+                .expect("cannot build pds set=1");
+
             let scale = Matrix4::from_scale(0.03);
             let rotation = Matrix4::from_angle_y(Deg(start.elapsed().as_secs_f32() * 60.0));
             let translate = Matrix4::from_translation(vec3(0.0, 1.0, 0.0));
@@ -446,18 +457,6 @@ fn main() {
                     .build()
                     .expect("cannot build pds set=1");
 
-            let t = start.elapsed().as_secs_f32() * 0.125;
-            // sun_dir = vec3(t.sin(), t.cos(), 0.0);
-
-            let ubo_sky_hw = hosek_wilkie_sky_pool
-                .next(make_hosek_wilkie_params(sun_dir, 10.0, vec3(0.0, 0.0, 0.0)))
-                .unwrap();
-            let sky_hw_params = PersistentDescriptorSet::start(skybox_pipeline.clone(), 1)
-                .add_buffer(ubo_sky_hw)
-                .expect("cannot add ubo to pds set=1")
-                .build()
-                .expect("cannot build pds set=1");
-
             // start building the command buffer that will contain all
             // rendering commands for this frame.
             AutoCommandBufferBuilder::primary_one_time_submit(app.device.clone(), queue.family())
@@ -478,7 +477,7 @@ fn main() {
                     rock_mesh.vertex_buffer.clone(),
                     rock_mesh.index_buffer.clone(),
                     (rock_material.clone(), per_object_descriptor_set),
-                    start.elapsed().as_secs_f32(),
+                    (sun_dir),
                 )
                 .unwrap()
                 .draw_indexed(
@@ -487,7 +486,7 @@ fn main() {
                     plane_mesh.vertex_buffer.clone(),
                     plane_mesh.index_buffer.clone(),
                     (white_material.clone(), per_object_descriptor_set_plane),
-                    start.elapsed().as_secs_f32(),
+                    (sun_dir),
                 )
                 .unwrap()
                 .next_subpass(false)

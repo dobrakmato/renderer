@@ -37,3 +37,14 @@ G-Buffer:
 - [RGBA32] Albedo (RGB),  Occlusion (A)
 - [RGBA32] Metallic (R), Roughness (G)
 - [RGBA32] SubsurfaceColor (RGB)
+
+HDRBuffer:
+- [B10G11R11] HDR Color
+
+Render Passes:
+- Main
+  - Geometry
+  - Lighting
+  - Skybox
+  - Tonemap
+  - FXAA
