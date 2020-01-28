@@ -3,10 +3,10 @@ use crate::hosek::make_hosek_wilkie_params;
 use crate::input::Input;
 use crate::io::{load_geometry, load_image};
 use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
-use crate::render::{BasicVertex, PositionOnlyVertex};
+use crate::render::{BasicVertex, PositionOnlyVertex, Transform};
 use crate::window::{SwapChain, Window};
 use cgmath::{
-    vec3, Deg, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
+    vec3, Deg, Euler, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
     Vector3, Zero,
 };
 use log::{error, info, warn};
@@ -408,12 +408,15 @@ fn main() {
                 .build()
                 .expect("cannot build pds set=1");
 
-            let scale = Matrix4::from_scale(0.03);
-            let rotation = Matrix4::from_angle_y(Deg(start.elapsed().as_secs_f32() * 60.0));
-            let translate = Matrix4::from_translation(vec3(0.0, 1.0, 0.0));
+            let rock_transform = Transform {
+                position: vec3(0.0, 1.0, 0.0),
+                rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+                scale: vec3(0.03, 0.03, 0.03),
+            };
+
             let ubo_rock = matrix_data_pool
                 .next(MatrixData {
-                    model: translate * scale * rotation,
+                    model: rock_transform.into(),
                     view: camera.view_matrix(),
                     projection: camera.projection_matrix(),
                 })
@@ -424,10 +427,14 @@ fn main() {
                 .build()
                 .expect("cannot build pds set=1");
 
-            let scale = Matrix4::from_nonuniform_scale(30.0, 1.0, 30.0);
+            let plane_transform = Transform {
+                position: vec3(0.0, 0.0, 0.0),
+                rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+                scale: vec3(30.0, 1.0, 30.0),
+            };
             let ubo_plane = matrix_data_pool
                 .next(MatrixData {
-                    model: scale,
+                    model: plane_transform.into(),
                     view: camera.view_matrix(),
                     projection: camera.projection_matrix(),
                 })
