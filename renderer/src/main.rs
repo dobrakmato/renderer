@@ -2,6 +2,7 @@ use crate::camera::{Camera, PerspectiveCamera};
 use crate::hosek::make_hosek_wilkie_params;
 use crate::input::Input;
 use crate::io::{load_geometry, load_image};
+use crate::mesh::{create_full_screen_triangle, Mesh};
 use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
 use crate::render::{BasicVertex, PositionOnlyVertex, Transform};
 use crate::samplers::Samplers;
@@ -21,12 +22,13 @@ use vulkano::format::ClearValue;
 use vulkano::format::Format;
 use vulkano::framebuffer::{Framebuffer, Subpass};
 use vulkano::image::{AttachmentImage, ImageUsage};
+use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::Sampler;
 use vulkano::sampler::{Filter, MipmapMode, SamplerAddressMode};
-use vulkano::sync::GpuFuture;
+use vulkano::sync::{GpuFuture, JoinFuture};
 use winit::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 
 mod camera;
@@ -110,32 +112,10 @@ fn main() {
     );
     info!("data loaded!");
 
-    // initialize useful full-screen quad mesh
-    let (fs_triangle_vbo, future1) = ImmutableBuffer::from_iter(
-        (&[
-            PositionOnlyVertex {
-                position: [-1.0, -1.0, 0.0],
-            },
-            PositionOnlyVertex {
-                position: [3.0, -1.0, 0.0],
-            },
-            PositionOnlyVertex {
-                position: [-1.0, 3.0, 0.0],
-            },
-        ])
-            .iter()
-            .cloned(),
-        BufferUsage::vertex_buffer(),
-        app.graphical_queue.clone(),
-    )
-    .unwrap();
-    let (fs_triangle_ibo, future2) = ImmutableBuffer::from_iter(
-        (&[0u16, 1, 2]).iter().cloned(),
-        BufferUsage::index_buffer(),
-        app.graphical_queue.clone(),
-    )
-    .unwrap();
-    future1.join(future2).then_signal_fence_and_flush().ok();
+    // initialize full-screen triangle
+    let (fst, fst_future) =
+        create_full_screen_triangle(app.graphical_queue.clone()).expect("cannot create fst");
+    fst_future.then_signal_fence_and_flush().ok();
 
     // create shaders on gpu from precompiled spir-v code
     let vs = shaders::basic_vert::Shader::load(app.device.clone()).unwrap();
@@ -498,8 +478,8 @@ fn main() {
                 .draw_indexed(
                     tonemap_pipeline.clone(),
                     &DynamicState::none(),
-                    fs_triangle_vbo.clone(),
-                    fs_triangle_ibo.clone(),
+                    fst.vertex_buffer.clone(),
+                    fst.index_buffer.clone(),
                     tonemap_descriptor_set.clone(),
                     (),
                 )
