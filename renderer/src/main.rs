@@ -81,7 +81,7 @@ fn main() {
     );
 
     // create sampler
-    let samplers = Samplers::new(app.device.clone()).expect("cannot create sampler");
+    let samplers = Samplers::new(app.device.clone()).expect("cannot create samplers");
 
     // initialize renderer
     let queue = app.graphical_queue.clone();
@@ -110,20 +110,17 @@ fn main() {
     );
     info!("data loaded!");
 
-    // initialize useful quad mesh
-    let (quad_vertex_buffer, future1) = ImmutableBuffer::from_iter(
+    // initialize useful full-screen quad mesh
+    let (fs_triangle_vbo, future1) = ImmutableBuffer::from_iter(
         (&[
             PositionOnlyVertex {
                 position: [-1.0, -1.0, 0.0],
             },
             PositionOnlyVertex {
-                position: [1.0, -1.0, 0.0],
+                position: [3.0, -1.0, 0.0],
             },
             PositionOnlyVertex {
-                position: [1.0, 1.0, 0.0],
-            },
-            PositionOnlyVertex {
-                position: [-1.0, 1.0, 0.0],
+                position: [-1.0, 3.0, 0.0],
             },
         ])
             .iter()
@@ -132,8 +129,8 @@ fn main() {
         app.graphical_queue.clone(),
     )
     .unwrap();
-    let (quad_index_buffer, future2) = ImmutableBuffer::from_iter(
-        (&[0u16, 1, 2, 0, 2, 3]).iter().cloned(),
+    let (fs_triangle_ibo, future2) = ImmutableBuffer::from_iter(
+        (&[0u16, 1, 2]).iter().cloned(),
         BufferUsage::index_buffer(),
         app.graphical_queue.clone(),
     )
@@ -378,7 +375,7 @@ fn main() {
         forward: vec3(1.0, 0.0, 0.0),
         up: vec3(0.0, -1.0, 0.0),
         fov: Deg(120.0).into(),
-        aspect_ratio: 16.0 / 9.0,
+        aspect_ratio: dims[0] as f32 / dims[1] as f32,
         near: 0.01,
         far: 100.0,
     };
@@ -501,8 +498,8 @@ fn main() {
                 .draw_indexed(
                     tonemap_pipeline.clone(),
                     &DynamicState::none(),
-                    quad_vertex_buffer.clone(),
-                    quad_index_buffer.clone(),
+                    fs_triangle_vbo.clone(),
+                    fs_triangle_ibo.clone(),
                     tonemap_descriptor_set.clone(),
                     (),
                 )
