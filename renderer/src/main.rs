@@ -4,6 +4,7 @@ use crate::input::Input;
 use crate::io::{load_geometry, load_image};
 use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
 use crate::render::{BasicVertex, PositionOnlyVertex, Transform};
+use crate::samplers::Samplers;
 use crate::window::{SwapChain, Window};
 use cgmath::{
     vec3, Deg, Euler, InnerSpace, Matrix4, One, PerspectiveFov, Point3, Quaternion, Rad, Rotation,
@@ -37,6 +38,7 @@ mod material;
 mod mesh;
 mod pod;
 mod render;
+mod samplers;
 mod shaders;
 mod window;
 
@@ -79,20 +81,7 @@ fn main() {
     );
 
     // create sampler
-    let sampler = Sampler::new(
-        app.device.clone(),
-        Filter::Linear,
-        Filter::Linear,
-        MipmapMode::Linear,
-        SamplerAddressMode::Repeat,
-        SamplerAddressMode::Repeat,
-        SamplerAddressMode::Repeat,
-        0.0,
-        16.0,
-        1.0,
-        100.0,
-    )
-    .expect("cannot create sampler");
+    let samplers = Samplers::new(app.device.clone()).expect("cannot create sampler");
 
     // initialize renderer
     let queue = app.graphical_queue.clone();
@@ -279,7 +268,7 @@ fn main() {
     // create descriptor set 0
     let rock_material = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
-            .add_sampled_image(rock_albedo.clone(), sampler.clone())
+            .add_sampled_image(rock_albedo.clone(), samplers.aniso_repeat.clone())
             .unwrap()
             .add_buffer(make_ubo(
                 queue.clone(),
@@ -295,7 +284,7 @@ fn main() {
 
     let white_material = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
-            .add_sampled_image(basic.clone(), sampler.clone())
+            .add_sampled_image(basic.clone(), samplers.aniso_repeat.clone())
             .unwrap()
             .add_buffer(make_ubo(
                 queue.clone(),
@@ -311,7 +300,7 @@ fn main() {
 
     let orange_material = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
-            .add_sampled_image(basic.clone(), sampler.clone())
+            .add_sampled_image(basic.clone(), samplers.aniso_repeat.clone())
             .unwrap()
             .add_buffer(make_ubo(
                 queue.clone(),
