@@ -89,29 +89,6 @@ fn main() {
     let queue = app.graphical_queue.clone();
     let swapchain_format = swapchain.swapchain.format();
 
-    info!("loading geometry and image data...");
-    let rock_mesh = load_geometry(
-        app.graphical_queue.clone(),
-        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf",
-    );
-    let icosphere_mesh = load_geometry(
-        app.graphical_queue.clone(),
-        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf",
-    );
-    let plane_mesh = load_geometry(
-        app.graphical_queue.clone(),
-        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf",
-    );
-    let rock_albedo = load_image(
-        app.graphical_queue.clone(),
-        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",
-    );
-    let basic = load_image(
-        app.graphical_queue.clone(),
-        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf",
-    );
-    info!("data loaded!");
-
     // initialize full-screen triangle
     let (fst, fst_future) =
         create_full_screen_triangle(app.graphical_queue.clone()).expect("cannot create fst");
@@ -170,23 +147,21 @@ fn main() {
         .unwrap(),
     );
 
-    // create basic pipeline for drawing
     let dims = swapchain.dimensions();
+    let viewport = Viewport {
+        origin: [0.0, 0.0],
+        dimensions: [dims[0] as f32, dims[1] as f32],
+        depth_range: 0.0..1.0,
+    };
+
+    // create basic pipeline for drawing
     let pipeline = Arc::new(
         GraphicsPipeline::start()
             .vertex_input_single_buffer::<BasicVertex>()
             .vertex_shader(vs.main_entry_point(), ())
             .fragment_shader(fs.main_entry_point(), ())
             .triangle_list()
-            .viewports(
-                [Viewport {
-                    origin: [0.0, 0.0],
-                    dimensions: [dims[0] as f32, dims[1] as f32],
-                    depth_range: 0.0..1.0,
-                }]
-                .iter()
-                .cloned(),
-            )
+            .viewports(Some(viewport.clone()))
             .depth_stencil(DepthStencil::simple_depth_test())
             .cull_mode_back()
             .front_face_clockwise()
@@ -201,15 +176,7 @@ fn main() {
             .vertex_shader(sky_vs.main_entry_point(), ())
             .fragment_shader(sky_fs.main_entry_point(), ())
             .triangle_list()
-            .viewports(
-                [Viewport {
-                    origin: [0.0, 0.0],
-                    dimensions: [dims[0] as f32, dims[1] as f32],
-                    depth_range: 0.0..1.0,
-                }]
-                .iter()
-                .cloned(),
-            )
+            .viewports(Some(viewport.clone()))
             .depth_stencil(DepthStencil {
                 depth_compare: Compare::LessOrEqual,
                 depth_write: false,
@@ -228,19 +195,34 @@ fn main() {
             .vertex_shader(tonemap_vs.main_entry_point(), ())
             .fragment_shader(tonemap_fs.main_entry_point(), ())
             .triangle_list()
-            .viewports(
-                [Viewport {
-                    origin: [0.0, 0.0],
-                    dimensions: [dims[0] as f32, dims[1] as f32],
-                    depth_range: 0.0..1.0,
-                }]
-                .iter()
-                .cloned(),
-            )
+            .viewports(Some(viewport.clone()))
             .render_pass(Subpass::from(render_pass.clone(), 2).unwrap())
             .build(app.device.clone())
             .expect("cannot build tonemap graphics pipeline"),
     );
+
+    info!("loading geometry and image data...");
+    let rock_mesh = load_geometry(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf",
+    );
+    let icosphere_mesh = load_geometry(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf",
+    );
+    let plane_mesh = load_geometry(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf",
+    );
+    let rock_albedo = load_image(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",
+    );
+    let basic = load_image(
+        app.graphical_queue.clone(),
+        "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf",
+    );
+    info!("data loaded!");
 
     // create descriptor set 0
     let rock_material = Arc::new(
