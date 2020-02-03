@@ -6,7 +6,7 @@ use vulkano::device::{Device, DeviceExtensions, DeviceOwned, Queue};
 use vulkano::format::Format;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice};
-use vulkano::swapchain::{ColorSpace, PresentMode, Surface, SurfaceTransform, Swapchain};
+use vulkano::swapchain::{PresentMode, Surface, SurfaceTransform, Swapchain};
 use vulkano::sync::GpuFuture;
 use vulkano::{app_info_from_cargo_toml, swapchain};
 use vulkano_win::VkSurfaceBuild;
