@@ -1,5 +1,6 @@
 use cgmath::{Matrix4, Vector3};
 
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MaterialData {
     pub albedo_color: Vector3<f32>,

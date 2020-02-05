@@ -5,12 +5,8 @@ use crate::samplers::Samplers;
 use crate::window::{SwapChain, Window};
 use cgmath::{vec3, Deg, InnerSpace, Point3, Rad, Vector3};
 use log::{error, info, warn};
-use std::sync::Arc;
 use std::time::Instant;
-use vulkano::buffer::{BufferUsage, ImmutableBuffer};
-use vulkano::device::Queue;
 use vulkano::pipeline::viewport::Viewport;
-use vulkano::sync::GpuFuture;
 use winit::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 
 mod camera;
@@ -18,7 +14,6 @@ mod hosek;
 mod image;
 mod input;
 mod io;
-mod material;
 mod mesh;
 mod pod;
 mod render;
@@ -31,16 +26,6 @@ pub struct Configuration {
     pub fullscreen: bool,
     pub resolution: [u16; 2],
     pub gpu: usize,
-}
-
-fn make_ubo<T>(queue: Arc<Queue>, data: T) -> Arc<ImmutableBuffer<T>>
-where
-    T: 'static + Send + Sync + Sized,
-{
-    let (buff, fut) = ImmutableBuffer::from_data(data, BufferUsage::uniform_buffer(), queue)
-        .expect("cannot allocate ubo!");
-    fut.then_signal_fence_and_flush().ok();
-    buff
 }
 
 pub struct GameState {
@@ -105,6 +90,7 @@ fn main() {
 
     loop {
         swapchain = swapchain.render_frame(|image_num, color_attachment| {
+            // todo: do not recreate frame object
             let frame = frame_system.create_frame(color_attachment);
             frame.render(&renderer, &state)
         });

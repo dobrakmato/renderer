@@ -6,12 +6,12 @@ use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
 use crate::samplers::Samplers;
 use crate::sky::SkyParams;
 use crate::window::SwapChain;
-use crate::{make_ubo, GameState};
+use crate::GameState;
 use cgmath::{vec3, Matrix4, Quaternion, Vector3};
 use log::info;
 use safe_transmute::TriviallyTransmutable;
 use std::sync::Arc;
-use vulkano::buffer::CpuBufferPool;
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, CpuBufferPool};
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::DescriptorSet;
@@ -101,10 +101,8 @@ pub struct FrameSystem {
     rock_mesh: Mesh<BasicVertex, u16>,
     icosphere_mesh: Mesh<BasicVertex, u16>,
     plane_mesh: Mesh<BasicVertex, u16>,
-    rock_albedo: Arc<ImmutableImage<Format>>,
-    basic: Arc<ImmutableImage<Format>>,
-    rock_material: Arc<dyn DescriptorSet + Send + Sync>,
-    white_material: Arc<dyn DescriptorSet + Send + Sync>,
+    rock_material: Arc<Material>,
+    white_material: Arc<Material>,
 }
 
 impl FrameSystem {
@@ -270,36 +268,24 @@ impl FrameSystem {
         );
         info!("data loaded!");
 
-        let rock_material = Arc::new(
-            PersistentDescriptorSet::start(geometry_pipeline.clone(), 0)
-                .add_sampled_image(rock_albedo.clone(), renderer.samplers.aniso_repeat.clone())
-                .unwrap()
-                .add_buffer(make_ubo(
-                    renderer.graphical_queue.clone(),
-                    MaterialData {
-                        albedo_color: vec3(1.0, 1.0, 1.0),
-                        alpha_cutoff: 0.0,
-                    },
-                ))
-                .unwrap()
-                .build()
-                .expect("cannot build pds"),
+        let rock_material = Material::new(
+            renderer,
+            geometry_pipeline.clone(),
+            rock_albedo,
+            MaterialData {
+                albedo_color: vec3(1.0, 1.0, 1.0),
+                alpha_cutoff: 0.0,
+            },
         );
 
-        let white_material = Arc::new(
-            PersistentDescriptorSet::start(geometry_pipeline.clone(), 0)
-                .add_sampled_image(basic.clone(), renderer.samplers.aniso_repeat.clone())
-                .unwrap()
-                .add_buffer(make_ubo(
-                    renderer.graphical_queue.clone(),
-                    MaterialData {
-                        albedo_color: vec3(1.0, 1.0, 1.0),
-                        alpha_cutoff: 0.0,
-                    },
-                ))
-                .unwrap()
-                .build()
-                .expect("cannot build pds"),
+        let white_material = Material::new(
+            renderer,
+            geometry_pipeline.clone(),
+            basic,
+            MaterialData {
+                albedo_color: vec3(1.0, 0.25, 0.0),
+                alpha_cutoff: 0.0,
+            },
         );
 
         Self {
@@ -318,8 +304,6 @@ impl FrameSystem {
             rock_mesh,
             icosphere_mesh,
             plane_mesh,
-            rock_albedo,
-            basic,
             rock_material,
             white_material,
         }
@@ -358,6 +342,8 @@ pub struct Frame<'s> {
 
 impl<'s> Frame<'s> {
     pub fn render(&self, renderer: &Renderer, state: &GameState) -> AutoCommandBuffer {
+        // todo: implement sub-pass structure with secondary cmd buffers
+
         let no_dynamic_state = DynamicState::none();
 
         // create descriptor sets
@@ -443,7 +429,7 @@ impl<'s> Frame<'s> {
             &no_dynamic_state,
             vec![self.system.rock_mesh.vertex_buffer.clone()],
             self.system.rock_mesh.index_buffer.clone(),
-            (self.system.rock_material.clone(), rock_ds),
+            (self.system.rock_material.descriptor_set.clone(), rock_ds),
             state.sun_dir,
         )
         .unwrap()
@@ -452,7 +438,7 @@ impl<'s> Frame<'s> {
             &no_dynamic_state,
             vec![self.system.plane_mesh.vertex_buffer.clone()],
             self.system.plane_mesh.index_buffer.clone(),
-            (self.system.white_material.clone(), plane_ds),
+            (self.system.white_material.descriptor_set.clone(), plane_ds),
             state.sun_dir,
         )
         .unwrap()
@@ -482,5 +468,48 @@ impl<'s> Frame<'s> {
         .unwrap()
         .build()
         .unwrap()
+    }
+}
+
+pub struct Material {
+    uniform_buffer: Arc<CpuAccessibleBuffer<MaterialData>>,
+    // descriptor set that contains uniform objects that are related to this material instance
+    descriptor_set: Arc<dyn DescriptorSet + Send + Sync>,
+    data: MaterialData,
+}
+
+impl Material {
+    pub fn new(
+        renderer: &Renderer,
+        geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+        albedo: Arc<ImmutableImage<Format>>,
+        data: MaterialData,
+    ) -> Arc<Material> {
+        let uniform_buffer = CpuAccessibleBuffer::from_data(
+            renderer.device.clone(),
+            BufferUsage::uniform_buffer(),
+            data,
+        )
+        .unwrap();
+        let descriptor_set = Arc::new(
+            PersistentDescriptorSet::start(geometry_pipeline.clone(), 0)
+                .add_sampled_image(albedo.clone(), renderer.samplers.aniso_repeat.clone())
+                .unwrap()
+                .add_buffer(uniform_buffer.clone())
+                .unwrap()
+                .build()
+                .expect("cannot build pds"),
+        );
+
+        Arc::new(Material {
+            uniform_buffer,
+            descriptor_set,
+            data,
+        })
+    }
+
+    pub fn update(&self, cmd: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {
+        cmd.update_buffer(self.uniform_buffer.clone(), self.data)
+            .unwrap()
     }
 }
