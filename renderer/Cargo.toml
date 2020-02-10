@@ -11,6 +11,6 @@ bf = { path = "../bf" }
 log = "0.4.8"
 simple_logger = "1.4.0"
 vulkano = "0.16.0"
-vulkano-shaders = "0.16.0"
+vulkano-shaders = "0.17.0"
 vulkano-win = "0.16.0"
 winit = "0.19.5"
