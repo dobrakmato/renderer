@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use crate::perf::Stopwatch;
 use bf::{save_bf_to_bytes, Container, File, Format, Image};
 use image::dxt::{DXTEncoder, DXTVariant};
-use image::{DynamicImage, FilterType, GenericImageView};
+use image::imageops::FilterType;
+use image::{DynamicImage, GenericImageView};
 use structopt::StructOpt;
 
 mod perf;
@@ -114,13 +115,12 @@ fn main() {
     timers.dxt.start();
     let mut payload = vec![];
     for img in mipmaps {
-        let raw = img.raw_pixels();
-        let raw = raw.as_slice();
+        let raw = img.to_bytes();
 
         let dxt = |variant| {
             let mut storage: Vec<u8> = vec![];
             DXTEncoder::new(&mut storage)
-                .encode(raw, img.width(), img.height(), variant)
+                .encode(&raw, img.width(), img.height(), variant)
                 .expect("dxt compression failed");
             storage
         };
@@ -132,7 +132,7 @@ fn main() {
             Format::SrgbDxt5 | Format::Dxt5 => dxt(DXTVariant::DXT5),
 
             // for uncompressed formats we just copy the buffer
-            _ => Vec::from(raw), // todo: optimize needless copy
+            _ => raw,
         };
 
         payload.extend(result);

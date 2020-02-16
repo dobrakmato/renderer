@@ -1,5 +1,5 @@
 use bf::{load_bf_from_bytes, Container, Data, Geometry, Image};
-use image::dxt::{DXTDecoder, DXTVariant};
+use image::dxt::{DXTVariant, DxtDecoder};
 use image::{DynamicImage, ImageBuffer, ImageDecoder, ImageFormat};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -49,13 +49,16 @@ fn handle_image(image: Image, dump: bool) {
             let width = mipmap.width as u32;
             let height = mipmap.height as u32;
 
-            let decoder = DXTDecoder::new(mipmap.data, width, height, DXTVariant::DXT1)
+            let decoder = DxtDecoder::new(mipmap.data, width, height, DXTVariant::DXT1)
                 .expect("cannot create dxt decoder");
-            let raw = decoder.read_image().expect("cannot decode dxt data");
+            let mut raw = Vec::with_capacity(decoder.total_bytes() as usize);
+            decoder
+                .read_image(&mut raw)
+                .expect("cannot decode dxt data");
             let img = ImageBuffer::from_raw(width, height, raw)
                 .map(DynamicImage::ImageRgb8)
                 .expect("cannot create image buffer from decoded data");
-            img.save_with_format(format!("dump_mipmap{}.png", idx), ImageFormat::PNG)
+            img.save_with_format(format!("dump_mipmap{}.png", idx), ImageFormat::Png)
                 .expect("cannot save dumped file");
         }
     }
