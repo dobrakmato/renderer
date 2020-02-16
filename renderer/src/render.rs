@@ -14,7 +14,7 @@ use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, CpuBufferPool};
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
-use vulkano::descriptor::DescriptorSet;
+use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
 use vulkano::device::{Device, Queue};
 use vulkano::format::{ClearValue, Format};
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract, Subpass};
@@ -237,11 +237,13 @@ impl FrameSystem {
 
         // todo: decide whether we need this
         let tonemap_ds = Arc::new(
-            PersistentDescriptorSet::start(tonemap_pipeline.clone(), 0)
-                .add_image(hdr_buffer.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
+            PersistentDescriptorSet::start(
+                tonemap_pipeline.descriptor_set_layout(0).unwrap().clone(),
+            )
+            .add_image(hdr_buffer.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
         );
 
         // TODO: remove from render path
@@ -361,11 +363,17 @@ impl<'s> Frame<'s> {
                 projection: state.camera.projection_matrix(),
             })
             .expect("cannot create next sub-buffer");
-        let rock_ds = PersistentDescriptorSet::start(self.system.geometry_pipeline.clone(), 1)
-            .add_buffer(ubo_rock)
-            .expect("cannot add ubo to pds set=1")
-            .build()
-            .expect("cannot build pds set=1");
+        let rock_ds = PersistentDescriptorSet::start(
+            self.system
+                .geometry_pipeline
+                .descriptor_set_layout(1)
+                .unwrap()
+                .clone(),
+        )
+        .add_buffer(ubo_rock)
+        .expect("cannot add ubo to pds set=1")
+        .build()
+        .expect("cannot build pds set=1");
         let plane_transform = Transform {
             position: vec3(0.0, 0.0, 0.0),
             rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
@@ -380,18 +388,30 @@ impl<'s> Frame<'s> {
                 projection: state.camera.projection_matrix(),
             })
             .expect("cannot create next sub-buffer");
-        let plane_ds = PersistentDescriptorSet::start(self.system.geometry_pipeline.clone(), 1)
-            .add_buffer(ubo_plane)
-            .expect("cannot add ubo to pds set=1")
-            .build()
-            .expect("cannot build pds set=1");
+        let plane_ds = PersistentDescriptorSet::start(
+            self.system
+                .geometry_pipeline
+                .descriptor_set_layout(1)
+                .unwrap()
+                .clone(),
+        )
+        .add_buffer(ubo_plane)
+        .expect("cannot add ubo to pds set=1")
+        .build()
+        .expect("cannot build pds set=1");
         let params = make_hosek_wilkie_params(state.sun_dir, 2.0, vec3(0.0, 0.0, 0.0));
         let ubo_sky_hw = self.system.hosek_wilkie_sky_pool.next(params).unwrap();
-        let sky_hw_params = PersistentDescriptorSet::start(self.system.skybox_pipeline.clone(), 1)
-            .add_buffer(ubo_sky_hw)
-            .expect("cannot add ubo to pds set=1")
-            .build()
-            .expect("cannot build pds set=1");
+        let sky_hw_params = PersistentDescriptorSet::start(
+            self.system
+                .skybox_pipeline
+                .descriptor_set_layout(1)
+                .unwrap()
+                .clone(),
+        )
+        .add_buffer(ubo_sky_hw)
+        .expect("cannot add ubo to pds set=1")
+        .build()
+        .expect("cannot build pds set=1");
         let ubo_sky = self
             .system
             .matrix_data_pool
@@ -402,12 +422,17 @@ impl<'s> Frame<'s> {
             })
             .expect("cannot create next sub-buffer");
 
-        let per_object_descriptor_set_sky =
-            PersistentDescriptorSet::start(self.system.skybox_pipeline.clone(), 0)
-                .add_buffer(ubo_sky)
-                .expect("cannot add ubo to pds set=1")
-                .build()
-                .expect("cannot build pds set=1");
+        let per_object_descriptor_set_sky = PersistentDescriptorSet::start(
+            self.system
+                .skybox_pipeline
+                .descriptor_set_layout(0)
+                .unwrap()
+                .clone(),
+        )
+        .add_buffer(ubo_sky)
+        .expect("cannot add ubo to pds set=1")
+        .build()
+        .expect("cannot build pds set=1");
 
         AutoCommandBufferBuilder::primary_one_time_submit(
             renderer.device.clone(),
@@ -471,6 +496,8 @@ impl<'s> Frame<'s> {
     }
 }
 
+enum Pass {}
+
 pub struct Material {
     uniform_buffer: Arc<CpuAccessibleBuffer<MaterialData>>,
     // descriptor set that contains uniform objects that are related to this material instance
@@ -488,17 +515,20 @@ impl Material {
         let uniform_buffer = CpuAccessibleBuffer::from_data(
             renderer.device.clone(),
             BufferUsage::uniform_buffer(),
+            false,
             data,
         )
         .unwrap();
         let descriptor_set = Arc::new(
-            PersistentDescriptorSet::start(geometry_pipeline.clone(), 0)
-                .add_sampled_image(albedo.clone(), renderer.samplers.aniso_repeat.clone())
-                .unwrap()
-                .add_buffer(uniform_buffer.clone())
-                .unwrap()
-                .build()
-                .expect("cannot build pds"),
+            PersistentDescriptorSet::start(
+                geometry_pipeline.descriptor_set_layout(0).unwrap().clone(),
+            )
+            .add_sampled_image(albedo.clone(), renderer.samplers.aniso_repeat.clone())
+            .unwrap()
+            .add_buffer(uniform_buffer.clone())
+            .unwrap()
+            .build()
+            .expect("cannot build pds"),
         );
 
         Arc::new(Material {

@@ -1,4 +1,4 @@
-use winit::{ElementState, KeyboardInput, VirtualKeyCode};
+use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
 pub struct Input {
     key_state: [bool; 512],

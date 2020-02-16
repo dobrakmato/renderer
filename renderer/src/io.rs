@@ -112,6 +112,7 @@ pub fn load_image(queue: Arc<Queue>, file: &str) -> Arc<ImmutableImage<Format>> 
         let source = CpuAccessibleBuffer::from_iter(
             queue.device().clone(),
             BufferUsage::transfer_source(),
+            false,
             padded.iter().cloned(),
         )
         .unwrap();

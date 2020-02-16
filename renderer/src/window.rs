@@ -6,23 +6,26 @@ use vulkano::device::{Device, DeviceExtensions, DeviceOwned, Queue};
 use vulkano::format::Format;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice};
-use vulkano::swapchain::{PresentMode, Surface, SurfaceTransform, Swapchain};
+use vulkano::swapchain::{
+    ColorSpace, FullscreenExclusive, PresentMode, Surface, SurfaceTransform, Swapchain,
+};
 use vulkano::sync::GpuFuture;
 use vulkano::{app_info_from_cargo_toml, swapchain};
 use vulkano_win::VkSurfaceBuild;
 use winit::dpi::LogicalSize;
-use winit::{EventsLoop, WindowBuilder};
+use winit::event_loop::EventLoop;
+use winit::window::WindowBuilder;
 
 pub struct SwapChain {
-    pub swapchain: Arc<Swapchain<winit::Window>>,
-    pub images: Vec<Arc<SwapchainImage<winit::Window>>>,
-    previous_frame_end: Box<dyn GpuFuture>,
+    pub swapchain: Arc<Swapchain<winit::window::Window>>,
+    pub images: Vec<Arc<SwapchainImage<winit::window::Window>>>,
+    previous_frame_end: Option<Box<dyn GpuFuture>>,
     queue: Arc<Queue>,
 }
 
 impl SwapChain {
     pub fn new(
-        surface: Arc<Surface<winit::Window>>,
+        surface: Arc<Surface<winit::window::Window>>,
         device: Arc<Device>,
         graphical_queue: Arc<Queue>,
     ) -> Self {
@@ -74,13 +77,14 @@ impl SwapChain {
             SurfaceTransform::Identity,
             alpha,
             present_mode,
+            FullscreenExclusive::Default,
             true,
-            None,
+            ColorSpace::SrgbNonLinear,
         )
         .expect("cannot create swapchain");
 
         SwapChain {
-            previous_frame_end: Box::new(vulkano::sync::now(swapchain.device().clone())),
+            previous_frame_end: Some(Box::new(vulkano::sync::now(swapchain.device().clone()))),
             swapchain,
             images,
             queue: graphical_queue,
@@ -94,29 +98,32 @@ impl SwapChain {
 
     /// Renders the single frame using the provided `render_fn` on the
     /// main graphical queue passed to the constructor of this struct.
-    pub fn render_frame<F: FnMut(usize, Arc<SwapchainImage<winit::Window>>) -> Cb, Cb>(
-        mut self,
+    pub fn render_frame<F: FnMut(usize, Arc<SwapchainImage<winit::window::Window>>) -> Cb, Cb>(
+        &mut self,
         mut render_fn: F,
-    ) -> Self
-    where
+    ) where
         Cb: CommandBuffer + 'static,
     {
         // clean-up all resources from the previous frame
-        self.previous_frame_end.cleanup_finished();
+        self.previous_frame_end.as_mut().unwrap().cleanup_finished();
 
         // acquire next framebuffer to write to
-        let (idx, fut) = match swapchain::acquire_next_image(self.swapchain.clone(), None) {
-            Ok(r) => r,
-            Err(err) => panic!("{:?}", err), // device unplugged or window resized
-        };
+        let (idx, suboptimal, fut) =
+            match swapchain::acquire_next_image(self.swapchain.clone(), None) {
+                Ok(r) => r,
+                Err(err) => panic!("{:?}", err), // device unplugged or window resized
+            };
 
         let color_attachment = self.images[idx].clone();
         let command_buffer = render_fn(idx, color_attachment);
 
         // wait for image to be available and then present drawn the image
         // to screen.
-        let future = fut
-            .join(self.previous_frame_end)
+        let future = self
+            .previous_frame_end
+            .take()
+            .unwrap()
+            .join(fut)
             .then_execute(self.queue.clone(), command_buffer)
             .unwrap()
             .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), idx)
@@ -126,25 +133,27 @@ impl SwapChain {
         // return to continue to next frame, or report and error
         match future {
             Ok(future) => {
-                self.previous_frame_end = Box::new(future) as Box<_>;
+                self.previous_frame_end = Some(Box::new(future) as Box<_>);
             }
             Err(e) => {
                 // device unplugged or window resized
                 eprintln!("{:?}", e);
                 self.previous_frame_end =
-                    Box::new(vulkano::sync::now(self.swapchain.device().clone())) as Box<_>;
+                    Some(Box::new(vulkano::sync::now(self.swapchain.device().clone())) as Box<_>);
             }
         }
 
-        self
+        if suboptimal {
+            // todo: force recreate swap-chain
+        }
     }
 }
 
 #[allow(dead_code)]
 pub struct Window {
     pub instance: Arc<Instance>,
-    pub surface: Arc<Surface<winit::Window>>,
-    pub event_loop: EventsLoop,
+    pub surface: Arc<Surface<winit::window::Window>>,
+    pub event_loop: EventLoop<()>,
     pub device: Arc<Device>,
     pub graphical_queue: Arc<Queue>,
     pub compute_queue: Arc<Queue>,
@@ -170,10 +179,10 @@ impl Window {
         debug!("loaded extensions: {:?}", extensions);
 
         // STEP 2: create a windows and event loop
-        let events_loop = EventsLoop::new();
+        let events_loop = EventLoop::new();
         let surface = WindowBuilder::new()
             .with_title("renderer")
-            .with_dimensions(LogicalSize::new(
+            .with_inner_size(LogicalSize::new(
                 conf.resolution[0] as f64,
                 conf.resolution[1] as f64,
             ))

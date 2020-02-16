@@ -4,10 +4,11 @@ use crate::render::{FrameSystem, Renderer};
 use crate::samplers::Samplers;
 use crate::window::{SwapChain, Window};
 use cgmath::{vec3, Deg, InnerSpace, Point3, Rad, Vector3};
-use log::{error, info, warn};
+use log::warn;
 use std::time::Instant;
 use vulkano::pipeline::viewport::Viewport;
-use winit::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
+use winit::event::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
+use winit::event_loop::ControlFlow;
 
 mod camera;
 mod hosek;
@@ -55,8 +56,10 @@ fn main() {
         app.device.clone(),
         app.graphical_queue.clone(),
     );
-    app.surface.window().grab_cursor(true).unwrap();
-    app.surface.window().hide_cursor(true);
+
+    // grab the cursor and hide it
+    app.surface.window().set_cursor_grab(true).unwrap();
+    app.surface.window().set_cursor_visible(false);
 
     // todo: improve input handling
     let mut input = Input::default();
@@ -88,66 +91,59 @@ fn main() {
 
     let mut frame_system = FrameSystem::new(&renderer, &swapchain);
 
-    loop {
-        swapchain = swapchain.render_frame(|image_num, color_attachment| {
-            // todo: do not recreate frame object
-            let frame = frame_system.create_frame(color_attachment);
-            frame.render(&renderer, &state)
-        });
-
-        /* handle input & poll events */
-        let mut done = false;
-        app.event_loop.poll_events(|ev| match ev {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => done = true,
-                WindowEvent::Focused(focus) => input.set_input_state(focus),
-                _ => {}
-            },
-            Event::DeviceEvent { event, .. } => {
-                if let DeviceEvent::Key(k) = event {
-                    input.handle_event(k)
-                }
-                if let DeviceEvent::MouseMotion { delta } = event {
-                    if input.input_enabled {
-                        state
-                            .camera
-                            .rotate(Rad(delta.0 as f32 * 0.001), Rad(delta.1 as f32 * 0.001))
-                    }
+    app.event_loop.run(move |ev, _, flow| match ev {
+        Event::WindowEvent { event, .. } => match event {
+            WindowEvent::CloseRequested => *flow = ControlFlow::Exit,
+            WindowEvent::Focused(focus) => input.set_input_state(focus),
+            _ => {}
+        },
+        Event::DeviceEvent { event, .. } => {
+            if let DeviceEvent::Key(k) = event {
+                input.handle_event(k)
+            }
+            if let DeviceEvent::MouseMotion { delta } = event {
+                if input.input_enabled {
+                    state
+                        .camera
+                        .rotate(Rad(delta.0 as f32 * 0.001), Rad(delta.1 as f32 * 0.001))
                 }
             }
-            _ => {}
-        });
-        if done {
-            break;
         }
+        Event::RedrawEventsCleared => {
+            // PART 1: Render
+            swapchain.render_frame(|image_num, color_attachment| {
+                // todo: do not recreate frame object
+                let frame = frame_system.create_frame(color_attachment);
+                frame.render(&renderer, &state)
+            });
 
-        app.surface
-            .window()
-            .set_title(&format!("{:?}", state.camera.position));
+            // PART 2: Update
 
-        /* game update for next frame */
-        let speed = if input.is_key_down(VirtualKeyCode::LShift) {
-            0.01
-        } else {
-            0.005
-        };
-        if input.is_key_down(VirtualKeyCode::A) {
-            state.camera.move_left(speed)
+            /* game update for next frame */
+            let speed = if input.is_key_down(VirtualKeyCode::LShift) {
+                0.01
+            } else {
+                0.005
+            };
+            if input.is_key_down(VirtualKeyCode::A) {
+                state.camera.move_left(speed)
+            }
+            if input.is_key_down(VirtualKeyCode::D) {
+                state.camera.move_right(speed)
+            }
+            if input.is_key_down(VirtualKeyCode::S) {
+                state.camera.move_backward(speed)
+            }
+            if input.is_key_down(VirtualKeyCode::W) {
+                state.camera.move_forward(speed)
+            }
+            if input.is_key_down(VirtualKeyCode::Space) {
+                state.camera.move_up(speed)
+            }
+            if input.is_key_down(VirtualKeyCode::LControl) {
+                state.camera.move_down(speed)
+            }
         }
-        if input.is_key_down(VirtualKeyCode::D) {
-            state.camera.move_right(speed)
-        }
-        if input.is_key_down(VirtualKeyCode::S) {
-            state.camera.move_backward(speed)
-        }
-        if input.is_key_down(VirtualKeyCode::W) {
-            state.camera.move_forward(speed)
-        }
-        if input.is_key_down(VirtualKeyCode::Space) {
-            state.camera.move_up(speed)
-        }
-        if input.is_key_down(VirtualKeyCode::LControl) {
-            state.camera.move_down(speed)
-        }
-    }
+        _ => {}
+    });
 }
