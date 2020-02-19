@@ -8,6 +8,7 @@ use winit::dpi::{LogicalSize, Size};
 use winit::event_loop::EventLoop;
 
 mod camera;
+mod content;
 mod engine;
 mod hosek;
 mod image;
