@@ -2,11 +2,11 @@ use crate::camera::Camera;
 use crate::hosek::make_hosek_wilkie_params;
 use crate::input::Input;
 use crate::io::{load_geometry, load_image};
-use crate::mesh::{create_full_screen_triangle, Mesh};
+use crate::mesh::fst::create_full_screen_triangle;
+use crate::mesh::Mesh;
 use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
 use crate::render::{BasicVertex, PositionOnlyVertex, Transform};
 use crate::samplers::Samplers;
-use crate::sky::SkyParams;
 use crate::{GameState, RendererConfiguration};
 use cgmath::{vec3, Matrix4, Quaternion, Rad};
 use log::info;
@@ -34,6 +34,7 @@ use vulkano::swapchain::{
 use vulkano::sync::GpuFuture;
 use vulkano::{app_info_from_cargo_toml, swapchain};
 use vulkano_win::VkSurfaceBuild;
+use winit::dpi::LogicalSize;
 use winit::event::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -47,9 +48,47 @@ pub struct Engine {
 }
 
 impl Engine {
+    pub fn update(&mut self) {
+        /* game update for next frame */
+        let speed = if self.input_state.is_key_down(VirtualKeyCode::LShift) {
+            0.01
+        } else {
+            0.005
+        };
+        if self.input_state.is_key_down(VirtualKeyCode::A) {
+            self.game_state.camera.move_left(speed)
+        }
+        if self.input_state.is_key_down(VirtualKeyCode::D) {
+            self.game_state.camera.move_right(speed)
+        }
+        if self.input_state.is_key_down(VirtualKeyCode::S) {
+            self.game_state.camera.move_backward(speed)
+        }
+        if self.input_state.is_key_down(VirtualKeyCode::W) {
+            self.game_state.camera.move_forward(speed)
+        }
+        if self.input_state.is_key_down(VirtualKeyCode::Space) {
+            self.game_state.camera.move_up(speed)
+        }
+        if self.input_state.is_key_down(VirtualKeyCode::LControl) {
+            self.game_state.camera.move_down(speed)
+        }
+
+        // todo: this will be fixed when https://github.com/rust-windowing/winit/pull/1461 gets merged
+        if self.input_state.is_key_down(VirtualKeyCode::F) {
+            self.renderer_state
+                .swapchain
+                .surface()
+                .window()
+                .set_inner_size(LogicalSize::new(1280.0, 720.0))
+        }
+    }
+
     pub fn run_forever(mut self) -> ! {
-        self.event_loop.take().unwrap().run(move |ev, _, flow| {
-            match ev {
+        self.event_loop
+            .take()
+            .unwrap()
+            .run(move |ev, _, flow| match ev {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => *flow = ControlFlow::Exit,
                     WindowEvent::Focused(focus) => self.input_state.set_input_enabled(focus),
@@ -69,35 +108,10 @@ impl Engine {
                 }
                 Event::RedrawEventsCleared => {
                     self.renderer_state.render_frame(&self.game_state);
-
-                    /* game update for next frame */
-                    let speed = if self.input_state.is_key_down(VirtualKeyCode::LShift) {
-                        0.01
-                    } else {
-                        0.005
-                    };
-                    if self.input_state.is_key_down(VirtualKeyCode::A) {
-                        self.game_state.camera.move_left(speed)
-                    }
-                    if self.input_state.is_key_down(VirtualKeyCode::D) {
-                        self.game_state.camera.move_right(speed)
-                    }
-                    if self.input_state.is_key_down(VirtualKeyCode::S) {
-                        self.game_state.camera.move_backward(speed)
-                    }
-                    if self.input_state.is_key_down(VirtualKeyCode::W) {
-                        self.game_state.camera.move_forward(speed)
-                    }
-                    if self.input_state.is_key_down(VirtualKeyCode::Space) {
-                        self.game_state.camera.move_up(speed)
-                    }
-                    if self.input_state.is_key_down(VirtualKeyCode::LControl) {
-                        self.game_state.camera.move_down(speed)
-                    }
+                    self.update();
                 }
                 _ => {}
-            }
-        });
+            });
     }
 }
 
@@ -226,7 +240,7 @@ impl RendererState {
         let (idx, suboptimal, fut) =
             match swapchain::acquire_next_image(self.swapchain.clone(), None) {
                 Ok(r) => r,
-                Err(err) => {
+                Err(_) => {
                     self.recreate_swapchain();
                     return;
                 }
@@ -290,6 +304,8 @@ impl RendererState {
             Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
         };
 
+        self.render_path.recreate_buffers(dimensions);
+
         let new_framebuffers = new_images
             .iter()
             .map(|it| self.render_path.create_framebuffer(it.clone()))
@@ -313,7 +329,6 @@ pub struct RenderPath {
     tonemap_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     // constant descriptor sets
     tonemap_ds: Arc<dyn DescriptorSet + Send + Sync>,
-    sky_params: SkyParams,
     fst: Mesh<PositionOnlyVertex, u16>,
     matrix_data_pool: CpuBufferPool<MatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
@@ -523,7 +538,6 @@ impl RenderPath {
 
         Self {
             fst,
-            sky_params: SkyParams::default(),
             render_pass: render_pass as Arc<_>,
             geometry_pipeline: geometry_pipeline as Arc<_>,
             skybox_pipeline: skybox_pipeline as Arc<_>,
@@ -557,6 +571,34 @@ impl RenderPath {
                 .build()
                 .unwrap(),
         )
+    }
+
+    pub fn recreate_buffers(&mut self, dimensions: [u32; 2]) {
+        let new_depth_buffer = AttachmentImage::with_usage(
+            self.geometry_pipeline.device().clone(),
+            dimensions,
+            Format::D16Unorm,
+            ImageUsage {
+                transient_attachment: true,
+                depth_stencil_attachment: true,
+                ..ImageUsage::none()
+            },
+        )
+        .expect("cannot create depth buffer");
+        let new_hdr_buffer = AttachmentImage::with_usage(
+            self.geometry_pipeline.device().clone(),
+            dimensions,
+            Format::B10G11R11UfloatPack32,
+            ImageUsage {
+                transient_attachment: true,
+                input_attachment: true,
+                ..ImageUsage::none()
+            },
+        )
+        .expect("cannot create hdr buffer");
+
+        std::mem::replace(&mut self.hdr_buffer, new_hdr_buffer);
+        std::mem::replace(&mut self.depth_buffer, new_depth_buffer);
     }
 }
 

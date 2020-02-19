@@ -17,7 +17,6 @@ mod pod;
 mod render;
 mod samplers;
 mod shaders;
-mod sky;
 
 #[derive(Copy, Clone)]
 pub struct RendererConfiguration {
@@ -63,8 +62,8 @@ fn main() {
                 position: Point3::new(0.0, 3.0, 0.0),
                 forward: vec3(1.0, 0.0, 0.0),
                 up: vec3(0.0, -1.0, 0.0),
-                fov: Deg(120.0).into(),
-                aspect_ratio: 1600 as f32 / 900 as f32,
+                fov: Deg(90.0).into(),
+                aspect_ratio: conf.resolution[0] as f32 / conf.resolution[1] as f32,
                 near: 0.01,
                 far: 100.0,
             },
