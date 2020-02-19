@@ -29,6 +29,7 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
 use vulkano::swapchain::{
     ColorSpace, FullscreenExclusive, PresentMode, SurfaceTransform, Swapchain,
+    SwapchainCreationError,
 };
 use vulkano::sync::GpuFuture;
 use vulkano::{app_info_from_cargo_toml, swapchain};
@@ -104,12 +105,10 @@ impl Engine {
 pub struct RendererState {
     render_path: RenderPath,
     /* global vulkan objects */
-    instance: Arc<Instance>,
     device: Arc<Device>,
     graphical_queue: Arc<Queue>,
     /* swapchain related stuff */
     swapchain: Arc<Swapchain<Window>>,
-    swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
     framebuffers: SmallVec<[Arc<dyn FramebufferAbstract + Send + Sync>; 4]>,
     previous_frame_end: Option<Box<dyn GpuFuture>>,
 }
@@ -211,11 +210,9 @@ impl RendererState {
         RendererState {
             previous_frame_end: Some(Box::new(vulkano::sync::now(device.clone())) as Box<_>),
             render_path,
-            instance,
             device,
             graphical_queue,
             swapchain,
-            swapchain_images,
             framebuffers,
         }
     }
@@ -229,7 +226,10 @@ impl RendererState {
         let (idx, suboptimal, fut) =
             match swapchain::acquire_next_image(self.swapchain.clone(), None) {
                 Ok(r) => r,
-                Err(err) => panic!("{:?}", err), // device unplugged or window resized
+                Err(err) => {
+                    self.recreate_swapchain();
+                    return;
+                }
             };
 
         let mut frame = Frame {
@@ -275,8 +275,28 @@ impl RendererState {
         }
 
         if suboptimal {
-            // todo: force recreate swap-chain
+            self.recreate_swapchain();
         }
+    }
+
+    fn recreate_swapchain(&mut self) {
+        let dimensions: [u32; 2] = self.swapchain.surface().window().inner_size().into();
+        let (new_swapchain, new_images) = match self.swapchain.recreate_with_dimensions(dimensions)
+        {
+            Ok(r) => r,
+            // This error tends to happen when the user is manually resizing the window.
+            // Simply restarting the loop is the easiest way to fix this issue.
+            Err(SwapchainCreationError::UnsupportedDimensions) => return,
+            Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
+        };
+
+        let new_framebuffers = new_images
+            .iter()
+            .map(|it| self.render_path.create_framebuffer(it.clone()))
+            .collect();
+
+        std::mem::replace(&mut self.swapchain, new_swapchain);
+        std::mem::replace(&mut self.framebuffers, new_framebuffers);
     }
 }
 
