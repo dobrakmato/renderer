@@ -15,7 +15,7 @@ impl Default for Input {
 }
 
 impl Input {
-    pub fn set_input_state(&mut self, input_enabled: bool) {
+    pub fn set_input_enabled(&mut self, input_enabled: bool) {
         // when we lose focus we disable all inputs
         if !input_enabled {
             self.key_state = [false; 512];

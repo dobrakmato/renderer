@@ -1,6 +1,13 @@
 renderer
 -----------------
 
+## Architecture
+
+After many tries I decided on separating different parts on the renderer by their memory access patterns. This
+should result in clearer design and less annoyance from borrow checker. Parts of the code use `Arc` mainly because
+`vulkano` does so. Until the `vulkano` is replaced with something else `Arc`s are here to stay.
+
+
 Objects:
 - Static
 - Movable
