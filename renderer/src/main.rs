@@ -1,5 +1,6 @@
 use crate::camera::PerspectiveCamera;
-use crate::engine::{Engine, RendererState};
+use crate::engine::Engine;
+use crate::render::RendererState;
 use cgmath::{vec3, Deg, InnerSpace, Point3, Vector3};
 use log::warn;
 use std::time::Instant;
