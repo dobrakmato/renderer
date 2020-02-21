@@ -1,6 +1,6 @@
 use crate::camera::Camera;
+use crate::content::Content;
 use crate::hosek::make_hosek_wilkie_params;
-use crate::io::{load_geometry, load_image};
 use crate::mesh::fst::create_full_screen_triangle;
 use crate::mesh::Mesh;
 use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
@@ -27,7 +27,7 @@ use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
 use vulkano::swapchain::{
-    ColorSpace, FullscreenExclusive, PresentMode, SurfaceTransform, Swapchain,
+    ColorSpace, FullscreenExclusive, PresentMode, Surface, SurfaceTransform, Swapchain,
     SwapchainCreationError,
 };
 use vulkano::sync::GpuFuture;
@@ -72,19 +72,15 @@ impl Into<Matrix4<f32>> for Transform {
     }
 }
 
-// render path, vulkan instance, vulkan device, framebuffers, swapchain
-pub struct RendererState {
-    render_path: RenderPath,
-    /* global vulkan objects */
+// global vulkan object not related to one render path
+pub struct VulkanState {
     device: Arc<Device>,
+    surface: Arc<Surface<Window>>,
     graphical_queue: Arc<Queue>,
-    /* swapchain related stuff */
-    swapchain: Arc<Swapchain<Window>>,
-    framebuffers: SmallVec<[Arc<dyn FramebufferAbstract + Send + Sync>; 4]>,
-    previous_frame_end: Option<Box<dyn GpuFuture>>,
+    transfer_queue: Arc<Queue>,
 }
 
-impl RendererState {
+impl VulkanState {
     pub fn new(conf: RendererConfiguration, event_loop: &EventLoop<()>) -> Self {
         // we create vulkan instance object with extensions
         // required to create a windows which we will render to.
@@ -114,15 +110,53 @@ impl RendererState {
             .find(|&q| q.supports_graphics() && surface.is_supported(q).unwrap())
             .expect("couldn't find a graphical queue family that's supported by surface");
 
+        let transfer_queue_family = physical
+            .queue_families()
+            .find(|&q| q.explicitly_supports_transfers())
+            .expect("cannot find explicit transfer queue");
+
         let (device, mut queues) = Device::new(
             physical,
             physical.supported_features(),
             &DeviceExtensions::supported_by_device(physical),
-            [(graphical_queue_family, 0.5)].iter().cloned(),
+            [(graphical_queue_family, 0.5), (transfer_queue_family, 0.5)]
+                .iter()
+                .cloned(),
         )
         .expect("cannot create virtual device");
 
         let graphical_queue = queues.next().expect("no queue was created");
+        let transfer_queue = queues.next().expect("no transfer queue was created");
+
+        Self {
+            device,
+            surface,
+            graphical_queue,
+            transfer_queue,
+        }
+    }
+
+    pub fn transfer_queue(&self) -> Arc<Queue> {
+        self.transfer_queue.clone()
+    }
+}
+
+// render path, vulkan instance, vulkan device, framebuffers, swapchain
+pub struct RendererState {
+    render_path: RenderPath,
+    device: Arc<Device>,
+    graphical_queue: Arc<Queue>,
+    /* swapchain related stuff */
+    swapchain: Arc<Swapchain<Window>>,
+    framebuffers: SmallVec<[Arc<dyn FramebufferAbstract + Send + Sync>; 4]>,
+    previous_frame_end: Option<Box<dyn GpuFuture>>,
+}
+
+impl RendererState {
+    pub fn new(vulkan: &VulkanState, content: &Content) -> Self {
+        let surface = vulkan.surface.clone();
+        let device = vulkan.device.clone();
+        let graphical_queue = vulkan.graphical_queue.clone();
 
         let caps = surface
             .capabilities(device.physical_device())
@@ -171,8 +205,13 @@ impl RendererState {
         )
         .expect("cannot create swapchain");
 
-        let render_path =
-            RenderPath::new(graphical_queue.clone(), device.clone(), swapchain.clone());
+        let render_path = RenderPath::new(
+            graphical_queue.clone(),
+            device.clone(),
+            swapchain.clone(),
+            content,
+        );
+
         let framebuffers = swapchain_images
             .iter()
             .map(|it| render_path.create_framebuffer(it.clone()))
@@ -181,10 +220,10 @@ impl RendererState {
         RendererState {
             previous_frame_end: Some(Box::new(vulkano::sync::now(device.clone())) as Box<_>),
             render_path,
-            device,
-            graphical_queue,
             swapchain,
             framebuffers,
+            device,
+            graphical_queue,
         }
     }
 
@@ -294,15 +333,20 @@ pub struct RenderPath {
     matrix_data_pool: CpuBufferPool<MatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
     // resources
-    rock_mesh: Mesh<BasicVertex, u16>,
-    icosphere_mesh: Mesh<BasicVertex, u16>,
-    plane_mesh: Mesh<BasicVertex, u16>,
+    rock_mesh: Arc<Mesh<BasicVertex, u16>>,
+    icosphere_mesh: Arc<Mesh<BasicVertex, u16>>,
+    plane_mesh: Arc<Mesh<BasicVertex, u16>>,
     rock_material: Arc<Material>,
     white_material: Arc<Material>,
 }
 
 impl RenderPath {
-    pub fn new(queue: Arc<Queue>, device: Arc<Device>, swapchain: Arc<Swapchain<Window>>) -> Self {
+    pub fn new(
+        queue: Arc<Queue>,
+        device: Arc<Device>,
+        swapchain: Arc<Swapchain<Window>>,
+        content: &Content,
+    ) -> Self {
         let dims = swapchain.dimensions();
         let viewport = Viewport {
             origin: [0.0, 0.0],
@@ -451,26 +495,16 @@ impl RenderPath {
 
         // TODO: remove from render path
         info!("loading geometry and image data...");
-        let rock_mesh = load_geometry(
-            queue.clone(),
-            "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf",
-        );
-        let icosphere_mesh = load_geometry(
-            queue.clone(),
-            "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf",
-        );
-        let plane_mesh = load_geometry(
-            queue.clone(),
-            "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf",
-        );
-        let rock_albedo = load_image(
-            queue.clone(),
-            "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf",
-        );
-        let basic = load_image(
-            queue.clone(),
-            "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf",
-        );
+        let rock_mesh =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+        let icosphere_mesh =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf");
+        let plane_mesh =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf");
+        let rock_albedo = content
+            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf");
+        let basic =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf");
         info!("data loaded!");
 
         let samplers = Samplers::new(device.clone()).unwrap();

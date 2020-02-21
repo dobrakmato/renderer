@@ -1,7 +1,5 @@
 use crate::camera::PerspectiveCamera;
-use crate::content::Content;
 use crate::engine::Engine;
-use crate::render::RendererState;
 use cgmath::{vec3, Deg, InnerSpace, Point3, Vector3};
 use log::warn;
 use std::time::Instant;
@@ -57,8 +55,8 @@ fn main() {
         gpu: 0,
     };
     let event_loop = EventLoop::new();
-    let engine = Engine {
-        game_state: GameState {
+    let engine = Engine::new(
+        GameState {
             start: Instant::now(),
             sun_dir: vec3(0.0, 0.5, 0.0).normalize(),
             camera: PerspectiveCamera {
@@ -71,10 +69,8 @@ fn main() {
                 far: 100.0,
             },
         },
-        renderer_state: RendererState::new(conf, &event_loop),
-        input_state: Default::default(),
-        content: Content::new(),
-        event_loop: Some(event_loop),
-    };
+        conf,
+        event_loop,
+    );
     engine.run_forever();
 }
