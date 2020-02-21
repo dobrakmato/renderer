@@ -1,3 +1,4 @@
+use crate::content::Content;
 use crate::input::Input;
 use crate::render::RendererState;
 use crate::GameState;
@@ -11,6 +12,7 @@ pub struct Engine {
     pub game_state: GameState,
     pub renderer_state: RendererState,
     pub input_state: Input,
+    pub content: Content,
     pub event_loop: Option<EventLoop<()>>,
 }
 

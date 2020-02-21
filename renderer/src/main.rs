@@ -1,4 +1,5 @@
 use crate::camera::PerspectiveCamera;
+use crate::content::Content;
 use crate::engine::Engine;
 use crate::render::RendererState;
 use cgmath::{vec3, Deg, InnerSpace, Point3, Vector3};
@@ -72,6 +73,7 @@ fn main() {
         },
         renderer_state: RendererState::new(conf, &event_loop),
         input_state: Default::default(),
+        content: Content::new(),
         event_loop: Some(event_loop),
     };
     engine.run_forever();
