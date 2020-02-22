@@ -74,9 +74,7 @@ impl<'a> Data<'a> for ImmutableImage<Format> {
                 .unwrap();
 
         for (idx, mipmap) in image.mipmaps().enumerate() {
-            // todo: bug in vulkano #1292
             let mut padded = mipmap.data.to_vec();
-            padded.extend_from_slice(&[0u8; 4096]);
 
             let source = CpuAccessibleBuffer::from_iter(
                 transfer_queue.device().clone(),
