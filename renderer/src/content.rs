@@ -19,32 +19,42 @@ pub struct Content {
     transfer_queue: Arc<Queue>,
 }
 
+pub enum Future<T> {
+    Cpu(T),
+    Gpu(T, Box<dyn GpuFuture>),
+}
+
+impl<T> Future<T> {
+    pub fn wait_for(self) -> T {
+        match self {
+            Future::Cpu(t) => t,
+            Future::Gpu(t, f) => {
+                f.then_signal_fence_and_flush().ok();
+                t
+            }
+        }
+    }
+}
+
 impl Content {
     pub fn new(transfer_queue: Arc<Queue>) -> Self {
         Self { transfer_queue }
     }
 
-    pub fn load<T, P: PathLike>(&self, path: P) -> Arc<T>
+    pub fn load<T, P: PathLike>(&self, path: P) -> Future<Arc<T>>
     where
         T: for<'a> Data<'a>,
     {
         let path = path.to_path();
         let bytes = std::fs::read(path).unwrap();
+        let bytes = bytes.as_slice();
 
-        // we need to extend the lifetime of bytes borrow, that's why we
-        // have this weird unreachable unused variable here.
-        let _ = {
-            let bytes = bytes.as_slice();
-            return match T::parse(bytes) {
-                ParseResult::Done(t) => Arc::new(t),
-                ParseResult::Upload(u) => {
-                    let (t, f) = T::upload(u, self.transfer_queue.clone());
-                    f.then_signal_fence_and_flush().ok();
-                    t
-                }
-            };
-            bytes
+        return match T::parse(bytes) {
+            ParseResult::Done(t) => Future::Cpu(Arc::new(t)),
+            ParseResult::Upload(u) => {
+                let (t, f) = T::upload(u, self.transfer_queue.clone());
+                Future::Gpu(t, f)
+            }
         };
-        unreachable!();
     }
 }

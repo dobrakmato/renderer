@@ -495,16 +495,21 @@ impl RenderPath {
 
         // TODO: remove from render path
         info!("loading geometry and image data...");
-        let rock_mesh =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
-        let icosphere_mesh =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf");
-        let plane_mesh =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf");
+        let rock_mesh = content
+            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf")
+            .wait_for();
+        let icosphere_mesh = content
+            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf")
+            .wait_for();
+        let plane_mesh = content
+            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf")
+            .wait_for();
         let rock_albedo = content
-            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf");
-        let basic =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf");
+            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf")
+            .wait_for();
+        let basic = content
+            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf")
+            .wait_for();
         info!("data loaded!");
 
         let samplers = Samplers::new(device.clone()).unwrap();
