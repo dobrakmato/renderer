@@ -74,13 +74,11 @@ impl<'a> Data<'a> for ImmutableImage<Format> {
                 .unwrap();
 
         for (idx, mipmap) in image.mipmaps().enumerate() {
-            let mut padded = mipmap.data.to_vec();
-
             let source = CpuAccessibleBuffer::from_iter(
                 transfer_queue.device().clone(),
                 BufferUsage::transfer_source(),
                 false,
-                padded.iter().cloned(),
+                mipmap.data.iter().cloned(),
             )
             .unwrap();
 
