@@ -1,7 +1,8 @@
+use crate::content::{Load, LoadResult};
 use crate::image::ToVulkanFormat;
 use crate::mesh::Mesh;
 use crate::render::BasicVertex;
-use bf::{load_bf_from_bytes, Geometry, Image, IndexType};
+use bf::{load_bf_from_bytes, IndexType};
 use log::error;
 use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
@@ -12,43 +13,13 @@ use vulkano::format::Format;
 use vulkano::image::{Dimensions, ImageLayout, ImageUsage, ImmutableImage};
 use vulkano::sync::GpuFuture;
 
-/// Represents result of `Data.parse` operation.
-pub enum ParseResult<D, U> {
-    /// Loading is done and the resulting type is `D`.
-    Done(D),
-    /// Data is loaded but it needs to be uploaded to the GPU. Intermediate
-    /// result is of type `U`.
-    Upload(U),
-}
+impl Load for ImmutableImage<Format> {
+    fn load(bytes: &[u8], transfer_queue: Arc<Queue>) -> (Arc<Self>, LoadResult) {
+        let image = load_bf_from_bytes(bytes)
+            .expect("cannot load file")
+            .try_to_image()
+            .unwrap();
 
-/// Data type that can be parse from array of bytes and potentially uploaded to GPU.
-pub trait Data<'a>: Sized {
-    type Upload;
-
-    /// Provided array of bytes parses the bytes into the `Self` or `Self::Upload` type.
-    fn parse(bytes: &'a [u8]) -> ParseResult<Self, Self::Upload>;
-
-    /// Provided parsed `Self::Upload` types and transfer queue uploads the data
-    /// into the GPU and returns created object in `Arc` and future that represents
-    /// the moment when the data is uploaded and object in `Arc` is ready to be used.
-    fn upload(data: Self::Upload, transfer_queue: Arc<Queue>) -> (Arc<Self>, Box<dyn GpuFuture>);
-}
-
-// implementation for common loadable types
-
-impl<'a> Data<'a> for ImmutableImage<Format> {
-    type Upload = Image<'a>;
-
-    fn parse(bytes: &'a [u8]) -> ParseResult<Self, Self::Upload> {
-        ParseResult::Upload(
-            load_bf_from_bytes(bytes)
-                .expect("cannot load file")
-                .try_to_image()
-                .unwrap(),
-        )
-    }
-
-    fn upload(image: Self::Upload, transfer_queue: Arc<Queue>) -> (Arc<Self>, Box<dyn GpuFuture>) {
         // create image on the gpu and allocate memory for it
         let (immutable, init) = ImmutableImage::uninitialized(
             transfer_queue.device().clone(),
@@ -102,23 +73,17 @@ impl<'a> Data<'a> for ImmutableImage<Format> {
             Err(_) => unreachable!(),
         };
 
-        (immutable, Box::new(future))
+        (immutable, LoadResult::GpuFuture(Box::new(future)))
     }
 }
 
-impl<'a> Data<'a> for Mesh<BasicVertex, u16> {
-    type Upload = Geometry<'a>;
+impl Load for Mesh<BasicVertex, u16> {
+    fn load(bytes: &[u8], queue: Arc<Queue>) -> (Arc<Self>, LoadResult) {
+        let geometry = load_bf_from_bytes(bytes)
+            .expect("cannot load file")
+            .try_to_geometry()
+            .unwrap();
 
-    fn parse(bytes: &'a [u8]) -> ParseResult<Self, Self::Upload> {
-        ParseResult::Upload(
-            load_bf_from_bytes(bytes)
-                .expect("cannot load file")
-                .try_to_geometry()
-                .unwrap(),
-        )
-    }
-
-    fn upload(geometry: Self::Upload, queue: Arc<Queue>) -> (Arc<Self>, Box<dyn GpuFuture>) {
         // dummy Vecs to extend life-time of variables
         let mut vertex_vec = Vec::new();
         let mut index_vec = Vec::new();
@@ -168,7 +133,7 @@ impl<'a> Data<'a> for Mesh<BasicVertex, u16> {
                 vertex_buffer,
                 index_buffer,
             }),
-            Box::new(f1.join(f2)),
+            LoadResult::GpuFuture(Box::new(f1.join(f2))),
         )
     }
 }

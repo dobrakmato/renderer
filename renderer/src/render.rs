@@ -497,19 +497,19 @@ impl RenderPath {
         info!("loading geometry and image data...");
         let rock_mesh = content
             .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf")
-            .wait_for();
+            .wait_for_then_unwrap();
         let icosphere_mesh = content
             .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf")
-            .wait_for();
+            .wait_for_then_unwrap();
         let plane_mesh = content
             .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf")
-            .wait_for();
+            .wait_for_then_unwrap();
         let rock_albedo = content
             .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf")
-            .wait_for();
+            .wait_for_then_unwrap();
         let basic = content
             .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf")
-            .wait_for();
+            .wait_for_then_unwrap();
         info!("data loaded!");
 
         let samplers = Samplers::new(device.clone()).unwrap();
