@@ -13,6 +13,7 @@ mod hosek;
 mod image;
 mod input;
 mod io;
+mod material;
 mod mesh;
 mod pod;
 mod render;

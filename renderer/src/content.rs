@@ -1,4 +1,5 @@
 use crossbeam::channel::{Receiver, Sender};
+use log::info;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread::spawn;
@@ -80,6 +81,7 @@ impl Content {
 
     pub fn load<T: 'static + Send + Sync + Load, P: PathLike>(&self, path: P) -> Future<T> {
         let path = path.to_path().to_path_buf();
+        info!("submitting load request for {:?}", path);
         let queue = self.transfer_queue.clone();
         let (send, recv) = crossbeam::bounded(1);
 

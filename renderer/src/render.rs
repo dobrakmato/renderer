@@ -1,6 +1,7 @@
 use crate::camera::Camera;
 use crate::content::Content;
 use crate::hosek::make_hosek_wilkie_params;
+use crate::material::{Material, MaterialDesc};
 use crate::mesh::fst::create_full_screen_triangle;
 use crate::mesh::Mesh;
 use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
@@ -493,48 +494,35 @@ impl RenderPath {
             .unwrap(),
         );
 
-        // TODO: remove from render path
-        info!("loading geometry and image data...");
-        let rock_mesh = content
-            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf")
-            .wait_for_then_unwrap();
-        let icosphere_mesh = content
-            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf")
-            .wait_for_then_unwrap();
-        let plane_mesh = content
-            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf")
-            .wait_for_then_unwrap();
-        let rock_albedo = content
-            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1_Base_Color.bf")
-            .wait_for_then_unwrap();
-        let basic = content
-            .load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\basic.bf")
-            .wait_for_then_unwrap();
-        info!("data loaded!");
-
         let samplers = Samplers::new(device.clone()).unwrap();
 
-        let rock_material = Material::new(
-            geometry_pipeline.clone(),
-            device.clone(),
-            samplers.aniso_repeat.clone(),
-            rock_albedo,
-            MaterialData {
-                albedo_color: vec3(1.0, 1.0, 1.0),
-                alpha_cutoff: 0.0,
-            },
-        );
+        // TODO: remove from render path
+        info!("loading geometry and image data...");
+        let mut rock_mesh =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+        let mut icosphere_mesh =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf");
+        let mut plane_mesh =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf");
+        let mut rock_material =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\mat_rock.json");
+        let mut white_material =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\mat_basic.json");
 
-        let white_material = Material::new(
+        let rock_mesh = rock_mesh.wait_for_then_unwrap();
+        let icosphere_mesh = icosphere_mesh.wait_for_then_unwrap();
+        let plane_mesh = plane_mesh.wait_for_then_unwrap();
+        let rock_material: Arc<MaterialDesc> = rock_material.wait_for_then_unwrap();
+        let rock_material = rock_material.to_material(
+            content,
             geometry_pipeline.clone(),
-            device.clone(),
             samplers.aniso_repeat.clone(),
-            basic,
-            MaterialData {
-                albedo_color: vec3(1.0, 0.25, 0.0),
-                alpha_cutoff: 0.0,
-            },
         );
+        let white_material: Arc<MaterialDesc> = white_material.wait_for_then_unwrap();
+        let white_material =
+            white_material.to_material(content, geometry_pipeline.clone(), samplers.aniso_repeat);
+
+        info!("data loaded!");
 
         Self {
             fst,
@@ -750,49 +738,6 @@ impl<'r, 's> Frame<'r, 's> {
             .end_render_pass()
             .unwrap()
             .build()
-            .unwrap()
-    }
-}
-
-pub struct Material {
-    uniform_buffer: Arc<CpuAccessibleBuffer<MaterialData>>,
-    // descriptor set that contains uniform objects that are related to this material instance
-    descriptor_set: Arc<dyn DescriptorSet + Send + Sync>,
-    data: MaterialData,
-}
-
-impl Material {
-    pub fn new(
-        geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
-        device: Arc<Device>,
-        sampler: Arc<Sampler>,
-        albedo: Arc<ImmutableImage<Format>>,
-        data: MaterialData,
-    ) -> Arc<Material> {
-        let uniform_buffer =
-            CpuAccessibleBuffer::from_data(device, BufferUsage::uniform_buffer(), false, data)
-                .unwrap();
-        let descriptor_set = Arc::new(
-            PersistentDescriptorSet::start(
-                geometry_pipeline.descriptor_set_layout(0).unwrap().clone(),
-            )
-            .add_sampled_image(albedo, sampler)
-            .unwrap()
-            .add_buffer(uniform_buffer.clone())
-            .unwrap()
-            .build()
-            .expect("cannot build pds"),
-        );
-
-        Arc::new(Material {
-            uniform_buffer,
-            descriptor_set,
-            data,
-        })
-    }
-
-    pub fn update(&self, cmd: AutoCommandBufferBuilder) -> AutoCommandBufferBuilder {
-        cmd.update_buffer(self.uniform_buffer.clone(), self.data)
             .unwrap()
     }
 }
