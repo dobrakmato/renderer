@@ -1,4 +1,4 @@
-use crate::content::{Load, LoadResult};
+use crate::content::{Load, Result};
 use crate::image::ToVulkanFormat;
 use crate::mesh::Mesh;
 use crate::render::BasicVertex;
@@ -14,7 +14,7 @@ use vulkano::image::{Dimensions, ImageLayout, ImageUsage, ImmutableImage};
 use vulkano::sync::GpuFuture;
 
 impl Load for ImmutableImage<Format> {
-    fn load(bytes: &[u8], transfer_queue: Arc<Queue>) -> (Arc<Self>, LoadResult) {
+    fn load(bytes: &[u8], transfer_queue: Arc<Queue>) -> Result<Self> {
         let image = load_bf_from_bytes(bytes)
             .expect("cannot load file")
             .try_to_image()
@@ -73,12 +73,12 @@ impl Load for ImmutableImage<Format> {
             Err(_) => unreachable!(),
         };
 
-        (immutable, LoadResult::GpuFuture(Box::new(future)))
+        (immutable, Some(Box::new(future)))
     }
 }
 
 impl Load for Mesh<BasicVertex, u16> {
-    fn load(bytes: &[u8], queue: Arc<Queue>) -> (Arc<Self>, LoadResult) {
+    fn load(bytes: &[u8], queue: Arc<Queue>) -> Result<Self> {
         let geometry = load_bf_from_bytes(bytes)
             .expect("cannot load file")
             .try_to_geometry()
@@ -133,7 +133,7 @@ impl Load for Mesh<BasicVertex, u16> {
                 vertex_buffer,
                 index_buffer,
             }),
-            LoadResult::GpuFuture(Box::new(f1.join(f2))),
+            Some(Box::new(f1.join(f2))),
         )
     }
 }

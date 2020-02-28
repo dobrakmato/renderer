@@ -4,7 +4,7 @@ use crate::hosek::make_hosek_wilkie_params;
 use crate::material::{Material, MaterialDesc};
 use crate::mesh::fst::create_full_screen_triangle;
 use crate::mesh::Mesh;
-use crate::pod::{HosekWilkieParams, MaterialData, MatrixData};
+use crate::pod::{HosekWilkieParams, MatrixData};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
 use cgmath::{vec3, Matrix4, Quaternion, Vector3};
@@ -12,7 +12,7 @@ use log::info;
 use safe_transmute::TriviallyTransmutable;
 use smallvec::SmallVec;
 use std::sync::Arc;
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, CpuBufferPool};
+use vulkano::buffer::CpuBufferPool;
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
@@ -20,13 +20,12 @@ use vulkano::device::{Device, DeviceExtensions, Queue};
 use vulkano::format::{ClearValue, Format};
 use vulkano::framebuffer::{Framebuffer, Subpass};
 use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract};
-use vulkano::image::{AttachmentImage, ImageUsage, ImmutableImage, SwapchainImage};
+use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
-use vulkano::sampler::Sampler;
 use vulkano::swapchain::{
     ColorSpace, FullscreenExclusive, PresentMode, Surface, SurfaceTransform, Swapchain,
     SwapchainCreationError,
@@ -355,8 +354,7 @@ impl RenderPath {
             depth_range: 0.0..1.0,
         };
 
-        let (fst, fst_future) =
-            create_full_screen_triangle(queue.clone()).expect("cannot create fst");
+        let (fst, _) = create_full_screen_triangle(queue.clone()).expect("cannot create fst");
 
         // this example render path uses one render pass which renders all geometry and then
         // the skybox with one directional light without any shadows.

@@ -1,4 +1,5 @@
-use crate::content::{Content, Load, LoadResult};
+use crate::content::Result;
+use crate::content::{Content, Load};
 use crate::pod::MaterialData;
 use cgmath::Vector3;
 use serde::{Deserialize, Serialize};
@@ -43,10 +44,10 @@ impl MaterialDesc {
 }
 
 impl Load for MaterialDesc {
-    fn load(bytes: &[u8], _: Arc<Queue>) -> (Arc<Self>, LoadResult) {
+    fn load(bytes: &[u8], _: Arc<Queue>) -> Result<Self> {
         (
             Arc::new(serde_json::from_slice(bytes).expect("cannot read bytes as MaterialDesc")),
-            LoadResult::Ready,
+            None,
         )
     }
 }
