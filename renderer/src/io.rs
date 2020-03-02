@@ -77,6 +77,8 @@ impl Load for ImmutableImage<Format> {
     }
 }
 
+cache_storage_impl!(ImmutableImage<Format>);
+
 impl Load for Mesh<BasicVertex, u16> {
     fn load(bytes: &[u8], queue: Arc<Queue>) -> Result<Self> {
         let geometry = load_bf_from_bytes(bytes)

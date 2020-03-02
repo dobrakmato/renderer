@@ -1,5 +1,5 @@
 use crate::camera::Camera;
-use crate::content::Content;
+use crate::content::{Content, Future};
 use crate::hosek::make_hosek_wilkie_params;
 use crate::material::{Material, MaterialDesc};
 use crate::mesh::fst::create_full_screen_triangle;
@@ -496,16 +496,25 @@ impl RenderPath {
 
         // TODO: remove from render path
         info!("loading geometry and image data...");
-        let mut rock_mesh =
+        let rock_mesh =
             content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
-        let mut icosphere_mesh =
+        let icosphere_mesh =
             content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf");
-        let mut plane_mesh =
+        let plane_mesh =
             content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf");
-        let mut rock_material =
+        let rock_material =
             content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\mat_rock.json");
-        let mut white_material =
+        let white_material =
             content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\mat_basic.json");
+
+        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
+            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
 
         let rock_mesh = rock_mesh.wait_for_then_unwrap();
         let icosphere_mesh = icosphere_mesh.wait_for_then_unwrap();

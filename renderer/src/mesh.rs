@@ -1,3 +1,5 @@
+use crate::render::BasicVertex;
+use std::fmt::{Debug, Error, Formatter};
 use std::sync::Arc;
 use vulkano::buffer::ImmutableBuffer;
 
@@ -19,6 +21,14 @@ where
 {
     pub vertex_buffer: Arc<ImmutableBuffer<[VDef]>>,
     pub index_buffer: Arc<ImmutableBuffer<[I]>>,
+}
+
+cache_storage_impl!(Mesh<BasicVertex, u16>);
+
+impl<VDef, I: IndexType> Debug for Mesh<VDef, I> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str("Mesh")
+    }
 }
 
 pub mod fst {

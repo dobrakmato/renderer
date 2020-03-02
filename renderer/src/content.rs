@@ -1,7 +1,8 @@
 use crossbeam::channel::{Receiver, Sender};
 use log::info;
-use std::path::Path;
-use std::sync::Arc;
+use std::fmt::Debug;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Weak};
 use std::thread::spawn;
 use vulkano::device::Queue;
 use vulkano::sync::GpuFuture;
@@ -27,26 +28,71 @@ pub trait Load {
     fn load(bytes: &[u8], transfer_queue: Arc<Queue>) -> Result<Self>;
 }
 
+pub trait Storage: Sized {
+    fn lookup(k: &PathBuf) -> Option<Arc<Future<Self>>>;
+    fn store(k: PathBuf, v: Weak<Future<Self>>);
+}
+
+macro_rules! cache_storage_impl {
+    ($t:ty) => {
+        static STORAGE: once_cell::sync::OnceCell<
+            std::sync::Mutex<
+                std::collections::HashMap<
+                    std::path::PathBuf,
+                    std::sync::Weak<crate::content::Future<$t>>,
+                >,
+            >,
+        > = once_cell::sync::OnceCell::new();
+
+        #[inline]
+        fn internal_storage_init() {
+            if STORAGE.get().is_none() {
+                STORAGE
+                    .set(std::sync::Mutex::new(std::collections::HashMap::new()))
+                    .map_err(|_| panic!("cannot initialize STORAGE"))
+                    .unwrap();
+            }
+        }
+
+        impl crate::content::Storage for $t {
+            fn lookup(
+                k: &std::path::PathBuf,
+            ) -> Option<std::sync::Arc<crate::content::Future<$t>>> {
+                internal_storage_init();
+
+                let m = STORAGE.get().unwrap();
+                let h = m.lock().unwrap();
+
+                h.get(k).map(|x| x.upgrade()).flatten()
+            }
+
+            fn store(k: std::path::PathBuf, v: std::sync::Weak<crate::content::Future<$t>>) {
+                internal_storage_init();
+
+                let m = STORAGE.get().unwrap();
+                let mut h = m.lock().unwrap();
+
+                h.insert(k, v);
+            }
+        }
+    };
+}
+
 /// Type representing future (promise) that is possible unresolved (the
 /// result of encapsulated computation is not yet computed). Each `Future`
 /// consist of CPU future and a possible GPU one. Not every `Future` has
 /// a GPU part associated with it.
-pub struct Future<T> {
-    recv: Receiver<Result<T>>,
+pub enum Future<T> {
+    Receiver(Receiver<Result<T>>),
+    Resolved(Arc<T>),
 }
 
 impl<T> Future<T> {
-    fn from_receiver(recv: Receiver<Result<T>>) -> Self {
-        Future { recv }
-    }
-
-    pub fn wait_for(&mut self) -> Result<T> {
-        self.recv.recv().expect("wait_for failed: cannot recv")
-    }
-
-    pub fn wait_for_then_unwrap(&mut self) -> Arc<T> {
-        let (t, _) = self.wait_for();
-        t
+    pub fn wait_for_then_unwrap(&self) -> Arc<T> {
+        match self {
+            Future::Receiver(r) => r.recv().expect("wait_for failed: cannot recv").0.clone(),
+            Future::Resolved(t) => t.clone(),
+        }
     }
 }
 
@@ -82,20 +128,36 @@ impl Content {
     ///
     /// If the resource specified by `path` is already loaded in memory, the existing
     /// resource will be returned inside already resolved `Future`.  
-    pub fn load<T: 'static + Send + Sync + Load, P: PathLike>(&self, path: P) -> Future<T> {
+    pub fn load<T: Debug + 'static + Send + Sync + Load + Storage, P: PathLike>(
+        &self,
+        path: P,
+    ) -> Arc<Future<T>> {
         let path = path.to_path().to_path_buf();
-        info!("submitting load request for {:?}", path);
+        let id = path.file_name().unwrap().to_os_string();
+
+        info!("[{:?}] load requested!", id);
+
+        if let Some(t) = T::lookup(&path) {
+            info!("[{:?}] returned existing future.", id);
+            return t;
+        }
+
         let queue = self.transfer_queue.clone();
         let (send, recv) = crossbeam::bounded(1);
+        let future = Arc::new(Future::Receiver(recv));
+        T::store(path.clone(), Arc::downgrade(&future));
 
         let work = move || {
-            let bytes = std::fs::read(path).unwrap();
+            info!("[{:?}] starting loading...", id);
+            let bytes = std::fs::read(&path).unwrap();
             let t = T::load(bytes.as_slice(), queue);
+
+            info!("[{:?}] done", id);
             send.send(t).unwrap();
         };
 
         self.worker.send(Box::new(work)).unwrap();
 
-        Future::from_receiver(recv)
+        future
     }
 }

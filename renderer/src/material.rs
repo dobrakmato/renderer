@@ -14,7 +14,7 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
 
 /// On disk representation of Material.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MaterialDesc {
     albedo_color: Vector3<f32>,
     albedo_map: Option<String>,
@@ -42,6 +42,8 @@ impl MaterialDesc {
         )
     }
 }
+
+cache_storage_impl!(MaterialDesc);
 
 impl Load for MaterialDesc {
     fn load(bytes: &[u8], _: Arc<Queue>) -> Result<Self> {
