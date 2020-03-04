@@ -1,11 +1,11 @@
-use crate::content::Result;
+use crate::content::Result as ContentResult;
 use crate::content::{Content, Load};
 use crate::pod::MaterialData;
 use cgmath::Vector3;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
+use vulkano::descriptor::descriptor_set::{PersistentDescriptorSet, PersistentDescriptorSetError};
 use vulkano::descriptor::DescriptorSet;
 use vulkano::device::Queue;
 use vulkano::format::Format;
@@ -19,6 +19,10 @@ pub struct MaterialDesc {
     albedo_color: Vector3<f32>,
     albedo_map: Option<String>,
     normal_map: Option<String>,
+    displacement_map: Option<String>,
+    roughness_map: Option<String>,
+    ao_map: Option<String>,
+    metallic_map: Option<String>,
 }
 
 impl MaterialDesc {
@@ -27,26 +31,62 @@ impl MaterialDesc {
         content: &Content,
         pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
+        fallback: Arc<ImmutableImage<Format>>,
     ) -> Arc<Material> {
-        let albedo = content
-            .load(self.albedo_map.as_ref().unwrap().as_str())
-            .wait_for_then_unwrap();
+        let albedo = self
+            .albedo_map
+            .as_ref()
+            .map(|x| content.load(x.as_str()))
+            .map(|x| x.wait_for_then_unwrap());
+        let normal = self
+            .normal_map
+            .as_ref()
+            .map(|x| content.load(x.as_str()))
+            .map(|x| x.wait_for_then_unwrap());
+        let displacement = self
+            .displacement_map
+            .as_ref()
+            .map(|x| content.load(x.as_str()))
+            .map(|x| x.wait_for_then_unwrap());
+        let roughness = self
+            .roughness_map
+            .as_ref()
+            .map(|x| content.load(x.as_str()))
+            .map(|x| x.wait_for_then_unwrap());
+        let ao = self
+            .ao_map
+            .as_ref()
+            .map(|x| content.load(x.as_str()))
+            .map(|x| x.wait_for_then_unwrap());
+        let metallic = self
+            .metallic_map
+            .as_ref()
+            .map(|x| content.load(x.as_str()))
+            .map(|x| x.wait_for_then_unwrap());
+
         Material::new(
             pipeline,
             sampler,
+            fallback,
             albedo,
+            normal,
+            displacement,
+            roughness,
+            ao,
+            metallic,
             MaterialData {
                 albedo_color: self.albedo_color,
                 alpha_cutoff: 0.0,
             },
         )
+        .expect("cannot create Material instance")
     }
 }
 
 cache_storage_impl!(MaterialDesc);
 
 impl Load for MaterialDesc {
-    fn load(bytes: &[u8], _: Arc<Queue>) -> Result<Self> {
+    fn load(bytes: &[u8], _: Arc<Queue>) -> ContentResult<Self> {
         (
             Arc::new(serde_json::from_slice(bytes).expect("cannot read bytes as MaterialDesc")),
             None,
@@ -66,9 +106,15 @@ impl Material {
     pub fn new(
         geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
-        albedo: Arc<ImmutableImage<Format>>,
+        fb: Arc<ImmutableImage<Format>>,
+        albedo: Option<Arc<ImmutableImage<Format>>>,
+        normal: Option<Arc<ImmutableImage<Format>>>,
+        displacement: Option<Arc<ImmutableImage<Format>>>,
+        roughness: Option<Arc<ImmutableImage<Format>>>,
+        ao: Option<Arc<ImmutableImage<Format>>>,
+        metallic: Option<Arc<ImmutableImage<Format>>>,
         data: MaterialData,
-    ) -> Arc<Material> {
+    ) -> Result<Arc<Material>, PersistentDescriptorSetError> {
         let uniform_buffer = CpuAccessibleBuffer::from_data(
             geometry_pipeline.device().clone(),
             BufferUsage::uniform_buffer(),
@@ -80,17 +126,20 @@ impl Material {
             PersistentDescriptorSet::start(
                 geometry_pipeline.descriptor_set_layout(0).unwrap().clone(),
             )
-            .add_sampled_image(albedo, sampler)
-            .unwrap()
-            .add_buffer(uniform_buffer.clone())
-            .unwrap()
+            .add_sampled_image(albedo.unwrap_or_else(|| fb.clone()), sampler.clone())?
+            .add_sampled_image(normal.unwrap_or_else(|| fb.clone()), sampler.clone())?
+            .add_sampled_image(roughness.unwrap_or_else(|| fb.clone()), sampler.clone())?
+            .add_sampled_image(metallic.unwrap_or_else(|| fb.clone()), sampler.clone())?
+            .add_sampled_image(ao.unwrap_or_else(|| fb.clone()), sampler.clone())?
+            .add_sampled_image(displacement.unwrap_or_else(|| fb.clone()), sampler)?
+            .add_buffer(uniform_buffer.clone())?
             .build()
             .expect("cannot build pds"),
         );
 
-        Arc::new(Material {
+        Ok(Arc::new(Material {
             uniform_buffer,
             descriptor_set,
-        })
+        }))
     }
 }

@@ -149,7 +149,8 @@ impl Content {
 
         let work = move || {
             info!("[{:?}] starting loading...", id);
-            let bytes = std::fs::read(&path).unwrap();
+            let bytes =
+                std::fs::read(&path).unwrap_or_else(|e| panic!("cannot load {:?} {}", &path, e));
             let t = T::load(bytes.as_slice(), queue);
 
             info!("[{:?}] done", id);

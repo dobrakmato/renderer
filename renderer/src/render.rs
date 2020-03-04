@@ -12,6 +12,7 @@ use log::info;
 use safe_transmute::TriviallyTransmutable;
 use smallvec::SmallVec;
 use std::sync::Arc;
+use std::time::Instant;
 use vulkano::buffer::CpuBufferPool;
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
@@ -20,7 +21,7 @@ use vulkano::device::{Device, DeviceExtensions, Queue};
 use vulkano::format::{ClearValue, Format};
 use vulkano::framebuffer::{Framebuffer, Subpass};
 use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract};
-use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
+use vulkano::image::{AttachmentImage, Dimensions, ImageUsage, ImmutableImage, SwapchainImage};
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::viewport::Viewport;
@@ -338,6 +339,7 @@ pub struct RenderPath {
     plane_mesh: Arc<Mesh<BasicVertex, u16>>,
     rock_material: Arc<Material>,
     white_material: Arc<Material>,
+    materials: Vec<Arc<Material>>,
 }
 
 impl RenderPath {
@@ -354,7 +356,18 @@ impl RenderPath {
             depth_range: 0.0..1.0,
         };
 
+        // first we generate some useful resources on the fly
         let (fst, _) = create_full_screen_triangle(queue.clone()).expect("cannot create fst");
+        let (white_texture, _) = ImmutableImage::from_iter(
+            [255u8; 4].iter().cloned(),
+            Dimensions::Dim2d {
+                width: 1,
+                height: 1,
+            },
+            Format::R8G8B8A8Unorm,
+            queue.clone(),
+        )
+        .expect("cannot create white texture");
 
         // this example render path uses one render pass which renders all geometry and then
         // the skybox with one directional light without any shadows.
@@ -496,6 +509,7 @@ impl RenderPath {
 
         // TODO: remove from render path
         info!("loading geometry and image data...");
+        let start = Instant::now();
         let rock_mesh =
             content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
         let icosphere_mesh =
@@ -524,12 +538,55 @@ impl RenderPath {
             content,
             geometry_pipeline.clone(),
             samplers.aniso_repeat.clone(),
+            white_texture.clone(),
         );
         let white_material: Arc<MaterialDesc> = white_material.wait_for_then_unwrap();
-        let white_material =
-            white_material.to_material(content, geometry_pipeline.clone(), samplers.aniso_repeat);
+        let white_material = white_material.to_material(
+            content,
+            geometry_pipeline.clone(),
+            samplers.aniso_repeat.clone(),
+            white_texture.clone(),
+        );
 
-        info!("data loaded!");
+        let materials = [
+            "[2K]Bricks22.json",
+            "[2K]Concrete07.json",
+            "[2K]Ground27.json",
+            "[2K]Ground30.json",
+            "[2K]Leather11.json",
+            "[2K]Marble04.json",
+            "[2K]Marble06.json",
+            "[2K]Metal07.json",
+            "[2K]Metal08.json",
+            "[2K]Metal27.json",
+            "[2K]Metal28.json",
+            "[2K]PaintedPlaster05.json",
+            "[2K]PavingStones42.json",
+            "[2K]PavingStones53.json",
+            "[2K]Planks12.json",
+            "[2K]SolarPanel03.json",
+            "[2K]Tiles15.json",
+            "[2K]Tiles44.json",
+            "[2K]Tiles52.json",
+            "[2K]Wood18.json",
+            "[2K]Wood35.json",
+            "[2K]WoodFloor12.json",
+            "[2K]WoodFloor32.json",
+        ]
+        .iter()
+        .map(|x| content.load(format!("D:\\_MATS\\OUT\\{}", *x).as_str()))
+        .map(|x| x.wait_for_then_unwrap())
+        .map(|x: Arc<MaterialDesc>| {
+            x.to_material(
+                content,
+                geometry_pipeline.clone(),
+                samplers.aniso_repeat.clone(),
+                white_texture.clone(),
+            )
+        })
+        .collect();
+
+        info!("data loaded after {}s!", start.elapsed().as_secs_f32());
 
         Self {
             fst,
@@ -548,6 +605,7 @@ impl RenderPath {
             plane_mesh,
             rock_material,
             white_material,
+            materials,
         }
     }
 
