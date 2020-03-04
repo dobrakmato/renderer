@@ -12,17 +12,17 @@ pub enum ColorSpace {
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Format {
-    R8,
-    Dxt1,
-    Dxt3,
-    Dxt5,
-    Rgb8,
-    Rgba8,
-    SrgbDxt1,
-    SrgbDxt3,
-    SrgbDxt5,
-    Srgb8,
-    Srgb8A8,
+    Dxt1 = 0,
+    Dxt3 = 1,
+    Dxt5 = 2,
+    Rgb8 = 3,
+    Rgba8 = 4,
+    SrgbDxt1 = 5,
+    SrgbDxt3 = 6,
+    SrgbDxt5 = 7,
+    Srgb8 = 8,
+    Srgb8A8 = 9,
+    R8 = 10,
 }
 
 impl Format {

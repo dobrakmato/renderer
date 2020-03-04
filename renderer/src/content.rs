@@ -90,7 +90,7 @@ pub enum Future<T> {
 impl<T> Future<T> {
     pub fn wait_for_then_unwrap(&self) -> Arc<T> {
         match self {
-            Future::Receiver(r) => r.recv().expect("wait_for failed: cannot recv").0.clone(),
+            Future::Receiver(r) => r.recv().expect("wait_for failed: cannot recv").0,
             Future::Resolved(t) => t.clone(),
         }
     }

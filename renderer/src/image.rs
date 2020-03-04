@@ -10,6 +10,7 @@ pub trait ToVulkanFormat {
 impl ToVulkanFormat for BfFormat {
     fn to_vulkan_format(&self) -> Format {
         match self {
+            BfFormat::R8 => Format::R8Unorm,
             BfFormat::Dxt1 => Format::BC1_RGBUnormBlock,
             BfFormat::Dxt3 => Format::BC2UnormBlock,
             BfFormat::Dxt5 => Format::BC3UnormBlock,
