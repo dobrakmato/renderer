@@ -27,6 +27,7 @@ struct Opt {
 
 fn parse_format(src: &str) -> Result<Format, &'static str> {
     match src.to_lowercase().as_str() {
+        "r8" => Ok(Format::R8),
         "dxt1" => Ok(Format::Dxt1),
         "dxt3" => Ok(Format::Dxt3),
         "dxt5" => Ok(Format::Dxt5),
@@ -85,14 +86,15 @@ fn main() {
     }
     timers.vflip.end();
 
-    // 3. rgba <-> rgb
+    // 3. rgba <-> rgb <-> r
     timers.channels.start();
     if input_image.color().channel_count() != opt.format.channels() {
-        if input_image.color().channel_count() > opt.format.channels() {
-            input_image = DynamicImage::ImageRgb8(input_image.to_rgb());
-        } else {
-            input_image = DynamicImage::ImageRgba8(input_image.to_rgba());
-        }
+        input_image = match opt.format.channels() {
+            1 => DynamicImage::ImageLuma8(input_image.to_luma()),
+            3 => DynamicImage::ImageRgb8(input_image.to_rgb()),
+            4 => DynamicImage::ImageRgba8(input_image.to_rgba()),
+            _ => panic!("requested output format has unsupported num of channels"),
+        };
     }
     timers.channels.end();
 
@@ -111,7 +113,7 @@ fn main() {
     }
     timers.mipmaps.end();
 
-    // 5. convert to output format
+    // 5. possible compress / convert to output format
     timers.dxt.start();
     let mut payload = vec![];
     for img in mipmaps {

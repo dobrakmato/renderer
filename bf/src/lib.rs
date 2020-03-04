@@ -12,6 +12,7 @@ pub enum ColorSpace {
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Format {
+    R8,
     Dxt1,
     Dxt3,
     Dxt5,
@@ -27,6 +28,7 @@ pub enum Format {
 impl Format {
     pub fn channels(self) -> u8 {
         match self {
+            Format::R8 => 1,
             Format::Dxt1 => 3,
             Format::Dxt3 => 4,
             Format::Dxt5 => 4,
@@ -42,6 +44,7 @@ impl Format {
 
     pub fn bits_per_pixel(self) -> u16 {
         match self {
+            Format::R8 => 8,
             Format::Dxt1 => 4,
             Format::Dxt3 => 8,
             Format::Dxt5 => 8,

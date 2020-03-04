@@ -1,4 +1,4 @@
-use bf::{load_bf_from_bytes, Container, Data, Geometry, Image};
+use bf::{load_bf_from_bytes, Container, Data, Format, Geometry, Image};
 use image::dxt::{DXTVariant, DxtDecoder};
 use image::{DynamicImage, ImageBuffer, ImageDecoder, ImageFormat};
 use std::path::PathBuf;
@@ -49,15 +49,30 @@ fn handle_image(image: Image, dump: bool) {
             let width = mipmap.width as u32;
             let height = mipmap.height as u32;
 
-            let decoder = DxtDecoder::new(mipmap.data, width, height, DXTVariant::DXT1)
-                .expect("cannot create dxt decoder");
-            let mut raw = Vec::with_capacity(decoder.total_bytes() as usize);
-            decoder
-                .read_image(&mut raw)
-                .expect("cannot decode dxt data");
-            let img = ImageBuffer::from_raw(width, height, raw)
-                .map(DynamicImage::ImageRgb8)
-                .expect("cannot create image buffer from decoded data");
+            let dxt = |variant| {
+                let decoder = DxtDecoder::new(mipmap.data, width, height, variant)
+                    .expect("cannot create dxt decoder");
+                let mut raw = vec![0; decoder.total_bytes() as usize];
+                decoder
+                    .read_image(&mut raw)
+                    .expect("cannot decode dxt data");
+                raw
+            };
+
+            let raw = match image.format {
+                Format::SrgbDxt1 | Format::Dxt1 => dxt(DXTVariant::DXT1),
+                Format::SrgbDxt3 | Format::Dxt3 => dxt(DXTVariant::DXT3),
+                Format::SrgbDxt5 | Format::Dxt5 => dxt(DXTVariant::DXT5),
+                _ => Vec::from(mipmap.data),
+            };
+
+            let img = match image.format.channels() {
+                1 => DynamicImage::ImageLuma8(ImageBuffer::from_raw(width, height, raw).unwrap()),
+                3 => DynamicImage::ImageRgb8(ImageBuffer::from_raw(width, height, raw).unwrap()),
+                4 => DynamicImage::ImageRgba8(ImageBuffer::from_raw(width, height, raw).unwrap()),
+                _ => panic!("cannot dump with {} channels", image.format.channels()),
+            };
+
             img.save_with_format(format!("dump_mipmap{}.png", idx), ImageFormat::Png)
                 .expect("cannot save dumped file");
         }
