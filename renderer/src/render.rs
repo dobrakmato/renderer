@@ -511,24 +511,20 @@ impl RenderPath {
         info!("loading geometry and image data...");
         let start = Instant::now();
         let rock_mesh =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+            content.load("Rock_1.bf");
         let icosphere_mesh =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\icosphere.bf");
+            content.load("icosphere.bf");
         let plane_mesh =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\plane.bf");
+            content.load("plane.bf");
         let rock_material =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\mat_rock.json");
+            content.load("[2K]Leather11.json");
         let white_material =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\mat_basic.json");
+            content.load("[2K]Metal07.json");
 
         let _: Arc<Future<Mesh<BasicVertex, u16>>> =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+            content.load("Rock_1.bf");
         let _: Arc<Future<Mesh<BasicVertex, u16>>> =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
-        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
-        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
-            content.load("C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\Rock_1.bf");
+            content.load("Rock_1.bf");
 
         let rock_mesh = rock_mesh.wait_for_then_unwrap();
         let icosphere_mesh = icosphere_mesh.wait_for_then_unwrap();
@@ -553,10 +549,8 @@ impl RenderPath {
             "[2K]Concrete07.json",
             "[2K]Ground27.json",
             "[2K]Ground30.json",
-            "[2K]Leather11.json",
             "[2K]Marble04.json",
             "[2K]Marble06.json",
-            "[2K]Metal07.json",
             "[2K]Metal08.json",
             "[2K]Metal27.json",
             "[2K]Metal28.json",
@@ -574,7 +568,7 @@ impl RenderPath {
             "[2K]WoodFloor32.json",
         ]
         .iter()
-        .map(|x| content.load(format!("D:\\_MATS\\OUT\\{}", *x).as_str()))
+        .map(|x| content.load(*x))
         .map(|x| x.wait_for_then_unwrap())
         .map(|x: Arc<MaterialDesc>| {
             x.to_material(

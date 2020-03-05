@@ -9,12 +9,12 @@ use vulkano::sync::GpuFuture;
 
 /// Trait representing type that can be transformed into IO path.
 pub trait PathLike {
-    fn to_path(&self) -> &Path;
+    fn to_path(&self) -> PathBuf;
 }
 
 impl<'a> PathLike for &'a str {
-    fn to_path(&self) -> &Path {
-        Path::new(self)
+    fn to_path(&self) -> PathBuf {
+        Path::new(self).to_path_buf()
     }
 }
 
@@ -99,6 +99,7 @@ impl<T> Future<T> {
 pub struct Content {
     transfer_queue: Arc<Queue>,
     worker: Sender<Request>,
+    roots: Vec<PathBuf>,
 }
 
 impl Content {
@@ -115,6 +116,11 @@ impl Content {
         Self {
             transfer_queue,
             worker: send,
+            roots: vec![
+                "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\".to_path(),
+                "D:\\_MATS\\OUT\\".to_path(),
+                "/home/matej/content_root/".to_path()
+            ]
         }
     }
 
@@ -132,12 +138,16 @@ impl Content {
         &self,
         path: P,
     ) -> Arc<Future<T>> {
-        let path = path.to_path().to_path_buf();
-        let id = path.file_name().unwrap().to_os_string();
+        let relative = path.to_path();
+        let absolute = self.roots.iter().find(|x| x.join(&relative).exists())
+            .map(|x| x.join(relative))
+            .expect("cannot find file {} in any root!");
+
+        let id = absolute.file_name().unwrap().to_os_string();
 
         info!("[{:?}] load requested!", id);
 
-        if let Some(t) = T::lookup(&path) {
+        if let Some(t) = T::lookup(&absolute) {
             info!("[{:?}] returned existing future.", id);
             return t;
         }
@@ -145,12 +155,12 @@ impl Content {
         let queue = self.transfer_queue.clone();
         let (send, recv) = crossbeam::bounded(1);
         let future = Arc::new(Future::Receiver(recv));
-        T::store(path.clone(), Arc::downgrade(&future));
+        T::store(absolute.clone(), Arc::downgrade(&future));
 
         let work = move || {
             info!("[{:?}] starting loading...", id);
             let bytes =
-                std::fs::read(&path).unwrap_or_else(|e| panic!("cannot load {:?} {}", &path, e));
+                std::fs::read(&absolute).unwrap_or_else(|e| panic!("cannot load {:?} {}", &absolute, e));
             let t = T::load(bytes.as_slice(), queue);
 
             info!("[{:?}] done", id);
