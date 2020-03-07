@@ -19,7 +19,7 @@ impl Samplers {
             SamplerAddressMode::Repeat,
             0.0,
             16.0,
-            -1000.0,
+            0.0,
             1000.0,
         )?;
         Ok(Self { aniso_repeat })

@@ -25,6 +25,13 @@ where
 
 cache_storage_impl!(Mesh<BasicVertex, u16>);
 
+#[doc(hidden)]
+mod mesh_u32 {
+    use crate::mesh::Mesh;
+    use crate::render::BasicVertex;
+    cache_storage_impl!(Mesh<BasicVertex, u32>);
+}
+
 impl<VDef, I: IndexType> Debug for Mesh<VDef, I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         f.write_str("Mesh")

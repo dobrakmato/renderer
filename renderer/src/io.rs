@@ -1,8 +1,8 @@
 use crate::content::{Load, Result};
 use crate::image::ToVulkanFormat;
-use crate::mesh::Mesh;
+use crate::mesh::{IndexType, Mesh};
 use crate::render::BasicVertex;
-use bf::{load_bf_from_bytes, IndexType};
+use bf::load_bf_from_bytes;
 use log::error;
 use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
@@ -79,7 +79,7 @@ impl Load for ImmutableImage<Format> {
 
 cache_storage_impl!(ImmutableImage<Format>);
 
-impl Load for Mesh<BasicVertex, u16> {
+impl<I: IndexType + TriviallyTransmutable + Send + Sync + 'static> Load for Mesh<BasicVertex, I> {
     fn load(bytes: &[u8], queue: Arc<Queue>) -> Result<Self> {
         let geometry = load_bf_from_bytes(bytes)
             .expect("cannot load file")
@@ -111,11 +111,8 @@ impl Load for Mesh<BasicVertex, u16> {
             }
         }
 
-        // todo: support multiple index types
-        assert_eq!(geometry.index_type, IndexType::U16);
-
         let vertices = possible_non_zero_copy::<BasicVertex>(geometry.vertex_data, &mut vertex_vec);
-        let indices = possible_non_zero_copy::<u16>(geometry.index_data, &mut index_vec);
+        let indices = possible_non_zero_copy::<I>(geometry.index_data, &mut index_vec);
 
         fn buf<T: 'static + Clone + Send + Sync>(
             data: &[T],
