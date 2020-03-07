@@ -1,7 +1,7 @@
 #version 450
 
-layout(location = 0) in vec3 normal;
-layout(location = 1) in vec2 uv;
+layout(location = 0) in vec3 in_normal;
+layout(location = 1) in vec2 in_uv;
 
 layout(location = 0) out vec4 normal_l_model;
 layout(location = 1) out vec4 albedo_occlusion;
@@ -19,18 +19,14 @@ layout(set = 0, binding = 6) uniform MaterialData {
     float alpha_cutoff;
 } material_data;
 
-layout(push_constant) uniform PushConstants {
-    vec4 sun_dir;
-} push_constants;
-
 void main() {
-    vec3 albedo = texture(albedo_map, uv).xyz;
-    vec3 normal = texture(normal_map, uv).xyz;
-    float roughness = texture(roughness_map, uv).r;
-    float metallic = texture(metallic_map, uv).r;
-    float occlusion = texture(occlusion_map, uv).r;
+    vec3 albedo = texture(albedo_map, in_uv).xyz;
+    vec3 normal = texture(normal_map, in_uv).xyz;
+    float roughness = texture(roughness_map, in_uv).r;
+    float metallic = texture(metallic_map, in_uv).r;
+    float occlusion = texture(occlusion_map, in_uv).r;
 
-    normal_l_model = vec4(normal, 0);
+    normal_l_model = vec4(in_normal, 0);
     albedo_occlusion = vec4(albedo, occlusion);
     roughness_metallic = vec4(roughness, metallic, 0, 0);
 }

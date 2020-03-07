@@ -386,7 +386,7 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
             vec![self.mesh.vertex_buffer.clone()],
             self.mesh.index_buffer.clone(),
             (self.material.descriptor_set.clone(), descriptor_set),
-            state.sun_dir,
+            (),
         )
         .unwrap()
     }
@@ -539,7 +539,7 @@ impl RenderPath {
                     },
                     {
                         color: [hdr],
-                        depth_stencil: {depth},
+                        depth_stencil: {},
                         input: [gbuffer1, gbuffer2, gbuffer3]
                     },
                     {
@@ -926,7 +926,7 @@ impl<'r, 's> Frame<'r, 's> {
                 vec![path.fst.vertex_buffer.clone()],
                 path.fst.index_buffer.clone(),
                 path.lighting_ds.clone(),
-                (),
+                state.sun_dir,
             )
             .unwrap()
             .next_subpass(false)

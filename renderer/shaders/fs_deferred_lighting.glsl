@@ -12,7 +12,13 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 void main() {
-    hdr = vec4(subpassLoad(albedo_occlusion).rgb, 1.0);
+    vec3 albedo = subpassLoad(albedo_occlusion).xyz;
+    vec3 normal = subpassLoad(normal_l_model).xyz;
+
+    vec3 color = vec3(0.85, 0.85, 0.8);
+    vec3 result = max(0.05, dot(push_constants.sun_dir.xyz, normal)) * color * albedo;
+
+    hdr = vec4(result, 1.0);
 }
 
 
