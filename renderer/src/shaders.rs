@@ -1,18 +1,27 @@
-pub mod basic_vert {
+pub mod vs_deferred_geometry {
     #[allow(dead_code)] // Used to force recompilation of shader change
-    const X: &str = include_str!("../shaders/basic_vert.glsl");
+    const X: &str = include_str!("../shaders/vs_deferred_geometry.glsl");
     vulkano_shaders::shader! {
         ty: "vertex",
-        path: "shaders/basic_vert.glsl"
+        path: "shaders/vs_deferred_geometry.glsl"
     }
 }
 
-pub mod basic_frag {
+pub mod fs_deferred_geometry {
     #[allow(dead_code)] // Used to force recompilation of shader change
-    const X: &str = include_str!("../shaders/basic_frag.glsl");
+    const X: &str = include_str!("../shaders/fs_deferred_geometry.glsl");
     vulkano_shaders::shader! {
         ty: "fragment",
-        path: "shaders/basic_frag.glsl"
+        path: "shaders/fs_deferred_geometry.glsl"
+    }
+}
+
+pub mod fs_deferred_lighting {
+    #[allow(dead_code)] // Used to force recompilation of shader change
+    const X: &str = include_str!("../shaders/fs_deferred_lighting.glsl");
+    vulkano_shaders::shader! {
+        ty: "fragment",
+        path: "shaders/fs_deferred_lighting.glsl"
     }
 }
 
@@ -34,20 +43,20 @@ pub mod sky_frag {
     }
 }
 
-pub mod tonemap_vert {
+pub mod vs_passtrough {
     #[allow(dead_code)] // Used to force recompilation of shader change
-    const X: &str = include_str!("../shaders/tonemap_vert.glsl");
+    const X: &str = include_str!("../shaders/vs_passtrough.glsl");
     vulkano_shaders::shader! {
         ty: "vertex",
-        path: "shaders/tonemap_vert.glsl"
+        path: "shaders/vs_passtrough.glsl"
     }
 }
 
-pub mod tonemap_frag {
+pub mod fs_tonemap {
     #[allow(dead_code)] // Used to force recompilation of shader change
-    const X: &str = include_str!("../shaders/tonemap_frag.glsl");
+    const X: &str = include_str!("../shaders/fs_tonemap.glsl");
     vulkano_shaders::shader! {
         ty: "fragment",
-        path: "shaders/tonemap_frag.glsl"
+        path: "shaders/fs_tonemap.glsl"
     }
 }

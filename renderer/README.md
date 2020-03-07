@@ -11,6 +11,7 @@ should result in clearer design and less annoyance from borrow checker. Parts of
 
 - [x] loading happens in IO thread and does not block rendering
 - [x] loading from local disk
+- [x] support for multiple resource "roots"
 - [ ] loading from HTTP
 - [ ] caching of HTTP downloaded resources
 - [ ] loading of multiple resources at same time
@@ -18,7 +19,27 @@ should result in clearer design and less annoyance from borrow checker. Parts of
 - [ ] resource hot-reloading for local files
 
 
+### Deferred Rendering
 
+G-Buffer:
+- [D16] Depth
+- [RGB10A2] Normal (XYZ), Lighting Model (A)
+- [RGBA32] Albedo (RGB),  Occlusion (A)
+- [RGBA32] Metallic (R), Roughness (G)
+- [RGBA32] SubsurfaceColor (RGB)
+
+HDRBuffer:
+- [B10G11R11] HDR Color
+
+Render Passes:
+- MainPass
+  - Geometry  ► (`gbuffer1`, `gbuffer2`, `gbuffer3`, `depth`)
+  - Lighting  ► (`hdr`)
+  - Skybox    ► (`hdr`)
+  - Tonemap   ► (`final_color`)
+
+
+-----------
 
 Objects:
 - Static
@@ -49,21 +70,3 @@ Lighting models:
 - Opaque
 - SubsurfaceScattering
 - Hair
-
-G-Buffer:
-- [D16] Depth
-- [RGB10A2] Normal (XYZ), Lighting Model (A)
-- [RGBA32] Albedo (RGB),  Occlusion (A)
-- [RGBA32] Metallic (R), Roughness (G)
-- [RGBA32] SubsurfaceColor (RGB)
-
-HDRBuffer:
-- [B10G11R11] HDR Color
-
-Render Passes:
-- Main
-  - Geometry
-  - Lighting
-  - Skybox
-  - Tonemap
-  - FXAA

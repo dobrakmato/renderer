@@ -19,9 +19,11 @@ use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
 use vulkano::device::{Device, DeviceExtensions, Queue};
 use vulkano::format::{ClearValue, Format};
-use vulkano::framebuffer::{Framebuffer, Subpass};
+use vulkano::framebuffer::{Framebuffer, FramebufferCreationError, Subpass};
 use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract};
-use vulkano::image::{AttachmentImage, Dimensions, ImageUsage, ImmutableImage, SwapchainImage};
+use vulkano::image::{
+    AttachmentImage, Dimensions, ImageCreationError, ImageUsage, ImmutableImage, SwapchainImage,
+};
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::input_assembly::Index;
@@ -225,10 +227,14 @@ impl RendererState {
             content,
         );
 
-        let framebuffers = swapchain_images
+        let framebuffers = match swapchain_images
             .iter()
             .map(|it| render_path.create_framebuffer(it.clone()))
-            .collect();
+            .collect()
+        {
+            Ok(t) => t,
+            Err(e) => panic!("cannot create framebuffers: {}", e),
+        };
 
         RendererState {
             previous_frame_end: Some(Box::new(vulkano::sync::now(device.clone())) as Box<_>),
@@ -321,7 +327,8 @@ impl RendererState {
 
         let new_framebuffers = new_images
             .iter()
-            .map(|it| self.render_path.create_framebuffer(it.clone()))
+            .map(|x| self.render_path.create_framebuffer(x.clone()))
+            .map(|x| x.expect("cannot create framebuffer"))
             .collect();
 
         std::mem::replace(&mut self.swapchain, new_swapchain);
@@ -385,19 +392,65 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
     }
 }
 
+struct GBuffer {
+    buffer1: Arc<AttachmentImage>,
+    buffer2: Arc<AttachmentImage>,
+    buffer3: Arc<AttachmentImage>,
+}
+
+impl GBuffer {
+    pub fn new(device: Arc<Device>, dimensions: [u32; 2]) -> Result<Self, ImageCreationError> {
+        Ok(Self {
+            buffer1: AttachmentImage::with_usage(
+                device.clone(),
+                dimensions,
+                Format::A2B10G10R10UnormPack32,
+                ImageUsage {
+                    transient_attachment: true,
+                    input_attachment: true,
+                    ..ImageUsage::none()
+                },
+            )?,
+            buffer2: AttachmentImage::with_usage(
+                device.clone(),
+                dimensions,
+                Format::R8G8B8A8Unorm,
+                ImageUsage {
+                    transient_attachment: true,
+                    input_attachment: true,
+                    ..ImageUsage::none()
+                },
+            )?,
+            buffer3: AttachmentImage::with_usage(
+                device,
+                dimensions,
+                Format::R8G8B8A8Unorm,
+                ImageUsage {
+                    transient_attachment: true,
+                    input_attachment: true,
+                    ..ImageUsage::none()
+                },
+            )?,
+        })
+    }
+}
+
 // long-lived global (vulkan) objects related to one render path (buffers, pipelines)
 pub struct RenderPath {
     render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
     // all additional buffers needed by this render path
     hdr_buffer: Arc<AttachmentImage>,
+    geometry_buffer: GBuffer,
     depth_buffer: Arc<AttachmentImage>,
 
     /***** KOKOTINY *****/
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+    lighting_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     skybox_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     tonemap_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     // constant descriptor sets
     tonemap_ds: Arc<dyn DescriptorSet + Send + Sync>,
+    lighting_ds: Arc<dyn DescriptorSet + Send + Sync>,
     fst: Mesh<PositionOnlyVertex, u16>,
     matrix_data_pool: CpuBufferPool<MatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
@@ -441,16 +494,22 @@ impl RenderPath {
             vulkano::ordered_passes_renderpass!(
                 device.clone(),
                 attachments: {
-                    hdr: {
+                    gbuffer1: {
                         load: Clear,
-                        store: DontCare,
-                        format: Format::B10G11R11UfloatPack32,
+                        store: Store,
+                        format: Format::A2B10G10R10UnormPack32,
                         samples: 1,
                     },
-                    color: {
-                        load: DontCare,
+                    gbuffer2: {
+                        load: Clear,
                         store: Store,
-                        format: swapchain.format(),
+                        format: Format::R8G8B8A8Unorm,
+                        samples: 1,
+                    },
+                    gbuffer3: {
+                        load: Clear,
+                        store: Store,
+                        format: Format::R8G8B8A8Unorm,
                         samples: 1,
                     },
                     depth: {
@@ -458,13 +517,30 @@ impl RenderPath {
                         store: DontCare,
                         format: Format::D16Unorm,
                         samples: 1,
+                    },
+                    hdr: {
+                        load: Clear,
+                        store: DontCare,
+                        format: Format::B10G11R11UfloatPack32,
+                        samples: 1,
+                    },
+                    final_color: {
+                        load: DontCare,
+                        store: Store,
+                        format: swapchain.format(),
+                        samples: 1,
                     }
                 },
                 passes: [
                     {
-                        color: [hdr],
+                        color: [gbuffer1, gbuffer2, gbuffer3],
                         depth_stencil: {depth},
                         input: []
+                    },
+                    {
+                        color: [hdr],
+                        depth_stencil: {depth},
+                        input: [gbuffer1, gbuffer2, gbuffer3]
                     },
                     {
                         color: [hdr],
@@ -472,7 +548,7 @@ impl RenderPath {
                         input: []
                     },
                     {
-                         color: [color],
+                         color: [final_color],
                          depth_stencil: {},
                          input: [hdr]
                     }
@@ -483,12 +559,13 @@ impl RenderPath {
 
         // we create required shaders for all graphical pipelines we use in this
         // render pass from precompiled (embedded) spri-v binary data from soruces.
-        let vs = crate::shaders::basic_vert::Shader::load(device.clone()).unwrap();
-        let fs = crate::shaders::basic_frag::Shader::load(device.clone()).unwrap();
+        let vs = crate::shaders::vs_deferred_geometry::Shader::load(device.clone()).unwrap();
+        let fs = crate::shaders::fs_deferred_geometry::Shader::load(device.clone()).unwrap();
         let sky_vs = crate::shaders::sky_vert::Shader::load(device.clone()).unwrap();
         let sky_fs = crate::shaders::sky_frag::Shader::load(device.clone()).unwrap();
-        let tm_vs = crate::shaders::tonemap_vert::Shader::load(device.clone()).unwrap();
-        let tm_fs = crate::shaders::tonemap_frag::Shader::load(device.clone()).unwrap();
+        let tm_vs = crate::shaders::vs_passtrough::Shader::load(device.clone()).unwrap();
+        let tm_fs = crate::shaders::fs_tonemap::Shader::load(device.clone()).unwrap();
+        let dl_fs = crate::shaders::fs_deferred_lighting::Shader::load(device.clone()).unwrap();
 
         // create basic pipeline for drawing
         let geometry_pipeline = Arc::new(
@@ -506,6 +583,18 @@ impl RenderPath {
                 .expect("cannot create graphics pipeline"),
         );
 
+        let lighting_pipeline = Arc::new(
+            GraphicsPipeline::start()
+                .vertex_input_single_buffer::<PositionOnlyVertex>()
+                .vertex_shader(tm_vs.main_entry_point(), ())
+                .fragment_shader(dl_fs.main_entry_point(), ())
+                .triangle_list()
+                .viewports(Some(viewport.clone()))
+                .render_pass(Subpass::from(render_pass.clone(), 1).unwrap())
+                .build(device.clone())
+                .expect("cannot build tonemap graphics pipeline"),
+        );
+
         let skybox_pipeline = Arc::new(
             GraphicsPipeline::start()
                 .vertex_input_single_buffer::<BasicVertex>()
@@ -520,7 +609,7 @@ impl RenderPath {
                     stencil_front: Default::default(),
                     stencil_back: Default::default(),
                 })
-                .render_pass(Subpass::from(render_pass.clone(), 1).unwrap())
+                .render_pass(Subpass::from(render_pass.clone(), 2).unwrap())
                 .build(device.clone())
                 .expect("cannot create aky pipeline"),
         );
@@ -532,7 +621,7 @@ impl RenderPath {
                 .fragment_shader(tm_fs.main_entry_point(), ())
                 .triangle_list()
                 .viewports(Some(viewport.clone()))
-                .render_pass(Subpass::from(render_pass.clone(), 2).unwrap())
+                .render_pass(Subpass::from(render_pass.clone(), 3).unwrap())
                 .build(device.clone())
                 .expect("cannot build tonemap graphics pipeline"),
         );
@@ -544,10 +633,12 @@ impl RenderPath {
             ImageUsage {
                 transient_attachment: true,
                 depth_stencil_attachment: true,
+                input_attachment: true,
                 ..ImageUsage::none()
             },
         )
         .expect("cannot create depth buffer");
+
         let hdr_buffer = AttachmentImage::with_usage(
             device.clone(),
             swapchain.dimensions(),
@@ -560,12 +651,30 @@ impl RenderPath {
         )
         .expect("cannot create hdr buffer");
 
-        // todo: decide whether we need this
+        let geometry_buffer = GBuffer::new(device.clone(), swapchain.dimensions())
+            .expect("cannot create geometry buffer");
+
+        // todo: decide whether we need this for using subpassLoad in shaders
         let tonemap_ds = Arc::new(
             PersistentDescriptorSet::start(
                 tonemap_pipeline.descriptor_set_layout(0).unwrap().clone(),
             )
             .add_image(hdr_buffer.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
+        );
+        let lighting_ds = Arc::new(
+            PersistentDescriptorSet::start(
+                lighting_pipeline.descriptor_set_layout(0).unwrap().clone(),
+            )
+            .add_image(geometry_buffer.buffer1.clone())
+            .unwrap()
+            .add_image(geometry_buffer.buffer2.clone())
+            .unwrap()
+            .add_image(geometry_buffer.buffer3.clone())
+            .unwrap()
+            .add_image(depth_buffer.clone())
             .unwrap()
             .build()
             .unwrap(),
@@ -675,10 +784,13 @@ impl RenderPath {
             skybox_pipeline: skybox_pipeline as Arc<_>,
             tonemap_pipeline: tonemap_pipeline as Arc<_>,
             tonemap_ds: tonemap_ds as Arc<_>,
+            lighting_pipeline: lighting_pipeline as Arc<_>,
+            lighting_ds: lighting_ds as Arc<_>,
             matrix_data_pool: CpuBufferPool::uniform_buffer(device.clone()),
             hosek_wilkie_sky_pool: CpuBufferPool::uniform_buffer(device.clone()),
             depth_buffer,
             sky_mesh,
+            geometry_buffer,
             hdr_buffer,
             materials,
             objects_u16: vec![plane, rock],
@@ -689,18 +801,17 @@ impl RenderPath {
     pub fn create_framebuffer(
         &self,
         final_image: Arc<SwapchainImage<Window>>,
-    ) -> Arc<dyn FramebufferAbstract + Send + Sync> {
-        Arc::new(
+    ) -> Result<Arc<dyn FramebufferAbstract + Send + Sync>, FramebufferCreationError> {
+        Ok(Arc::new(
             Framebuffer::start(self.render_pass.clone())
-                .add(self.hdr_buffer.clone())
-                .unwrap()
-                .add(final_image)
-                .unwrap()
-                .add(self.depth_buffer.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
-        )
+                .add(self.geometry_buffer.buffer1.clone())?
+                .add(self.geometry_buffer.buffer2.clone())?
+                .add(self.geometry_buffer.buffer3.clone())?
+                .add(self.depth_buffer.clone())?
+                .add(self.hdr_buffer.clone())?
+                .add(final_image)?
+                .build()?,
+        ))
     }
 
     pub fn recreate_buffers(&mut self, dimensions: [u32; 2]) {
@@ -785,22 +896,44 @@ impl<'r, 's> Frame<'r, 's> {
                 self.framebuffer.clone(),
                 false,
                 vec![
+                    ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                    ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                    ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                    ClearValue::Depth(1.0),
                     ClearValue::Float([0.0, 0.0, 0.0, 1.0]),
                     ClearValue::None,
-                    ClearValue::Depth(1.0),
                 ],
             )
             .unwrap();
 
+        // 1. SUBPASS - Geometry
         let b = path
             .objects_u16
             .iter()
             .fold(b, |b, x| x.draw_indexed(state, path, b));
-        path.objects_u32
+        let b = path
+            .objects_u32
             .iter()
             .fold(b, |b, x| x.draw_indexed(state, path, b))
             .next_subpass(false)
+            .unwrap();
+
+        // 2. SUBPASS - Lighting
+        let b = b
+            .draw_indexed(
+                path.lighting_pipeline.clone(),
+                &no_dynamic_state,
+                vec![path.fst.vertex_buffer.clone()],
+                path.fst.index_buffer.clone(),
+                path.lighting_ds.clone(),
+                (),
+            )
             .unwrap()
+            .next_subpass(false)
+            .unwrap();
+
+        // 3. SUBPASS - Skybox
+        let b = b
             .draw_indexed(
                 path.skybox_pipeline.clone(),
                 &no_dynamic_state,
@@ -811,19 +944,21 @@ impl<'r, 's> Frame<'r, 's> {
             )
             .unwrap()
             .next_subpass(false)
-            .unwrap()
-            .draw_indexed(
-                path.tonemap_pipeline.clone(),
-                &no_dynamic_state,
-                vec![path.fst.vertex_buffer.clone()],
-                path.fst.index_buffer.clone(),
-                path.tonemap_ds.clone(),
-                (),
-            )
-            .unwrap()
-            .end_render_pass()
-            .unwrap()
-            .build()
-            .unwrap()
+            .unwrap();
+
+        // 4. SUBPASS - Tonemap
+        b.draw_indexed(
+            path.tonemap_pipeline.clone(),
+            &no_dynamic_state,
+            vec![path.fst.vertex_buffer.clone()],
+            path.fst.index_buffer.clone(),
+            path.tonemap_ds.clone(),
+            (),
+        )
+        .unwrap()
+        .end_render_pass()
+        .unwrap()
+        .build()
+        .unwrap()
     }
 }

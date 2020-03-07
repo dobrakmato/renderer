@@ -3,27 +3,9 @@
 layout(location = 0) in vec3 normal;
 layout(location = 1) in vec2 uv;
 
-layout(location = 0) out vec4 f_color;
-
-struct DirectionalLight {
-    vec3 direction;
-    float intensity;
-    vec3 color;
-    sampler2D shadowMap;
-};
-
-struct PointLight {
-    vec3 position;
-    vec3 color;
-    float intensity;
-};
-
-struct SpotLight {
-    vec3 position;
-    float angle;
-    vec3 color;
-    float intensity;
-};
+layout(location = 0) out vec4 normal_l_model;
+layout(location = 1) out vec4 albedo_occlusion;
+layout(location = 2) out vec4 roughness_metallic;
 
 // material textures
 layout(set = 0, binding = 0) uniform sampler2D albedo_map;
@@ -42,11 +24,13 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 void main() {
-    vec3 dir = normalize(push_constants.sun_dir.xyz);
-    vec3 color = vec3(0.7, 0.7, 0.7);
-    vec3 result = (dot(normal, dir) * color);
+    vec3 albedo = texture(albedo_map, uv).xyz;
+    vec3 normal = texture(normal_map, uv).xyz;
+    float roughness = texture(roughness_map, uv).r;
+    float metallic = texture(metallic_map, uv).r;
+    float occlusion = texture(occlusion_map, uv).r;
 
-    vec3 base_color = texture(albedo_map, uv).xyz;
-
-    f_color = vec4(material_data.albedo_color * base_color * result, 1.0);
+    normal_l_model = vec4(normal, 0);
+    albedo_occlusion = vec4(albedo, occlusion);
+    roughness_metallic = vec4(roughness, metallic, 0, 0);
 }
