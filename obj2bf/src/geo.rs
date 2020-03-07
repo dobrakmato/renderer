@@ -92,16 +92,24 @@ impl Geometry {
             .zip(nor_iter)
             .zip(uv_iter)
             .for_each(|((pos, nor), uv)| {
-                buf.write_f32::<LittleEndian>(pos.x as f32).unwrap();
-                buf.write_f32::<LittleEndian>(pos.y as f32).unwrap();
-                buf.write_f32::<LittleEndian>(pos.z as f32).unwrap();
+                buf.write_f32::<LittleEndian>(pos.x as f32)
+                    .expect("cannot write f32");
+                buf.write_f32::<LittleEndian>(pos.y as f32)
+                    .expect("cannot write f32");
+                buf.write_f32::<LittleEndian>(pos.z as f32)
+                    .expect("cannot write f32");
 
-                buf.write_f32::<LittleEndian>(nor.x as f32).unwrap();
-                buf.write_f32::<LittleEndian>(nor.y as f32).unwrap();
-                buf.write_f32::<LittleEndian>(nor.z as f32).unwrap();
+                buf.write_f32::<LittleEndian>(nor.x as f32)
+                    .expect("cannot write f32");
+                buf.write_f32::<LittleEndian>(nor.y as f32)
+                    .expect("cannot write f32");
+                buf.write_f32::<LittleEndian>(nor.z as f32)
+                    .expect("cannot write f32");
 
-                buf.write_f32::<LittleEndian>(uv.x as f32).unwrap();
-                buf.write_f32::<LittleEndian>(uv.y as f32).unwrap();
+                buf.write_f32::<LittleEndian>(uv.x as f32)
+                    .expect("cannot write f32");
+                buf.write_f32::<LittleEndian>(uv.y as f32)
+                    .expect("cannot write f32");
             });
 
         buf
@@ -149,10 +157,11 @@ impl Geometry {
 }
 
 // todo: add non-exhaustive annotation (when stable)
+#[derive(Debug)]
 pub enum ObjImportError {
     TooManyGeometries,
     NoGeometries,
-    UnsupportedPrimitive,
+    UnsupportedPrimitive(wavefront_obj::obj::Primitive),
 }
 
 impl TryFrom<&Object> for Geometry {
@@ -206,7 +215,7 @@ impl TryFrom<&Object> for Geometry {
                     g.indices.push(idx);
                 }
             } else {
-                return Err(ObjImportError::UnsupportedPrimitive);
+                return Err(ObjImportError::UnsupportedPrimitive(x.primitive));
             }
         }
         Ok(g)

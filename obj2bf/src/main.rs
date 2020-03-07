@@ -68,7 +68,10 @@ fn main() {
         .iter()
         .find(|it| !it.geometry.is_empty())
         .expect("no object with non-empty geometry found!");
-    let geo = geo::Geometry::try_from(obj).ok().unwrap();
+    let geo = match geo::Geometry::try_from(obj) {
+        Ok(t) => t,
+        Err(e) => panic!("Cannot convert .obj file to internal repr: {:?}", e),
+    };
     timers.normalize.end();
 
     println!("geo.positions={}", geo.positions.len());
@@ -78,10 +81,6 @@ fn main() {
 
     // todo: generate lods (simplify mesh)
     // todo: optimize meshes (forsyth)
-
-    // compress
-    // save
-    std::fs::write("dump.obj", geo.to_obj()).unwrap();
 
     timers.save.start();
     let vertex_format = VertexDataFormat::PositionNormalUv;
