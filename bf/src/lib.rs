@@ -156,22 +156,21 @@ impl<'a> Iterator for MipMaps<'a> {
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum VertexDataFormat {
-    // vec3 (pos), vec3(nor), vec2(uv)
-    PositionNormalUv,
+    // vec3(pos), vec3(nor), vec2(uv), vec3(tangent) + 1 byte padding
+    PositionNormalUvTangent,
 }
 
 impl VertexDataFormat {
     #[inline]
     pub fn size_of_one_vertex(self) -> usize {
         match self {
-            VertexDataFormat::PositionNormalUv => std::mem::size_of::<f32>() * 8,
+            VertexDataFormat::PositionNormalUvTangent => std::mem::size_of::<f32>() * 12,
         }
     }
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum IndexType {
-    U8,
     U16,
     U32,
 }
@@ -180,7 +179,6 @@ impl IndexType {
     #[inline]
     pub fn size_of_one_index(self) -> usize {
         match self {
-            IndexType::U8 => std::mem::size_of::<u8>(),
             IndexType::U16 => std::mem::size_of::<u16>(),
             IndexType::U32 => std::mem::size_of::<u32>(),
         }
@@ -270,13 +268,13 @@ impl<'a> File<'a> {
 #[derive(Debug)]
 pub enum Error {
     InvalidMagic,
-    UnsupportedVersion,
+    UnsupportedVersion { lib: u8, file: u8 },
     SerdeError(bincode::Error),
 }
 
 /* Constant representing the two byte magic sequence 'BF' */
 pub const BF_MAGIC: u16 = 17986;
-pub const BF_VERSION: u8 = 1;
+pub const BF_VERSION: u8 = 2;
 
 fn verify_bf_file_header(file: File) -> Result<File, Error> {
     if file.magic != BF_MAGIC {
@@ -284,7 +282,10 @@ fn verify_bf_file_header(file: File) -> Result<File, Error> {
     }
 
     if file.version != BF_VERSION {
-        return Err(Error::UnsupportedVersion);
+        return Err(Error::UnsupportedVersion {
+            lib: BF_VERSION,
+            file: file.version,
+        });
     }
 
     Ok(file)

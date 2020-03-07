@@ -24,7 +24,6 @@ struct Opt {
 
 fn parse_index_type(src: &str) -> Result<IndexType, &'static str> {
     match src.to_lowercase().as_str() {
-        "u8" => Ok(IndexType::U8),
         "u16" => Ok(IndexType::U16),
         "u32" => Ok(IndexType::U32),
         _ => Err("unknown format"),
@@ -68,22 +67,24 @@ fn main() {
         .iter()
         .find(|it| !it.geometry.is_empty())
         .expect("no object with non-empty geometry found!");
-    let geo = match geo::Geometry::try_from(obj) {
+    let mut geo = match geo::Geometry::try_from(obj) {
         Ok(t) => t,
         Err(e) => panic!("Cannot convert .obj file to internal repr: {:?}", e),
     };
+    geo.recalculate_tangents();
     timers.normalize.end();
 
     println!("geo.positions={}", geo.positions.len());
     println!("geo.normals={}", geo.normals.len());
     println!("geo.tex_coords={}", geo.tex_coords.len());
+    println!("geo.tangents={}", geo.tangents.len());
     println!("geo.indices={}", geo.indices.len());
 
     // todo: generate lods (simplify mesh)
     // todo: optimize meshes (forsyth)
 
     timers.save.start();
-    let vertex_format = VertexDataFormat::PositionNormalUv;
+    let vertex_format = VertexDataFormat::PositionNormalUvTangent;
     let vertex_data = geo.generate_vertex_data(vertex_format);
     let index_type = opt.index_type.unwrap_or_else(|| geo.suggest_index_type());
     let index_data = geo.generate_index_data(index_type);

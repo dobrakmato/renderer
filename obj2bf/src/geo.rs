@@ -10,6 +10,7 @@ pub struct Geometry {
     pub positions: Vec<Vec3<f64>>,
     pub normals: Vec<Vec3<f64>>,
     pub tex_coords: Vec<Vec3<f64>>,
+    pub tangents: Vec<Vec3<f64>>,
     /* 3 consecutive values represent one triangle (when correctly aligned) */
     pub indices: Vec<usize>,
 }
@@ -39,6 +40,45 @@ impl Geometry {
 
         /* we then normalize the vertices */
         self.normals.iter_mut().for_each(|it| it.normalize());
+    }
+
+    /// Recalculates the vertex tangents from position and index information.
+    ///
+    /// You probably should call this method every time because tangents are usually
+    /// not imported from another format.
+    pub fn recalculate_tangents(&mut self) {
+        /* firstly we allocate large vec to store tangents */
+        self.tangents = vec![Vec3::new(0.0, 0.0, 0.0); self.positions.len()];
+
+        /* for each face we compute the tangent and add it to all vertices */
+        for face in self.indices.chunks(3) {
+            let edge1 = &self.positions[face[1]] - &self.positions[face[0]];
+            let edge2 = &self.positions[face[2]] - &self.positions[face[0]];
+
+            let uv0 = &self.tex_coords[face[0]];
+            let uv1 = &self.tex_coords[face[1]];
+            let uv2 = &self.tex_coords[face[2]];
+
+            let d_u1 = uv1.x - uv0.x;
+            let d_v1 = uv1.y - uv0.y;
+            let d_u2 = uv2.x - uv0.x;
+            let d_v2 = uv2.y - uv0.y;
+
+            let f = 1.0 / (d_u1 * d_v2 - d_u2 * d_v1);
+
+            let tangent = Vec3::new(
+                f * (d_v2 * edge1.x - d_v1 * edge2.x),
+                f * (d_v2 * edge1.y - d_v1 * edge2.y),
+                f * (d_v2 * edge1.z - d_v1 * edge2.z),
+            );
+
+            self.tangents[face[0]] += &tangent;
+            self.tangents[face[1]] += &tangent;
+            self.tangents[face[2]] += &tangent;
+        }
+
+        /* we then normalize the tangents */
+        self.tangents.iter_mut().for_each(|it| it.normalize());
     }
 
     /// Generates and .OBJ format representation of this geometry. The
@@ -74,11 +114,12 @@ impl Geometry {
     /// parameter.
     pub fn generate_vertex_data(&self, format: VertexDataFormat) -> Vec<u8> {
         // the only supported format
-        assert_eq!(format, VertexDataFormat::PositionNormalUv);
+        assert_eq!(format, VertexDataFormat::PositionNormalUvTangent);
 
         let capacity = (self.positions.len() * std::mem::size_of::<f32>() * 3)
             + (self.normals.len() * std::mem::size_of::<f32>() * 3)
-            + (self.tex_coords.len() * std::mem::size_of::<f32>() * 2);
+            + (self.tex_coords.len() * std::mem::size_of::<f32>() * 2)
+            + (self.normals.len() * std::mem::size_of::<f32>() * 4); // tangents + padding
         let mut buf = Vec::with_capacity(capacity);
 
         assert_eq!(self.positions.len(), self.normals.len());
@@ -87,11 +128,13 @@ impl Geometry {
         let pos_iter = self.positions.iter();
         let nor_iter = self.normals.iter();
         let uv_iter = self.tex_coords.iter();
+        let tan_iter = self.tangents.iter();
 
         pos_iter
             .zip(nor_iter)
             .zip(uv_iter)
-            .for_each(|((pos, nor), uv)| {
+            .zip(tan_iter)
+            .for_each(|(((pos, nor), uv), tan)| {
                 buf.write_f32::<LittleEndian>(pos.x as f32)
                     .expect("cannot write f32");
                 buf.write_f32::<LittleEndian>(pos.y as f32)
@@ -110,6 +153,13 @@ impl Geometry {
                     .expect("cannot write f32");
                 buf.write_f32::<LittleEndian>(uv.y as f32)
                     .expect("cannot write f32");
+
+                buf.write_f32::<LittleEndian>(tan.x as f32)
+                    .expect("cannot write f32");
+                buf.write_f32::<LittleEndian>(tan.y as f32)
+                    .expect("cannot write f32");
+                buf.write_f32::<LittleEndian>(tan.y as f32)
+                    .expect("cannot write f32");
             });
 
         buf
@@ -120,9 +170,6 @@ impl Geometry {
     /// of indices in this geometry. Current algorithm returns the
     /// smallest type that can be used to encode this geometry.
     pub fn suggest_index_type(&self) -> IndexType {
-        if self.indices.len() < std::u8::MAX as usize {
-            return IndexType::U8;
-        }
         if self.indices.len() < std::u16::MAX as usize {
             return IndexType::U16;
         }
@@ -141,13 +188,11 @@ impl Geometry {
         let mut buf = Vec::with_capacity(capacity);
 
         match index_type {
-            IndexType::U8 => assert!(self.indices.len() <= std::u8::MAX as usize),
             IndexType::U16 => assert!(self.indices.len() <= std::u16::MAX as usize),
             IndexType::U32 => assert!(self.indices.len() <= std::u32::MAX as usize),
         }
 
         self.indices.iter().for_each(|x| match index_type {
-            IndexType::U8 => buf.write_u8(*x as u8).unwrap(),
             IndexType::U16 => buf.write_u16::<LittleEndian>(*x as u16).unwrap(),
             IndexType::U32 => buf.write_u32::<LittleEndian>(*x as u32).unwrap(),
         });
