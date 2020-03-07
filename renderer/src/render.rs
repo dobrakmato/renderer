@@ -3,7 +3,7 @@ use crate::content::{Content, Future};
 use crate::hosek::make_hosek_wilkie_params;
 use crate::material::{Material, MaterialDesc};
 use crate::mesh::fst::create_full_screen_triangle;
-use crate::mesh::Mesh;
+use crate::mesh::{IndexType, Mesh};
 use crate::pod::{HosekWilkieParams, MatrixData};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
@@ -24,6 +24,7 @@ use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract};
 use vulkano::image::{AttachmentImage, Dimensions, ImageUsage, ImmutableImage, SwapchainImage};
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
+use vulkano::pipeline::input_assembly::Index;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
@@ -57,10 +58,21 @@ unsafe impl TriviallyTransmutable for PositionOnlyVertex {}
 vulkano::impl_vertex!(BasicVertex, position, normal, uv);
 vulkano::impl_vertex!(PositionOnlyVertex, position);
 
+#[derive(Copy, Clone)]
 pub struct Transform {
     pub position: Vector3<f32>,
     pub rotation: Quaternion<f32>,
     pub scale: Vector3<f32>,
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            position: vec3(0.0, 0.0, 0.0),
+            rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+            scale: vec3(1.0, 1.0, 1.0),
+        }
+    }
 }
 
 impl Into<Matrix4<f32>> for Transform {
@@ -317,6 +329,62 @@ impl RendererState {
     }
 }
 
+struct Object<VDef, I: IndexType> {
+    pub transform: Transform,
+    mesh: Arc<Mesh<VDef, I>>,
+    material: Arc<Material>,
+}
+
+impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> Object<VDef, I> {
+    pub fn new(
+        mesh: Arc<Future<Mesh<VDef, I>>>,
+        material: Arc<Material>,
+        transform: Transform,
+    ) -> Self {
+        Self {
+            mesh: mesh.wait_for_then_unwrap(),
+            transform,
+            material,
+        }
+    }
+
+    pub fn draw_indexed(
+        &self,
+        state: &GameState,
+        path: &RenderPath,
+        b: AutoCommandBufferBuilder,
+    ) -> AutoCommandBufferBuilder {
+        let ubo = path
+            .matrix_data_pool
+            .next(MatrixData {
+                model: self.transform.into(),
+                view: state.camera.view_matrix(),
+                projection: state.camera.projection_matrix(),
+            })
+            .expect("cannot create next sub-buffer");
+        let descriptor_set = PersistentDescriptorSet::start(
+            path.geometry_pipeline
+                .descriptor_set_layout(1)
+                .unwrap()
+                .clone(),
+        )
+        .add_buffer(ubo)
+        .expect("cannot add ubo to pds set=1")
+        .build()
+        .expect("cannot build pds set=1");
+
+        b.draw_indexed(
+            path.geometry_pipeline.clone(),
+            &DynamicState::none(),
+            vec![self.mesh.vertex_buffer.clone()],
+            self.mesh.index_buffer.clone(),
+            (self.material.descriptor_set.clone(), descriptor_set),
+            state.sun_dir,
+        )
+        .unwrap()
+    }
+}
+
 // long-lived global (vulkan) objects related to one render path (buffers, pipelines)
 pub struct RenderPath {
     render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
@@ -333,12 +401,10 @@ pub struct RenderPath {
     fst: Mesh<PositionOnlyVertex, u16>,
     matrix_data_pool: CpuBufferPool<MatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
+    sky_mesh: Arc<Mesh<BasicVertex, u16>>,
     // resources
-    rock_mesh: Arc<Mesh<BasicVertex, u16>>,
-    icosphere_mesh: Arc<Mesh<BasicVertex, u16>>,
-    plane_mesh: Arc<Mesh<BasicVertex, u16>>,
-    rock_material: Arc<Material>,
-    white_material: Arc<Material>,
+    objects_u16: Vec<Object<BasicVertex, u16>>,
+    objects_u32: Vec<Object<BasicVertex, u32>>,
     materials: Vec<Arc<Material>>,
 }
 
@@ -510,38 +576,58 @@ impl RenderPath {
         // TODO: remove from render path
         info!("loading geometry and image data...");
         let start = Instant::now();
-        let rock_mesh =
-            content.load("Rock_1.bf");
-        let icosphere_mesh =
-            content.load("icosphere.bf");
-        let plane_mesh =
-            content.load("plane.bf");
-        let rock_material =
-            content.load("[2K]Leather11.json");
-        let white_material =
-            content.load("[2K]Metal07.json");
+        let sky_mesh = content.load("icosphere.bf").wait_for_then_unwrap();
 
-        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
-            content.load("Rock_1.bf");
-        let _: Arc<Future<Mesh<BasicVertex, u16>>> =
-            content.load("Rock_1.bf");
-
-        let rock_mesh = rock_mesh.wait_for_then_unwrap();
-        let icosphere_mesh = icosphere_mesh.wait_for_then_unwrap();
-        let plane_mesh = plane_mesh.wait_for_then_unwrap();
-        let rock_material: Arc<MaterialDesc> = rock_material.wait_for_then_unwrap();
-        let rock_material = rock_material.to_material(
-            content,
-            geometry_pipeline.clone(),
-            samplers.aniso_repeat.clone(),
-            white_texture.clone(),
+        let plane = Object::new(
+            content.load("plane.bf"),
+            content
+                .load::<MaterialDesc, _>("[2K]Concrete07.json")
+                .wait_for_then_unwrap()
+                .to_material(
+                    content,
+                    geometry_pipeline.clone(),
+                    samplers.aniso_repeat.clone(),
+                    white_texture.clone(),
+                ),
+            Transform {
+                scale: vec3(10.0, 1.0, 10.0),
+                ..Transform::default()
+            },
         );
-        let white_material: Arc<MaterialDesc> = white_material.wait_for_then_unwrap();
-        let white_material = white_material.to_material(
-            content,
-            geometry_pipeline.clone(),
-            samplers.aniso_repeat.clone(),
-            white_texture.clone(),
+
+        let rock = Object::new(
+            content.load("Rock_1.bf"),
+            content
+                .load::<MaterialDesc, _>("mat_rock.json")
+                .wait_for_then_unwrap()
+                .to_material(
+                    content,
+                    geometry_pipeline.clone(),
+                    samplers.aniso_repeat.clone(),
+                    white_texture.clone(),
+                ),
+            Transform {
+                scale: vec3(0.03, 0.03, 0.03),
+                position: vec3(5.0, 0.0, 0.0),
+                ..Transform::default()
+            },
+        );
+
+        let chalet = Object::new(
+            content.load("chalet_mesh.bf"),
+            content
+                .load::<MaterialDesc, _>("mat_chalet.json")
+                .wait_for_then_unwrap()
+                .to_material(
+                    content,
+                    geometry_pipeline.clone(),
+                    samplers.aniso_repeat.clone(),
+                    white_texture.clone(),
+                ),
+            Transform {
+                scale: vec3(2.0, 2.0, -2.0),
+                ..Transform::default()
+            },
         );
 
         let materials = [
@@ -592,14 +678,11 @@ impl RenderPath {
             matrix_data_pool: CpuBufferPool::uniform_buffer(device.clone()),
             hosek_wilkie_sky_pool: CpuBufferPool::uniform_buffer(device.clone()),
             depth_buffer,
+            sky_mesh,
             hdr_buffer,
-            //
-            rock_mesh,
-            icosphere_mesh,
-            plane_mesh,
-            rock_material,
-            white_material,
             materials,
+            objects_u16: vec![plane, rock],
+            objects_u32: vec![chalet],
         }
     }
 
@@ -662,53 +745,6 @@ impl<'r, 's> Frame<'r, 's> {
         let path = &mut self.render_path;
         let state = self.game_state;
 
-        // create descriptor sets
-        let rock_transform = Transform {
-            position: vec3(0.0, 1.0, 0.0),
-            rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
-            scale: vec3(0.03, 0.03, 0.03),
-        };
-        let ubo_rock = path
-            .matrix_data_pool
-            .next(MatrixData {
-                model: rock_transform.into(),
-                view: state.camera.view_matrix(),
-                projection: state.camera.projection_matrix(),
-            })
-            .expect("cannot create next sub-buffer");
-        let rock_ds = PersistentDescriptorSet::start(
-            path.geometry_pipeline
-                .descriptor_set_layout(1)
-                .unwrap()
-                .clone(),
-        )
-        .add_buffer(ubo_rock)
-        .expect("cannot add ubo to pds set=1")
-        .build()
-        .expect("cannot build pds set=1");
-        let plane_transform = Transform {
-            position: vec3(0.0, 0.0, 0.0),
-            rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
-            scale: vec3(30.0, 1.0, 30.0),
-        };
-        let ubo_plane = path
-            .matrix_data_pool
-            .next(MatrixData {
-                model: plane_transform.into(),
-                view: state.camera.view_matrix(),
-                projection: state.camera.projection_matrix(),
-            })
-            .expect("cannot create next sub-buffer");
-        let plane_ds = PersistentDescriptorSet::start(
-            path.geometry_pipeline
-                .descriptor_set_layout(1)
-                .unwrap()
-                .clone(),
-        )
-        .add_buffer(ubo_plane)
-        .expect("cannot add ubo to pds set=1")
-        .build()
-        .expect("cannot build pds set=1");
         let params = make_hosek_wilkie_params(state.sun_dir, 2.0, vec3(0.0, 0.0, 0.0));
         let ubo_sky_hw = path.hosek_wilkie_sky_pool.next(params).unwrap();
         let sky_hw_params = PersistentDescriptorSet::start(
@@ -741,7 +777,8 @@ impl<'r, 's> Frame<'r, 's> {
         .build()
         .expect("cannot build pds set=1");
 
-        self.builder
+        let b = self
+            .builder
             .take()
             .unwrap()
             .begin_render_pass(
@@ -753,32 +790,22 @@ impl<'r, 's> Frame<'r, 's> {
                     ClearValue::Depth(1.0),
                 ],
             )
-            .unwrap()
-            .draw_indexed(
-                path.geometry_pipeline.clone(),
-                &no_dynamic_state,
-                vec![path.rock_mesh.vertex_buffer.clone()],
-                path.rock_mesh.index_buffer.clone(),
-                (path.rock_material.descriptor_set.clone(), rock_ds),
-                state.sun_dir,
-            )
-            .unwrap()
-            .draw_indexed(
-                path.geometry_pipeline.clone(),
-                &no_dynamic_state,
-                vec![path.plane_mesh.vertex_buffer.clone()],
-                path.plane_mesh.index_buffer.clone(),
-                (path.white_material.descriptor_set.clone(), plane_ds),
-                state.sun_dir,
-            )
-            .unwrap()
+            .unwrap();
+
+        let b = path
+            .objects_u16
+            .iter()
+            .fold(b, |b, x| x.draw_indexed(state, path, b));
+        path.objects_u32
+            .iter()
+            .fold(b, |b, x| x.draw_indexed(state, path, b))
             .next_subpass(false)
             .unwrap()
             .draw_indexed(
                 path.skybox_pipeline.clone(),
                 &no_dynamic_state,
-                vec![path.icosphere_mesh.vertex_buffer.clone()],
-                path.icosphere_mesh.index_buffer.clone(),
+                vec![path.sky_mesh.vertex_buffer.clone()],
+                path.sky_mesh.index_buffer.clone(),
                 (per_object_descriptor_set_sky, sky_hw_params),
                 (state.camera.position, state.start.elapsed().as_secs_f32()),
             )
