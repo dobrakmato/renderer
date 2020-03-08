@@ -1,7 +1,7 @@
 #version 450
 
-layout(location = 0) in vec3 in_normal;
-layout(location = 1) in vec2 in_uv;
+layout(location = 0) in vec2 in_uv;
+layout(location = 1) in mat3 in_tbn;
 
 layout(location = 0) out vec4 normal_l_model;
 layout(location = 1) out vec4 albedo_occlusion;
@@ -26,7 +26,7 @@ void main() {
     float metallic = texture(metallic_map, in_uv).r;
     float occlusion = texture(occlusion_map, in_uv).r;
 
-    normal_l_model = vec4(in_normal, 0);
+    normal_l_model = vec4(in_tbn * normalize(normal * 2.0 - 1.0), 0);
     albedo_occlusion = vec4(albedo, occlusion);
     roughness_metallic = vec4(roughness, metallic, 0, 0);
 }

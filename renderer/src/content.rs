@@ -117,10 +117,9 @@ impl Content {
             transfer_queue,
             worker: send,
             roots: vec![
-                "C:\\Users\\Matej\\CLionProjects\\renderer\\target\\debug\\".to_path(),
                 "D:\\_MATS\\OUT\\".to_path(),
-                "/home/matej/content_root/".to_path()
-            ]
+                "/home/matej/content_root/".to_path(),
+            ],
         }
     }
 
@@ -139,9 +138,12 @@ impl Content {
         path: P,
     ) -> Arc<Future<T>> {
         let relative = path.to_path();
-        let absolute = self.roots.iter().find(|x| x.join(&relative).exists())
-            .map(|x| x.join(relative))
-            .expect("cannot find file {} in any root!");
+        let absolute = self
+            .roots
+            .iter()
+            .find(|x| x.join(&relative).exists())
+            .map(|x| x.join(relative.clone()))
+            .unwrap_or_else(|| panic!("cannot find file {:?} in any root!", relative));
 
         let id = absolute.file_name().unwrap().to_os_string();
 
@@ -159,8 +161,8 @@ impl Content {
 
         let work = move || {
             info!("[{:?}] starting loading...", id);
-            let bytes =
-                std::fs::read(&absolute).unwrap_or_else(|e| panic!("cannot load {:?} {}", &absolute, e));
+            let bytes = std::fs::read(&absolute)
+                .unwrap_or_else(|e| panic!("cannot load {:?} {}", &absolute, e));
             let t = T::load(bytes.as_slice(), queue);
 
             info!("[{:?}] done", id);

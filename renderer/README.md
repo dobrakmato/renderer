@@ -17,6 +17,8 @@ should result in clearer design and less annoyance from borrow checker. Parts of
 - [ ] loading of multiple resources at same time
 - [ ] pipelined loading
 - [ ] resource hot-reloading for local files
+- [ ] stores metadata about "imported" files in json 
+- [ ] can detect changes between "builds" and perform incremental compilation
 
 
 ### Deferred Rendering

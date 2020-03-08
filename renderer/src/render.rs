@@ -46,6 +46,7 @@ pub struct BasicVertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub uv: [f32; 2],
+    pub tangent: [f32; 4],
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -57,7 +58,7 @@ unsafe impl TriviallyTransmutable for BasicVertex {}
 
 unsafe impl TriviallyTransmutable for PositionOnlyVertex {}
 
-vulkano::impl_vertex!(BasicVertex, position, normal, uv);
+vulkano::impl_vertex!(BasicVertex, position, normal, uv, tangent);
 vulkano::impl_vertex!(PositionOnlyVertex, position);
 
 #[derive(Copy, Clone)]
@@ -717,15 +718,15 @@ impl RenderPath {
                 ),
             Transform {
                 scale: vec3(0.03, 0.03, 0.03),
-                position: vec3(5.0, 0.0, 0.0),
+                position: vec3(5.0, 0.3, 0.0),
                 ..Transform::default()
             },
         );
 
-        let chalet = Object::new(
-            content.load("chalet_mesh.bf"),
+        let apple = Object::new(
+            content.load("apple.bf"),
             content
-                .load::<MaterialDesc, _>("mat_chalet.json")
+                .load::<MaterialDesc, _>("3DApple002_2K-JPG.json")
                 .wait_for_then_unwrap()
                 .to_material(
                     content,
@@ -734,7 +735,8 @@ impl RenderPath {
                     white_texture.clone(),
                 ),
             Transform {
-                scale: vec3(2.0, 2.0, -2.0),
+                scale: vec3(6.0, 6.0, 6.0),
+                position: vec3(0.0, 0.3, 0.0),
                 ..Transform::default()
             },
         );
@@ -793,8 +795,8 @@ impl RenderPath {
             geometry_buffer,
             hdr_buffer,
             materials,
-            objects_u16: vec![plane, rock],
-            objects_u32: vec![chalet],
+            objects_u16: vec![apple, plane, rock],
+            objects_u32: vec![],
         }
     }
 

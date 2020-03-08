@@ -2,7 +2,7 @@ use crate::content::Content;
 use crate::input::Input;
 use crate::render::{RendererState, VulkanState};
 use crate::{GameState, RendererConfiguration};
-use cgmath::Rad;
+use cgmath::{vec3, InnerSpace, Rad};
 use winit::dpi::LogicalSize;
 use winit::event::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -37,11 +37,14 @@ impl Engine {
     }
 
     pub fn update(&mut self) {
+        let (s, c) = self.game_state.start.elapsed().as_secs_f32().sin_cos();
+        self.game_state.sun_dir = vec3(s, 0.7, c).normalize();
+
         /* game update for next frame */
         let speed = if self.input_state.is_key_down(VirtualKeyCode::LShift) {
-            0.01
-        } else {
             0.005
+        } else {
+            0.00125
         };
         if self.input_state.is_key_down(VirtualKeyCode::A) {
             self.game_state.camera.move_left(speed)
