@@ -16,8 +16,9 @@ layout(set = 1, binding = 0) uniform MatrixData {
 
 void main() {
     vec3 T = normalize((matrix_data.model * vec4(tangent.xyz, 0.0)).xyz);
-    vec3 B = normalize((matrix_data.model * vec4(cross(normal, tangent.xyz), 0.0)).xyz);
     vec3 N = normalize((matrix_data.model * vec4(normal, 0.0)).xyz);
+    T = normalize(T - dot(T, N) * N);
+    vec3 B = cross(N, T);
     tbn0 = mat3(T, B, N);
     uv0 = uv;
     gl_Position = matrix_data.projection * matrix_data.view * matrix_data.model * vec4(position, 1.0);
