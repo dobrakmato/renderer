@@ -17,13 +17,16 @@ layout(set = 0, binding = 5) uniform sampler2D metallic_map;
 layout(set = 0, binding = 6) uniform MaterialData {
     vec3 albedo_color;
     float alpha_cutoff;
+    float roughness;
+    float metallic;
+    float normal_map_strength;
 } material_data;
 
 void main() {
-    vec3 albedo = texture(albedo_map, in_uv).xyz;
-    vec3 normal = texture(normal_map, in_uv).xyz;
-    float roughness = texture(roughness_map, in_uv).r;
-    float metallic = texture(metallic_map, in_uv).r;
+    vec3 albedo = material_data.albedo_color * texture(albedo_map, in_uv).xyz;
+    vec3 normal = vec3(material_data.normal_map_strength, material_data.normal_map_strength, 1) * texture(normal_map, in_uv).xyz;
+    float roughness = material_data.roughness * texture(roughness_map, in_uv).r;
+    float metallic = material_data.metallic * texture(metallic_map, in_uv).r;
     float occlusion = texture(occlusion_map, in_uv).r;
 
     normal_l_model = vec4(in_tbn * normalize(normal * 2.0 - 1.0), 0);

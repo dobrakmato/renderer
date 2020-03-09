@@ -17,6 +17,9 @@ use vulkano::sampler::Sampler;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MaterialDesc {
     albedo_color: Vector3<f32>,
+    roughness: f32,
+    metallic: f32,
+    normal_map_strength: f32,
     albedo_map: Option<String>,
     normal_map: Option<String>,
     displacement_map: Option<String>,
@@ -77,6 +80,9 @@ impl MaterialDesc {
             MaterialData {
                 albedo_color: self.albedo_color,
                 alpha_cutoff: 0.0,
+                roughness: self.roughness,
+                metallic: self.metallic,
+                normal_map_strength: self.normal_map_strength,
             },
         )
         .expect("cannot create Material instance")
