@@ -33,10 +33,16 @@ pub struct SpotLight {
 }
 
 #[repr(C)]
-pub struct MatrixData {
-    pub model: Matrix4<f32>,
+pub struct FrameMatrixData {
     pub view: Matrix4<f32>,
     pub projection: Matrix4<f32>,
+    pub inv_projection: Matrix4<f32>,
+    pub inv_view: Matrix4<f32>,
+}
+
+#[repr(C)]
+pub struct ObjectMatrixData {
+    pub model: Matrix4<f32>,
 }
 
 #[repr(C)]

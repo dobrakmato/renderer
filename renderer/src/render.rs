@@ -4,10 +4,10 @@ use crate::hosek::make_hosek_wilkie_params;
 use crate::material::{Material, MaterialDesc};
 use crate::mesh::fst::create_full_screen_triangle;
 use crate::mesh::{IndexType, Mesh};
-use crate::pod::{HosekWilkieParams, MatrixData};
+use crate::pod::{FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
-use cgmath::{vec3, Matrix4, Quaternion, Vector3};
+use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3};
 use log::info;
 use safe_transmute::TriviallyTransmutable;
 use smallvec::SmallVec;
@@ -358,19 +358,17 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
 
     pub fn draw_indexed(
         &self,
-        state: &GameState,
+        ds_frame_matrix_data: Arc<dyn DescriptorSet + Send + Sync + 'static>,
+        object_matrix_data_pool: &CpuBufferPool<ObjectMatrixData>,
         path: &RenderPath,
         b: AutoCommandBufferBuilder,
     ) -> AutoCommandBufferBuilder {
-        let ubo = path
-            .matrix_data_pool
-            .next(MatrixData {
+        let ubo = object_matrix_data_pool
+            .next(ObjectMatrixData {
                 model: self.transform.into(),
-                view: state.camera.view_matrix(),
-                projection: state.camera.projection_matrix(),
             })
             .expect("cannot create next sub-buffer");
-        let descriptor_set = PersistentDescriptorSet::start(
+        let ds_object_matrix_data = PersistentDescriptorSet::start(
             path.geometry_pipeline
                 .descriptor_set_layout(1)
                 .unwrap()
@@ -386,7 +384,11 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
             &DynamicState::none(),
             vec![self.mesh.vertex_buffer.clone()],
             self.mesh.index_buffer.clone(),
-            (self.material.descriptor_set.clone(), descriptor_set),
+            (
+                self.material.descriptor_set.clone(),
+                ds_frame_matrix_data,
+                ds_object_matrix_data,
+            ),
             (),
         )
         .unwrap()
@@ -453,7 +455,8 @@ pub struct RenderPath {
     tonemap_ds: Arc<dyn DescriptorSet + Send + Sync>,
     lighting_ds: Arc<dyn DescriptorSet + Send + Sync>,
     fst: Mesh<PositionOnlyVertex, u16>,
-    matrix_data_pool: CpuBufferPool<MatrixData>,
+    frame_matrix_data: CpuBufferPool<FrameMatrixData>,
+    object_matrix_data: CpuBufferPool<ObjectMatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
     sky_mesh: Arc<Mesh<BasicVertex, u16>>,
     // resources
@@ -541,7 +544,7 @@ impl RenderPath {
                     {
                         color: [hdr],
                         depth_stencil: {},
-                        input: [gbuffer1, gbuffer2, gbuffer3]
+                        input: [gbuffer1, gbuffer2, gbuffer3, depth]
                     },
                     {
                         color: [hdr],
@@ -788,7 +791,8 @@ impl RenderPath {
             tonemap_ds: tonemap_ds as Arc<_>,
             lighting_pipeline: lighting_pipeline as Arc<_>,
             lighting_ds: lighting_ds as Arc<_>,
-            matrix_data_pool: CpuBufferPool::uniform_buffer(device.clone()),
+            frame_matrix_data: CpuBufferPool::uniform_buffer(device.clone()),
+            object_matrix_data: CpuBufferPool::uniform_buffer(device.clone()),
             hosek_wilkie_sky_pool: CpuBufferPool::uniform_buffer(device.clone()),
             depth_buffer,
             sky_mesh,
@@ -858,6 +862,55 @@ impl<'r, 's> Frame<'r, 's> {
         let path = &mut self.render_path;
         let state = self.game_state;
 
+        /* create FrameMatrixData (set=2) for this frame. */
+        let view = self.game_state.camera.view_matrix();
+        let projection = self.game_state.camera.projection_matrix();
+        let frame_matrix_data = Arc::new(
+            path.frame_matrix_data
+                .next(FrameMatrixData {
+                    inv_view: view.invert().unwrap(),
+                    inv_projection: projection.invert().unwrap(),
+                    view,
+                    projection,
+                })
+                .expect("cannot take next buffer"),
+        );
+
+        // todo: remove duplicates
+        let ds_frame_matrix_data_geometry = Arc::new(
+            PersistentDescriptorSet::start(
+                path.geometry_pipeline
+                    .descriptor_set_layout(2)
+                    .unwrap()
+                    .clone(),
+            )
+            .add_buffer(frame_matrix_data.clone())
+            .expect("cannot add ubo to pds set=1")
+            .build()
+            .expect("cannot build pds set=1"),
+        );
+        let ds_frame_matrix_data_lighting = PersistentDescriptorSet::start(
+            path.lighting_pipeline
+                .descriptor_set_layout(2)
+                .unwrap()
+                .clone(),
+        )
+        .add_buffer(frame_matrix_data.clone())
+        .expect("cannot add ubo to pds set=1")
+        .build()
+        .expect("cannot build pds set=1");
+        let ds_frame_matrix_data_skybox = PersistentDescriptorSet::start(
+            path.skybox_pipeline
+                .descriptor_set_layout(0)
+                .unwrap()
+                .clone(),
+        )
+        .add_buffer(frame_matrix_data)
+        .expect("cannot add ubo to pds set=1")
+        .build()
+        .expect("cannot build pds set=1");
+
+        /* create HosekWilkieParams (sky params) for this frame. */
         let params = make_hosek_wilkie_params(state.sun_dir, 2.0, vec3(0.0, 0.0, 0.0));
         let ubo_sky_hw = path.hosek_wilkie_sky_pool.next(params).unwrap();
         let sky_hw_params = PersistentDescriptorSet::start(
@@ -867,25 +920,6 @@ impl<'r, 's> Frame<'r, 's> {
                 .clone(),
         )
         .add_buffer(ubo_sky_hw)
-        .expect("cannot add ubo to pds set=1")
-        .build()
-        .expect("cannot build pds set=1");
-        let ubo_sky = path
-            .matrix_data_pool
-            .next(MatrixData {
-                model: Matrix4::from_scale(200.0),
-                view: state.camera.view_matrix(),
-                projection: state.camera.projection_matrix(),
-            })
-            .expect("cannot create next sub-buffer");
-
-        let per_object_descriptor_set_sky = PersistentDescriptorSet::start(
-            path.skybox_pipeline
-                .descriptor_set_layout(0)
-                .unwrap()
-                .clone(),
-        )
-        .add_buffer(ubo_sky)
         .expect("cannot add ubo to pds set=1")
         .build()
         .expect("cannot build pds set=1");
@@ -909,14 +943,25 @@ impl<'r, 's> Frame<'r, 's> {
             .unwrap();
 
         // 1. SUBPASS - Geometry
-        let b = path
-            .objects_u16
-            .iter()
-            .fold(b, |b, x| x.draw_indexed(state, path, b));
+        let b = path.objects_u16.iter().fold(b, |b, x| {
+            x.draw_indexed(
+                ds_frame_matrix_data_geometry.clone(),
+                &path.object_matrix_data,
+                path,
+                b,
+            )
+        });
         let b = path
             .objects_u32
             .iter()
-            .fold(b, |b, x| x.draw_indexed(state, path, b))
+            .fold(b, |b, x| {
+                x.draw_indexed(
+                    ds_frame_matrix_data_geometry.clone(),
+                    &path.object_matrix_data,
+                    path,
+                    b,
+                )
+            })
             .next_subpass(false)
             .unwrap();
 
@@ -927,10 +972,22 @@ impl<'r, 's> Frame<'r, 's> {
                 &no_dynamic_state,
                 vec![path.fst.vertex_buffer.clone()],
                 path.fst.index_buffer.clone(),
-                path.lighting_ds.clone(),
+                (
+                    path.lighting_ds.clone(),
+                    // todo: remove this bullshit
+                    PersistentDescriptorSet::start(
+                        path.lighting_pipeline
+                            .descriptor_set_layout(1)
+                            .unwrap()
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap(),
+                    ds_frame_matrix_data_lighting,
+                ),
                 state.sun_dir,
             )
-            .unwrap()
+            .expect("cannot do lighting pass")
             .next_subpass(false)
             .unwrap();
 
@@ -941,10 +998,10 @@ impl<'r, 's> Frame<'r, 's> {
                 &no_dynamic_state,
                 vec![path.sky_mesh.vertex_buffer.clone()],
                 path.sky_mesh.index_buffer.clone(),
-                (per_object_descriptor_set_sky, sky_hw_params),
+                (ds_frame_matrix_data_skybox, sky_hw_params),
                 (state.camera.position, state.start.elapsed().as_secs_f32()),
             )
-            .unwrap()
+            .expect("cannot do skybox pass")
             .next_subpass(false)
             .unwrap();
 
@@ -957,7 +1014,7 @@ impl<'r, 's> Frame<'r, 's> {
             path.tonemap_ds.clone(),
             (),
         )
-        .unwrap()
+        .expect("cannot do tonemap pass")
         .end_render_pass()
         .unwrap()
         .build()

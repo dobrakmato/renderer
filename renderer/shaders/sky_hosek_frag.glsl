@@ -3,6 +3,13 @@
 layout(location = 0) in vec3 position;
 layout(location = 0) out vec4 f_color;
 
+layout(set = 0, binding = 0) uniform FrameMatrixData {
+    mat4 view;
+    mat4 projection;
+    mat4 invProjection;
+    mat4 invView;
+} frame_matrix_data;
+
 layout(set = 1, binding = 0) uniform HosekWilkieParams {
     vec3 A;
     vec3 B;
