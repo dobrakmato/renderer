@@ -67,7 +67,7 @@ fn main() {
                 up: vec3(0.0, -1.0, 0.0),
                 fov: Deg(90.0).into(),
                 aspect_ratio: conf.resolution[0] as f32 / conf.resolution[1] as f32,
-                near: 0.01,
+                near: 0.05,
                 far: 100.0,
             },
         },

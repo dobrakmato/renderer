@@ -985,7 +985,11 @@ impl<'r, 's> Frame<'r, 's> {
                     .unwrap(),
                     ds_frame_matrix_data_lighting,
                 ),
-                state.sun_dir,
+                crate::shaders::fs_deferred_lighting::ty::PushConstants {
+                    sun_dir: state.sun_dir.into(),
+                    camera_pos: state.camera.position.into(),
+                    _dummy0: [0u8; 4],
+                },
             )
             .expect("cannot do lighting pass")
             .next_subpass(false)

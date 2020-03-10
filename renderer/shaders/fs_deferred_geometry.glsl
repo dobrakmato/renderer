@@ -29,7 +29,9 @@ void main() {
     float metallic = material_data.metallic * texture(metallic_map, in_uv).r;
     float occlusion = texture(occlusion_map, in_uv).r;
 
-    normal_l_model = vec4(in_tbn * normalize(normal * 2.0 - 1.0), 0);
+    vec3 n = in_tbn * normalize(normal * 2.0 - 1.0);
+
+    normal_l_model = vec4((n+1) * 0.5, 0);
     albedo_occlusion = vec4(albedo, occlusion);
     roughness_metallic = vec4(roughness, metallic, 0, 0);
 }
