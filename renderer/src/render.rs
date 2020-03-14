@@ -340,7 +340,7 @@ impl RendererState {
 struct Object<VDef, I: IndexType> {
     pub transform: Transform,
     mesh: Arc<Mesh<VDef, I>>,
-    material: Arc<Material>,
+    pub material: Arc<Material>,
 }
 
 impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> Object<VDef, I> {
@@ -694,7 +694,7 @@ impl RenderPath {
         let plane = Object::new(
             content.load("plane.bf"),
             content
-                .load::<MaterialDesc, _>("[2K]Concrete07.json")
+                .load::<MaterialDesc, _>("[2K]Leather11.json")
                 .wait_for_then_unwrap()
                 .to_material(
                     content,

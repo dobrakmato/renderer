@@ -29,6 +29,7 @@ vec3 PositionFromDepth(float depth) {
     return worldSpacePosition.xyz;
 }
 
+
 void main() {
     /* load data from buffers */
     vec4 b1 = subpassLoad(normal_l_model);
@@ -37,21 +38,48 @@ void main() {
     float depth = subpassLoad(depth).x;
 
     /* unpack the individual components */
-    vec3 normal = b1.rgb * 2 - 1;
+    vec3 normal = b1.rgb * 2 - 1.0;
     vec3 albedo = b2.rgb;
     float occlusion = b2.a;
     float roughness = b3.r;
     float metallic = b3.g;
     vec3 position = PositionFromDepth(depth);
 
-    vec3 N = normal;
-    vec3 L = push_constants.sun_dir.xyz;
+    vec3 color = vec3(0.85, 0.85, 0.8) * 10;
+
+    vec3 N = normalize(normal);
+    vec3 L = normalize(push_constants.sun_dir.xyz);
     vec3 V = normalize(push_constants.camera_pos.xyz - position);
     vec3 H = normalize(L + V);
 
+    float NdotV = dot(N, V) + 1e-5;
+    float NdotL = clamp(dot(N, L), 0.0, 1.0);
+    float NdotH = clamp(dot(N, H), 0.0, 1.0);
+    float VdotH = clamp(dot(V, H), 0.0, 1.0);
 
-    vec3 color = vec3(0.85, 0.85, 0.8);
-    vec3 result = max(0.1, dot(push_constants.sun_dir.xyz, normal)) * color * albedo;
+    float alpha = roughness * roughness;
+    float alphaSq = alpha * alpha;
+    float f = (NdotH * alphaSq - NdotH) * NdotH + 1.0;
+    float D = alphaSq / (3.14159 * f * f);
+
+    const vec3 dielectricSpecular = vec3(0.04, 0.04, 0.04);
+    const vec3 black = vec3(0.0, 0.0, 0.0);
+
+    vec3 F0 = mix(dielectricSpecular, albedo, metallic);
+    vec3 F = (F0 + (1 - F0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0));
+
+    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaSq) + alphaSq);
+    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaSq) + alphaSq);
+    float G =  0.5 / (GGXV + GGXL);
+
+    float Vis = G / (4 * NdotL * NdotV);
+
+    vec3 diffuse = mix(albedo * (vec3(1.0, 1.0, 1.0) - dielectricSpecular), black, metallic) / 3.14159;
+
+    vec3 specularContribution = D * Vis * F;
+    vec3 diffuseContribution = (1.0 - F) * diffuse;
+
+    vec3 result = (specularContribution + diffuseContribution) * color * NdotL;
 
     hdr = vec4(result, 1.0);
 }

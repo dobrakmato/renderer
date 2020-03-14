@@ -128,16 +128,17 @@ impl Material {
             data,
         )
         .unwrap();
+
         let descriptor_set = Arc::new(
             PersistentDescriptorSet::start(
                 geometry_pipeline.descriptor_set_layout(0).unwrap().clone(),
             )
             .add_sampled_image(albedo.unwrap_or_else(|| fb.clone()), sampler.clone())?
             .add_sampled_image(normal.unwrap_or_else(|| fb.clone()), sampler.clone())?
+            .add_sampled_image(displacement.unwrap_or_else(|| fb.clone()), sampler.clone())?
             .add_sampled_image(roughness.unwrap_or_else(|| fb.clone()), sampler.clone())?
-            .add_sampled_image(metallic.unwrap_or_else(|| fb.clone()), sampler.clone())?
             .add_sampled_image(ao.unwrap_or_else(|| fb.clone()), sampler.clone())?
-            .add_sampled_image(displacement.unwrap_or_else(|| fb.clone()), sampler)?
+            .add_sampled_image(metallic.unwrap_or_else(|| fb.clone()), sampler.clone())?
             .add_buffer(uniform_buffer.clone())?
             .build()
             .expect("cannot build pds"),

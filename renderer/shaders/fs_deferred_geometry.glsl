@@ -31,7 +31,7 @@ void main() {
 
     vec3 n = in_tbn * normalize(normal * 2.0 - 1.0);
 
-    normal_l_model = vec4((n+1) * 0.5, 0);
+    normal_l_model = vec4(n * 0.5 + 0.5, 0);
     albedo_occlusion = vec4(albedo, occlusion);
     roughness_metallic = vec4(roughness, metallic, 0, 0);
 }

@@ -38,7 +38,7 @@ impl Engine {
 
     pub fn update(&mut self) {
         let (s, c) = self.game_state.start.elapsed().as_secs_f32().sin_cos();
-        self.game_state.sun_dir = vec3(s, 0.7, c).normalize();
+        self.game_state.sun_dir = vec3(s, 1.33, c).normalize();
 
         /* game update for next frame */
         let speed = if self.input_state.is_key_down(VirtualKeyCode::LShift) {
