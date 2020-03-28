@@ -9,6 +9,8 @@
 [d] - [r] support choosing of gpu when multiple gpus on computer
 [d] - [opt][r] move transfer operations into transfer queue
 [d] - [r/io] load resources asynchronously
+[d] - [content] stores metadata about "imported" files in json
+[d] - [content] can detect changes between "builds" and perform incremental compilation
 
 - [opt][bf] make mipmap_count() O(1) by computing recurrent relation
 - [opt][obj2bf] fix O(n^2) vertex compare algo stored in btree instead of Vec
@@ -18,7 +20,10 @@
 - [img2bf] use intel_tex crate to provide BC7 and better compression & image quality
 - [inf] consider using `argh` / `pico-arg` instead of `clap` + `structopt` to cut down on build time
 
+- [content] can detect (single colored roughness/metallic) and replace with white texture + color
 
+- [r] support for meshes without normal maps (tangents, bitangents)
+- [r] precompute bitangents and store in bf file
 - [opt][r] implement pipeline cache
 - ![r] implement debug line renderer (agregate lines in fluent interface and then batch with ubo color)
 - [r] use debug_markers in rendering pipeline with UnsafeCommandBufferBuilder

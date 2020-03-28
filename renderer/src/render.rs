@@ -1,18 +1,16 @@
 use crate::camera::Camera;
 use crate::content::{Content, Future};
 use crate::hosek::make_hosek_wilkie_params;
-use crate::material::{Material, MaterialDesc};
+use crate::material::Material;
 use crate::mesh::fst::create_full_screen_triangle;
 use crate::mesh::{IndexType, Mesh};
 use crate::pod::{FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
 use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3};
-use log::info;
 use safe_transmute::TriviallyTransmutable;
 use smallvec::SmallVec;
 use std::sync::Arc;
-use std::time::Instant;
 use vulkano::buffer::CpuBufferPool;
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
@@ -159,7 +157,7 @@ impl VulkanState {
 
 // render path, vulkan instance, vulkan device, framebuffers, swapchain
 pub struct RendererState {
-    render_path: RenderPath,
+    pub render_path: RenderPath,
     device: Arc<Device>,
     graphical_queue: Arc<Queue>,
     /* swapchain related stuff */
@@ -337,7 +335,7 @@ impl RendererState {
     }
 }
 
-struct Object<VDef, I: IndexType> {
+pub struct Object<VDef, I: IndexType> {
     pub transform: Transform,
     mesh: Arc<Mesh<VDef, I>>,
     pub material: Arc<Material>,
@@ -445,6 +443,8 @@ pub struct RenderPath {
     hdr_buffer: Arc<AttachmentImage>,
     geometry_buffer: GBuffer,
     depth_buffer: Arc<AttachmentImage>,
+    pub samplers: Samplers,
+    pub white_texture: Arc<ImmutableImage<Format>>,
 
     /***** KOKOTINY *****/
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
@@ -459,10 +459,6 @@ pub struct RenderPath {
     object_matrix_data: CpuBufferPool<ObjectMatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
     sky_mesh: Arc<Mesh<BasicVertex, u16>>,
-    // resources
-    objects_u16: Vec<Object<BasicVertex, u16>>,
-    objects_u32: Vec<Object<BasicVertex, u32>>,
-    materials: Vec<Arc<Material>>,
 }
 
 impl RenderPath {
@@ -685,102 +681,7 @@ impl RenderPath {
         );
 
         let samplers = Samplers::new(device.clone()).unwrap();
-
-        // TODO: remove from render path
-        info!("loading geometry and image data...");
-        let start = Instant::now();
         let sky_mesh = content.load("icosphere.bf").wait_for_then_unwrap();
-
-        let plane = Object::new(
-            content.load("plane.bf"),
-            content
-                .load::<MaterialDesc, _>("[2K]Leather11.json")
-                .wait_for_then_unwrap()
-                .to_material(
-                    content,
-                    geometry_pipeline.clone(),
-                    samplers.aniso_repeat.clone(),
-                    white_texture.clone(),
-                ),
-            Transform {
-                scale: vec3(10.0, 1.0, 10.0),
-                ..Transform::default()
-            },
-        );
-
-        let rock = Object::new(
-            content.load("Rock_1.bf"),
-            content
-                .load::<MaterialDesc, _>("mat_rock.json")
-                .wait_for_then_unwrap()
-                .to_material(
-                    content,
-                    geometry_pipeline.clone(),
-                    samplers.aniso_repeat.clone(),
-                    white_texture.clone(),
-                ),
-            Transform {
-                scale: vec3(0.03, 0.03, 0.03),
-                position: vec3(5.0, 0.3, 0.0),
-                ..Transform::default()
-            },
-        );
-
-        let apple = Object::new(
-            content.load("apple.bf"),
-            content
-                .load::<MaterialDesc, _>("3DApple002_2K-JPG.json")
-                .wait_for_then_unwrap()
-                .to_material(
-                    content,
-                    geometry_pipeline.clone(),
-                    samplers.aniso_repeat.clone(),
-                    white_texture.clone(),
-                ),
-            Transform {
-                scale: vec3(6.0, 6.0, 6.0),
-                position: vec3(0.0, 0.3, 0.0),
-                ..Transform::default()
-            },
-        );
-
-        let materials = [
-            "[2K]Bricks22.json",
-            "[2K]Concrete07.json",
-            "[2K]Ground27.json",
-            "[2K]Ground30.json",
-            "[2K]Marble04.json",
-            "[2K]Marble06.json",
-            "[2K]Metal08.json",
-            "[2K]Metal27.json",
-            "[2K]Metal28.json",
-            "[2K]PaintedPlaster05.json",
-            "[2K]PavingStones42.json",
-            "[2K]PavingStones53.json",
-            "[2K]Planks12.json",
-            "[2K]SolarPanel03.json",
-            "[2K]Tiles15.json",
-            "[2K]Tiles44.json",
-            "[2K]Tiles52.json",
-            "[2K]Wood18.json",
-            "[2K]Wood35.json",
-            "[2K]WoodFloor12.json",
-            "[2K]WoodFloor32.json",
-        ]
-        .iter()
-        .map(|x| content.load(*x))
-        .map(|x| x.wait_for_then_unwrap())
-        .map(|x: Arc<MaterialDesc>| {
-            x.to_material(
-                content,
-                geometry_pipeline.clone(),
-                samplers.aniso_repeat.clone(),
-                white_texture.clone(),
-            )
-        })
-        .collect();
-
-        info!("data loaded after {}s!", start.elapsed().as_secs_f32());
 
         Self {
             fst,
@@ -798,9 +699,8 @@ impl RenderPath {
             sky_mesh,
             geometry_buffer,
             hdr_buffer,
-            materials,
-            objects_u16: vec![apple, plane, rock],
-            objects_u32: vec![],
+            samplers,
+            white_texture,
         }
     }
 
@@ -943,7 +843,7 @@ impl<'r, 's> Frame<'r, 's> {
             .unwrap();
 
         // 1. SUBPASS - Geometry
-        let b = path.objects_u16.iter().fold(b, |b, x| {
+        let b = state.objects_u16.iter().fold(b, |b, x| {
             x.draw_indexed(
                 ds_frame_matrix_data_geometry.clone(),
                 &path.object_matrix_data,
@@ -951,7 +851,7 @@ impl<'r, 's> Frame<'r, 's> {
                 b,
             )
         });
-        let b = path
+        let b = state
             .objects_u32
             .iter()
             .fold(b, |b, x| {

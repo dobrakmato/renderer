@@ -9,11 +9,11 @@ use winit::event_loop::{ControlFlow, EventLoop};
 
 /// main struct containing everything
 pub struct Engine {
-    game_state: GameState,
+    pub game_state: GameState,
     vulkan_state: VulkanState,
-    renderer_state: RendererState,
+    pub renderer_state: RendererState,
     input_state: Input,
-    content: Content,
+    pub content: Content,
     event_loop: Option<EventLoop<()>>,
 }
 
