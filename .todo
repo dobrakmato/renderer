@@ -11,6 +11,7 @@
 [d] - [r/io] load resources asynchronously
 [d] - [content] stores metadata about "imported" files in json
 [d] - [content] can detect changes between "builds" and perform incremental compilation
+[d] - [r] support resizing window / recreating swapchain
 
 - [opt][bf] make mipmap_count() O(1) by computing recurrent relation
 - [opt][obj2bf] fix O(n^2) vertex compare algo stored in btree instead of Vec
@@ -33,7 +34,6 @@
 - [r] vyrobit shader hot-realoding
 - [r] support for sparse memory bindings
 - [r] support for BC7 and modern DXT compression formats
-- [r] support resizing window / recreating swapchain
 - [r] remove all panics from the application
 - [r] use reverse-Z / inverted depth buffer to fix precision and z-fighting
 - [opt][r] find all possible caching options to reduce per-frame CPU/GPU

@@ -17,10 +17,11 @@ layout(set = 2, binding = 0) uniform FrameMatrixData {
 layout(push_constant) uniform PushConstants {
     vec3 sun_dir;
     vec3 camera_pos;
+    vec2 resolution;
 } push_constants;
 
 vec3 PositionFromDepth(float depth) {
-    vec2 coord = gl_FragCoord.xy / vec2(1600, 900);
+    vec2 coord = gl_FragCoord.xy / push_constants.resolution;
 
     vec4 clipSpacePosition = vec4(coord * 2.0 - 1.0, depth, 1.0);
     vec4 viewSpacePosition = frame_matrix_data.invProjection * clipSpacePosition;

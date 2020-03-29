@@ -3,7 +3,6 @@ use crate::input::Input;
 use crate::render::{RendererState, VulkanState};
 use crate::{GameState, RendererConfiguration};
 use cgmath::{vec3, InnerSpace, Rad};
-use winit::dpi::LogicalSize;
 use winit::event::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 
@@ -64,12 +63,6 @@ impl Engine {
         if self.input_state.is_key_down(VirtualKeyCode::LControl) {
             self.game_state.camera.move_down(speed)
         }
-
-        // todo: this will be fixed when https://github.com/rust-windowing/winit/pull/1461 gets merged
-        if self.input_state.is_key_down(VirtualKeyCode::F) {
-            self.renderer_state
-                .set_window_size(LogicalSize::new(1280.0, 720.0))
-        }
     }
 
     pub fn run_forever(mut self) -> ! {
@@ -79,6 +72,10 @@ impl Engine {
             .run(move |ev, _, flow| match ev {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => *flow = ControlFlow::Exit,
+                    WindowEvent::Resized(new_size) => {
+                        self.game_state.camera.aspect_ratio =
+                            new_size.width as f32 / new_size.height as f32
+                    }
                     WindowEvent::Focused(focus) => self.input_state.set_input_enabled(focus),
                     _ => {}
                 },

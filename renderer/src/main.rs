@@ -101,7 +101,7 @@ fn load(engine: &mut Engine) {
             .wait_for_then_unwrap()
             .to_material(
                 content,
-                path.geometry_pipeline.clone(),
+                path.buffers.geometry_pipeline.clone(),
                 path.samplers.aniso_repeat.clone(),
                 path.white_texture.clone(),
             ),
@@ -118,7 +118,7 @@ fn load(engine: &mut Engine) {
             .wait_for_then_unwrap()
             .to_material(
                 content,
-                path.geometry_pipeline.clone(),
+                path.buffers.geometry_pipeline.clone(),
                 path.samplers.aniso_repeat.clone(),
                 path.white_texture.clone(),
             ),
@@ -136,7 +136,7 @@ fn load(engine: &mut Engine) {
             .wait_for_then_unwrap()
             .to_material(
                 content,
-                path.geometry_pipeline.clone(),
+                path.buffers.geometry_pipeline.clone(),
                 path.samplers.aniso_repeat.clone(),
                 path.white_texture.clone(),
             ),
@@ -176,7 +176,7 @@ fn load(engine: &mut Engine) {
     .map(|x: Arc<MaterialDesc>| {
         x.to_material(
             content,
-            path.geometry_pipeline.clone(),
+            path.buffers.geometry_pipeline.clone(),
             path.samplers.aniso_repeat.clone(),
             path.white_texture.clone(),
         )
