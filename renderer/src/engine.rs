@@ -63,6 +63,16 @@ impl Engine {
         if self.input_state.is_key_down(VirtualKeyCode::LControl) {
             self.game_state.camera.move_down(speed)
         }
+
+        if self.input_state.was_key_pressed(VirtualKeyCode::F) {
+            let obj = self.game_state.objects_u16.get_mut(0).unwrap();
+            obj.material = self.game_state.materials
+                [self.game_state.floor_mat % self.game_state.materials.len()]
+            .clone();
+            self.game_state.floor_mat += 1;
+        }
+
+        self.input_state.frame_finished();
     }
 
     pub fn run_forever(mut self) -> ! {

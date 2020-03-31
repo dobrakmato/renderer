@@ -2,6 +2,7 @@ use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
 pub struct Input {
     key_state: [bool; 512],
+    previous_key_state: [bool; 512],
     pub input_enabled: bool,
 }
 
@@ -9,6 +10,7 @@ impl Default for Input {
     fn default() -> Self {
         Self {
             key_state: [false; 512],
+            previous_key_state: [false; 512],
             input_enabled: true,
         }
     }
@@ -30,6 +32,16 @@ impl Input {
 
     pub fn is_key_up(&self, key: VirtualKeyCode) -> bool {
         !self.key_state[key as u32 as usize]
+    }
+
+    pub fn was_key_pressed(&self, key: VirtualKeyCode) -> bool {
+        !self.previous_key_state[key as u32 as usize] && self.is_key_down(key)
+    }
+
+    /// Should be called once per frame to maintain internal state to provide useful
+    /// per-frame functions as "was keyboard button pressed during this frame".
+    pub fn frame_finished(&mut self) {
+        self.previous_key_state = self.key_state;
     }
 
     pub fn handle_event(&mut self, event: KeyboardInput) {
