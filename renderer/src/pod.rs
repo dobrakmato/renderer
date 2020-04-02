@@ -1,4 +1,4 @@
-use cgmath::{Matrix4, Vector3};
+use cgmath::{vec3, InnerSpace, Matrix4, Vector3};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -10,11 +10,22 @@ pub struct MaterialData {
     pub normal_map_strength: f32,
 }
 
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct DirectionalLight {
     pub direction: Vector3<f32>,
     pub intensity: f32,
     pub color: Vector3<f32>,
+}
+
+impl Default for DirectionalLight {
+    fn default() -> Self {
+        Self {
+            direction: vec3(1.0, 1.0, 1.0).normalize(),
+            intensity: 1.0,
+            color: vec3(1.0, 1.0, 1.0),
+        }
+    }
 }
 
 #[repr(C)]

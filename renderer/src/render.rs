@@ -4,14 +4,14 @@ use crate::hosek::make_hosek_wilkie_params;
 use crate::material::Material;
 use crate::mesh::fst::create_full_screen_triangle;
 use crate::mesh::{IndexType, Mesh};
-use crate::pod::{FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
+use crate::pod::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
 use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3};
 use safe_transmute::TriviallyTransmutable;
 use smallvec::SmallVec;
 use std::sync::Arc;
-use vulkano::buffer::CpuBufferPool;
+use vulkano::buffer::{BufferUsage, CpuBufferPool};
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
@@ -463,7 +463,8 @@ pub struct RenderPathBuffers {
     tonemap_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     // constant descriptor sets
     tonemap_ds: Arc<dyn DescriptorSet + Send + Sync>,
-    lighting_ds: Arc<dyn DescriptorSet + Send + Sync>,
+    lighting_gbuffer_ds: Arc<dyn DescriptorSet + Send + Sync>,
+    lights_buffer_pool: CpuBufferPool<[DirectionalLight; 1024]>,
 }
 
 impl RenderPathBuffers {
@@ -585,7 +586,7 @@ impl RenderPathBuffers {
             .build()
             .unwrap(),
         );
-        let lighting_ds = Arc::new(
+        let lighting_gbuffer_ds = Arc::new(
             PersistentDescriptorSet::start(
                 lighting_pipeline.descriptor_set_layout(0).unwrap().clone(),
             )
@@ -601,13 +602,16 @@ impl RenderPathBuffers {
             .unwrap(),
         );
 
+        let lights_buffer_pool = CpuBufferPool::new(device.clone(), BufferUsage::uniform_buffer());
+
         Self {
             geometry_pipeline: geometry_pipeline as Arc<_>,
             skybox_pipeline: skybox_pipeline as Arc<_>,
             tonemap_pipeline: tonemap_pipeline as Arc<_>,
             tonemap_ds: tonemap_ds as Arc<_>,
             lighting_pipeline: lighting_pipeline as Arc<_>,
-            lighting_ds: lighting_ds as Arc<_>,
+            lighting_gbuffer_ds: lighting_gbuffer_ds as Arc<_>,
+            lights_buffer_pool,
             depth_buffer,
             geometry_buffer,
             hdr_buffer,
@@ -821,7 +825,15 @@ impl<'r, 's> Frame<'r, 's> {
         .expect("cannot build pds set=1");
 
         /* create HosekWilkieParams (sky params) for this frame. */
-        let params = make_hosek_wilkie_params(state.sun_dir, 2.0, vec3(0.0, 0.0, 0.0));
+        let params = make_hosek_wilkie_params(
+            state
+                .directional_lights
+                .get(0)
+                .expect("need at least one directional light")
+                .direction,
+            2.0,
+            vec3(0.0, 0.0, 0.0),
+        );
         let ubo_sky_hw = path.hosek_wilkie_sky_pool.next(params).unwrap();
         let sky_hw_params = PersistentDescriptorSet::start(
             path.buffers
@@ -877,6 +889,23 @@ impl<'r, 's> Frame<'r, 's> {
             .unwrap();
 
         // 2. SUBPASS - Lighting
+        let mut lights = [Default::default(); 1024];
+        for (idx, light) in state.directional_lights.iter().enumerate() {
+            lights[idx] = *light;
+        }
+        let lighting_lights_ds = Arc::new(
+            PersistentDescriptorSet::start(
+                path.buffers
+                    .lighting_pipeline
+                    .descriptor_set_layout(1)
+                    .unwrap()
+                    .clone(),
+            )
+            .add_buffer(path.buffers.lights_buffer_pool.next(lights).unwrap())
+            .unwrap()
+            .build()
+            .unwrap(),
+        );
         let b = b
             .draw_indexed(
                 path.buffers.lighting_pipeline.clone(),
@@ -884,25 +913,15 @@ impl<'r, 's> Frame<'r, 's> {
                 vec![path.fst.vertex_buffer.clone()],
                 path.fst.index_buffer.clone(),
                 (
-                    path.buffers.lighting_ds.clone(),
-                    // todo: remove this bullshit
-                    PersistentDescriptorSet::start(
-                        path.buffers
-                            .lighting_pipeline
-                            .descriptor_set_layout(1)
-                            .unwrap()
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap(),
+                    path.buffers.lighting_gbuffer_ds.clone(),
+                    lighting_lights_ds,
                     ds_frame_matrix_data_lighting,
                 ),
                 crate::shaders::fs_deferred_lighting::ty::PushConstants {
-                    sun_dir: state.sun_dir.into(),
                     camera_pos: state.camera.position.into(),
                     resolution: dims,
+                    light_count: state.directional_lights.len() as u32,
                     _dummy0: [0u8; 4],
-                    _dummy1: [0u8; 4],
                 },
             )
             .expect("cannot do lighting pass")

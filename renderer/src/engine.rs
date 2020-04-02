@@ -1,8 +1,10 @@
 use crate::content::Content;
 use crate::input::Input;
+use crate::pod::DirectionalLight;
 use crate::render::{RendererState, VulkanState};
 use crate::{GameState, RendererConfiguration};
-use cgmath::{vec3, InnerSpace, Rad};
+use cgmath::{InnerSpace, Rad, Vector3};
+use rand::Rng;
 use winit::event::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 
@@ -36,9 +38,6 @@ impl Engine {
     }
 
     pub fn update(&mut self) {
-        let (s, c) = self.game_state.start.elapsed().as_secs_f32().sin_cos();
-        self.game_state.sun_dir = vec3(s, 1.33, c).normalize();
-
         /* game update for next frame */
         let speed = if self.input_state.is_key_down(VirtualKeyCode::LShift) {
             0.005
@@ -70,6 +69,24 @@ impl Engine {
                 [self.game_state.floor_mat % self.game_state.materials.len()]
             .clone();
             self.game_state.floor_mat += 1;
+        }
+
+        if self.input_state.was_key_pressed(VirtualKeyCode::L) {
+            let mut rng = rand::thread_rng();
+            self.game_state.directional_lights.push(DirectionalLight {
+                direction: Vector3::new(
+                    rng.gen_range(-1.0, 1.0),
+                    rng.gen_range(0.0, 2.0),
+                    rng.gen_range(-1.0, 1.0),
+                )
+                .normalize(),
+                intensity: 1.0,
+                color: Vector3::new(
+                    rng.gen_range(0.3, 1.0),
+                    rng.gen_range(0.3, 1.0),
+                    rng.gen_range(0.3, 1.0),
+                ),
+            })
         }
 
         self.input_state.frame_finished();

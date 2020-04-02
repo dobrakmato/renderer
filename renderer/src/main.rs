@@ -1,13 +1,17 @@
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
 use crate::material::{Material, MaterialDesc};
+use crate::pod::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
 use cgmath::{vec3, Deg, InnerSpace, Point3, Vector3};
-use log::{info, warn};
+use log::info;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::dpi::{LogicalSize, Size};
 use winit::event_loop::EventLoop;
+
+#[cfg(debug_assertions)]
+use log::warn;
 
 mod camera;
 #[macro_use]
@@ -42,10 +46,10 @@ impl Into<Size> for RendererConfiguration {
 
 pub struct GameState {
     start: Instant,
-    sun_dir: Vector3<f32>,
     camera: PerspectiveCamera,
     objects_u16: Vec<Object<BasicVertex, u16>>,
     objects_u32: Vec<Object<BasicVertex, u32>>,
+    directional_lights: Vec<DirectionalLight>,
     materials: Vec<Arc<Material>>,
     floor_mat: usize,
 }
@@ -67,7 +71,6 @@ fn main() {
     let mut engine = Engine::new(
         GameState {
             start: Instant::now(),
-            sun_dir: vec3(0.0, 0.5, 0.0).normalize(),
             camera: PerspectiveCamera {
                 position: Point3::new(0.0, 3.0, 0.0),
                 forward: vec3(1.0, 0.0, 0.0),
@@ -79,6 +82,11 @@ fn main() {
             },
             objects_u16: vec![],
             objects_u32: vec![],
+            directional_lights: vec![DirectionalLight {
+                direction: vec3(3.0, 5.0, 1.0).normalize(),
+                intensity: 0.3,
+                color: vec3(1.0, 1.0, 0.8),
+            }],
             materials: vec![],
             floor_mat: 0,
         },
@@ -231,15 +239,24 @@ fn load(engine: &mut Engine) {
         "[2K]WoodFloor32.json",
         "Bricks027_2K-JPG.json",
         "Bricks037_2K-JPG.json",
+        "Carpet013_2K-JPG.json",
+        "CorrugatedSteel005_2K-JPG.json",
         "Fabric031_2K-JPG.json",
         "Fabric032_2K-JPG.json",
         "Ground036_2K-JPG.json",
+        "Ice004_2K-JPG.json",
         "Leather021_2K-JPG.json",
+        "Metal017_2K-JPG.json",
+        "Paint002_2K-JPG.json",
         "PaintedWood005_2K-JPG.json",
         "PavingStones055_2K-JPG.json",
         "Road006_2K-JPG.json",
         "Rock020_2K-JPG.json",
+        "Rocks017_2K-JPG.json",
+        "Terrazzo003_2K-JPG.json",
+        "Tiles059_2K-JPG.json",
         "Tiles072_2K-JPG.json",
+        "WoodSiding007_2K-JPG.json",
     ]
     .iter()
     .map(|x| content.load(*x))

@@ -7,6 +7,18 @@ layout(set = 0, binding = 3, input_attachment_index = 3) uniform subpassInput de
 
 layout(location = 0) out vec4 hdr;
 
+const uint MAX_LIGHTS = 1024;
+
+struct DirectionalLight {
+    vec3 direction;
+    float intensity;
+    vec3 color;
+};
+
+layout(set = 1, binding = 0) uniform Lights {
+    DirectionalLight lights[MAX_LIGHTS];
+} lights_ubo;
+
 layout(set = 2, binding = 0) uniform FrameMatrixData {
     mat4 view;
     mat4 projection;
@@ -15,10 +27,11 @@ layout(set = 2, binding = 0) uniform FrameMatrixData {
 } frame_matrix_data;
 
 layout(push_constant) uniform PushConstants {
-    vec3 sun_dir;
     vec3 camera_pos;
     vec2 resolution;
+    uint light_count;
 } push_constants;
+
 
 vec3 PositionFromDepth(float depth) {
     vec2 coord = gl_FragCoord.xy / push_constants.resolution;
@@ -85,13 +98,13 @@ void main() {
     float metallic = b3.g;
     vec3 position = PositionFromDepth(depth);
 
-    vec3 color = vec3(0.9, 0.9, 0.8) * 7;
-
     vec3 N = normalize(normal);
-    vec3 L = normalize(push_constants.sun_dir.xyz);
     vec3 V = normalize(push_constants.camera_pos.xyz - position);
 
-    vec3 result = light(N, L, V, color, roughness, albedo, metallic) * occlusion;
+    vec3 result = vec3(0.0);
+    for (uint i = 0; i < push_constants.light_count; i++) {
+        result += light(N, lights_ubo.lights[i].direction, V, lights_ubo.lights[i].color, roughness, albedo, metallic) * lights_ubo.lights[i].intensity * occlusion;
+    }
 
     hdr = vec4(result, 1.0);
 }
