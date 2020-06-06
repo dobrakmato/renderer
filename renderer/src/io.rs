@@ -53,17 +53,16 @@ impl Load for ImmutableImage<Format> {
             )
             .unwrap();
 
-            cb = cb
-                .copy_buffer_to_image_dimensions(
-                    source,
-                    init.clone(),
-                    [0, 0, 0],
-                    [mipmap.width as u32, mipmap.height as u32, 1],
-                    0,
-                    1,
-                    idx as u32,
-                )
-                .unwrap();
+            cb.copy_buffer_to_image_dimensions(
+                source,
+                init.clone(),
+                [0, 0, 0],
+                [mipmap.width as u32, mipmap.height as u32, 1],
+                0,
+                1,
+                idx as u32,
+            )
+            .unwrap();
         }
 
         let cb = cb.build().unwrap();

@@ -359,8 +359,8 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
         ds_frame_matrix_data: Arc<dyn DescriptorSet + Send + Sync + 'static>,
         object_matrix_data_pool: &CpuBufferPool<ObjectMatrixData>,
         path: &RenderPath,
-        b: AutoCommandBufferBuilder,
-    ) -> AutoCommandBufferBuilder {
+        b: &mut AutoCommandBufferBuilder,
+    ) {
         let ubo = object_matrix_data_pool
             .next(ObjectMatrixData {
                 model: self.transform.into(),
@@ -390,7 +390,7 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
             ),
             (),
         )
-        .unwrap()
+        .unwrap();
     }
 }
 
@@ -847,46 +847,40 @@ impl<'r, 's> Frame<'r, 's> {
         .build()
         .expect("cannot build pds set=1");
 
-        let b = self
-            .builder
-            .take()
-            .unwrap()
-            .begin_render_pass(
-                self.framebuffer.clone(),
-                false,
-                vec![
-                    ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
-                    ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
-                    ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
-                    ClearValue::Depth(1.0),
-                    ClearValue::Float([0.0, 0.0, 0.0, 1.0]),
-                    ClearValue::None,
-                ],
-            )
-            .unwrap();
+        let mut b = self.builder.take().unwrap();
+
+        b.begin_render_pass(
+            self.framebuffer.clone(),
+            false,
+            vec![
+                ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                ClearValue::Depth(1.0),
+                ClearValue::Float([0.0, 0.0, 0.0, 1.0]),
+                ClearValue::None,
+            ],
+        )
+        .unwrap();
 
         // 1. SUBPASS - Geometry
-        let b = state.objects_u16.iter().fold(b, |b, x| {
+        for x in state.objects_u16.iter() {
             x.draw_indexed(
                 ds_frame_matrix_data_geometry.clone(),
                 &path.object_matrix_data,
                 path,
-                b,
+                &mut b,
             )
-        });
-        let b = state
-            .objects_u32
-            .iter()
-            .fold(b, |b, x| {
-                x.draw_indexed(
-                    ds_frame_matrix_data_geometry.clone(),
-                    &path.object_matrix_data,
-                    path,
-                    b,
-                )
-            })
-            .next_subpass(false)
-            .unwrap();
+        }
+        for x in state.objects_u32.iter() {
+            x.draw_indexed(
+                ds_frame_matrix_data_geometry.clone(),
+                &path.object_matrix_data,
+                path,
+                &mut b,
+            )
+        }
+        b.next_subpass(false).unwrap();
 
         // 2. SUBPASS - Lighting
         let mut lights = [Default::default(); 1024];
@@ -906,41 +900,39 @@ impl<'r, 's> Frame<'r, 's> {
             .build()
             .unwrap(),
         );
-        let b = b
-            .draw_indexed(
-                path.buffers.lighting_pipeline.clone(),
-                &no_dynamic_state,
-                vec![path.fst.vertex_buffer.clone()],
-                path.fst.index_buffer.clone(),
-                (
-                    path.buffers.lighting_gbuffer_ds.clone(),
-                    lighting_lights_ds,
-                    ds_frame_matrix_data_lighting,
-                ),
-                crate::shaders::fs_deferred_lighting::ty::PushConstants {
-                    camera_pos: state.camera.position.into(),
-                    resolution: dims,
-                    light_count: state.directional_lights.len() as u32,
-                    _dummy0: [0u8; 4],
-                },
-            )
-            .expect("cannot do lighting pass")
-            .next_subpass(false)
-            .unwrap();
+        b.draw_indexed(
+            path.buffers.lighting_pipeline.clone(),
+            &no_dynamic_state,
+            vec![path.fst.vertex_buffer.clone()],
+            path.fst.index_buffer.clone(),
+            (
+                path.buffers.lighting_gbuffer_ds.clone(),
+                lighting_lights_ds,
+                ds_frame_matrix_data_lighting,
+            ),
+            crate::shaders::fs_deferred_lighting::ty::PushConstants {
+                camera_pos: state.camera.position.into(),
+                resolution: dims,
+                light_count: state.directional_lights.len() as u32,
+                _dummy0: [0u8; 4],
+            },
+        )
+        .expect("cannot do lighting pass")
+        .next_subpass(false)
+        .unwrap();
 
         // 3. SUBPASS - Skybox
-        let b = b
-            .draw_indexed(
-                path.buffers.skybox_pipeline.clone(),
-                &no_dynamic_state,
-                vec![path.sky_mesh.vertex_buffer.clone()],
-                path.sky_mesh.index_buffer.clone(),
-                (ds_frame_matrix_data_skybox, sky_hw_params),
-                (state.camera.position, state.start.elapsed().as_secs_f32()),
-            )
-            .expect("cannot do skybox pass")
-            .next_subpass(false)
-            .unwrap();
+        b.draw_indexed(
+            path.buffers.skybox_pipeline.clone(),
+            &no_dynamic_state,
+            vec![path.sky_mesh.vertex_buffer.clone()],
+            path.sky_mesh.index_buffer.clone(),
+            (ds_frame_matrix_data_skybox, sky_hw_params),
+            (state.camera.position, state.start.elapsed().as_secs_f32()),
+        )
+        .expect("cannot do skybox pass")
+        .next_subpass(false)
+        .unwrap();
 
         // 4. SUBPASS - Tonemap
         b.draw_indexed(
@@ -951,10 +943,8 @@ impl<'r, 's> Frame<'r, 's> {
             path.buffers.tonemap_ds.clone(),
             (),
         )
-        .expect("cannot do tonemap pass")
-        .end_render_pass()
-        .unwrap()
-        .build()
-        .unwrap()
+        .expect("cannot do tonemap pass");
+        b.end_render_pass().unwrap();
+        b.build().unwrap()
     }
 }

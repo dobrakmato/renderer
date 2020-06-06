@@ -3,7 +3,7 @@ use crate::engine::Engine;
 use crate::material::{Material, MaterialDesc};
 use crate::pod::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
-use cgmath::{vec3, Deg, InnerSpace, Point3, Vector3};
+use cgmath::{vec3, Deg, InnerSpace, Point3};
 use log::info;
 use std::sync::Arc;
 use std::time::Instant;
