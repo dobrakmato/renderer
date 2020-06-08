@@ -1,5 +1,5 @@
 use crate::math::Vec3;
-use bf::{IndexType, VertexDataFormat};
+use bf::mesh::{IndexType, VertexDataFormat};
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::convert::TryFrom;
 use wavefront_obj::obj::Object;

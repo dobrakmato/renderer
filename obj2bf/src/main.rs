@@ -1,5 +1,6 @@
 use crate::perf::Stopwatch;
-use bf::{save_bf_to_bytes, Container, File, Geometry, IndexType, VertexDataFormat};
+use bf::mesh::{IndexType, Mesh, VertexDataFormat};
+use bf::{save_bf_to_bytes, Container, File};
 use std::convert::TryFrom;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -89,7 +90,7 @@ fn main() {
     let index_type = opt.index_type.unwrap_or_else(|| geo.suggest_index_type());
     let index_data = geo.generate_index_data(index_type);
 
-    let file = File::create_compressed(Container::Geometry(Geometry {
+    let file = File::create_compressed(Container::Mesh(Mesh {
         vertex_format,
         index_type,
         vertex_data: vertex_data.as_slice(),
