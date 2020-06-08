@@ -12,6 +12,9 @@ struct Opt {
     #[structopt(short, long)]
     dump: bool,
 
+    #[structopt(short, long)]
+    unpack_normal_map: bool,
+
     #[structopt(short, long, parse(from_os_str))]
     input: PathBuf,
 }
@@ -30,12 +33,12 @@ fn main() {
     };
 
     match container {
-        Container::Image(i) => handle_image(i, opt.dump),
+        Container::Image(i) => handle_image(i, opt.dump, opt.unpack_normal_map),
         Container::Mesh(g) => handle_mesh(g),
     }
 }
 
-fn handle_image(image: Image, dump: bool) {
+fn handle_image(image: Image, dump: bool, unpack: bool) {
     println!("image");
     println!("format={:?}", image.format);
     println!("mipmaps={}", image.mipmap_count());
@@ -73,6 +76,36 @@ fn handle_image(image: Image, dump: bool) {
                 3 => DynamicImage::ImageRgb8(ImageBuffer::from_raw(width, height, raw).unwrap()),
                 4 => DynamicImage::ImageRgba8(ImageBuffer::from_raw(width, height, raw).unwrap()),
                 _ => panic!("cannot dump with {} channels", image.format.channels()),
+            };
+
+            // unpack dxt5nm
+            let img = if unpack {
+                let mut img = img.to_rgba();
+
+                for x in img.pixels_mut() {
+                    let snap = *x;
+
+                    let swizzle_a = snap[3] as f32 / 255.0;
+                    let swizzle_g = snap[1] as f32 / 255.0;
+                    let derive_b = (1.0
+                        - ((swizzle_a * swizzle_a) - (swizzle_g * swizzle_g))
+                            .min(1.0)
+                            .max(0.0))
+                    .sqrt();
+
+                    fn clamp_color(col: f32) -> u8 {
+                        (col as u32).min(255).max(0) as u8
+                    }
+
+                    x.0[0] = clamp_color(swizzle_a * 255.0);
+                    x.0[1] = clamp_color(swizzle_g * 255.0);
+                    x.0[2] = clamp_color(derive_b * 255.0);
+                    x.0[3] = 255;
+                }
+
+                DynamicImage::ImageRgba8(img)
+            } else {
+                img
             };
 
             img.save_with_format(format!("dump_mipmap{}.png", idx), ImageFormat::Png)
