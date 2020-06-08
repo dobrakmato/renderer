@@ -4,10 +4,11 @@ use bf::image::{Format, Image};
 use bf::{save_bf_to_bytes, Container, File};
 use image::dxt::{DXTEncoder, DXTVariant};
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageError};
+use image::{DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel, RgbImage, RgbaImage};
+use std::ops::{Deref, DerefMut};
 
 // generate `Statistics` struct with `CPUProfiler`s
-impl_stats_struct!(pub Statistics; load, vflip, channels, mipmaps, dxt, save);
+impl_stats_struct!(pub Statistics; load, vflip, channels, swizzle, mipmaps, dxt, save);
 
 #[derive(Debug)]
 pub enum Img2BfError {
@@ -16,6 +17,7 @@ pub enum Img2BfError {
     BlockCompressionError(ImageError),
     SerializationError(bf::Error),
     SaveIOError(std::io::Error),
+    InvalidSwizzle(&'static str),
 }
 
 pub struct Img2Bf {
@@ -69,6 +71,109 @@ impl Img2Bf {
         }
     }
 
+    /// Swizzles the channels in the image according to parameters.
+    fn swizzle(&mut self, image: &mut DynamicImage) -> Result<(), Img2BfError> {
+        measure_scope!(self.stats.swizzle);
+
+        // return early if swizzle is no-op
+        if self.params.destination_r.is_none()
+            && self.params.destination_g.is_none()
+            && self.params.destination_b.is_none()
+            && self.params.destination_a.is_none()
+        {
+            return Ok(());
+        }
+
+        /// Inner generic function that actually performs swizzling. The `image` is an
+        /// `ImageBuffer` that will be modified by the swizzle operation. Parameter
+        /// `components_order` specifies order of channels in the specified image buffer.
+        /// Parameter `swizzle` actually contains the swizzling mapping.
+        fn swizzle_inner<P, Container>(
+            image: &mut ImageBuffer<P, Container>,
+            components_order: &[char],
+            swizzle: &[Option<&str>],
+        ) where
+            P: Pixel + 'static,
+            P::Subpixel: 'static,
+            Container: Deref<Target = [P::Subpixel]> + DerefMut,
+        {
+            // returns the index of specified channel in buffer
+            let index_of_channel = |channel| {
+                components_order
+                    .iter()
+                    .position(|x| x == &channel)
+                    .expect("invalid components order")
+            };
+
+            // unwraps the swizzle for component or uses
+            // default identity swizzle
+            let swizzle_unwrap = |opt: Option<&str>, idx| {
+                opt.map(|x| x.chars().next().unwrap())
+                    .unwrap_or(components_order[idx])
+            };
+
+            for p in image.pixels_mut() {
+                let original = *p;
+
+                for (idx, x) in p.channels_mut().iter_mut().enumerate() {
+                    *x = original
+                        .channels()
+                        .iter()
+                        .nth(index_of_channel(swizzle_unwrap(swizzle[idx], idx)))
+                        .copied()
+                        .expect("invalid swizzle");
+                }
+            }
+        }
+
+        let order_rgb = ['r', 'g', 'b'];
+        let order_rgba = ['r', 'g', 'b', 'a'];
+        let order_bgr = ['b', 'g', 'r'];
+        let order_bgra = ['b', 'g', 'r', 'a'];
+
+        let swizzle_rgb = [
+            self.params.destination_r.as_deref(),
+            self.params.destination_g.as_deref(),
+            self.params.destination_b.as_deref(),
+        ];
+
+        let swizzle_rgba = [
+            self.params.destination_r.as_deref(),
+            self.params.destination_g.as_deref(),
+            self.params.destination_b.as_deref(),
+            self.params.destination_a.as_deref(),
+        ];
+
+        let swizzle_bgr = [
+            self.params.destination_b.as_deref(),
+            self.params.destination_g.as_deref(),
+            self.params.destination_r.as_deref(),
+        ];
+
+        let swizzle_bgra = [
+            self.params.destination_b.as_deref(),
+            self.params.destination_g.as_deref(),
+            self.params.destination_r.as_deref(),
+            self.params.destination_a.as_deref(),
+        ];
+
+        match image {
+            DynamicImage::ImageRgb8(t) => swizzle_inner(t, &order_rgb, &swizzle_rgb),
+            DynamicImage::ImageRgba8(t) => swizzle_inner(t, &order_rgba, &swizzle_rgba),
+            DynamicImage::ImageBgr8(t) => swizzle_inner(t, &order_bgr, &swizzle_bgr),
+            DynamicImage::ImageBgra8(t) => swizzle_inner(t, &order_bgra, &swizzle_bgra),
+            DynamicImage::ImageRgb16(t) => swizzle_inner(t, &order_rgb, &swizzle_rgb),
+            DynamicImage::ImageRgba16(t) => swizzle_inner(t, &order_rgba, &swizzle_rgba),
+            _ => {
+                return Err(Img2BfError::InvalidSwizzle(
+                    "swizzle unsupported for this DynamicImage variant",
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Generates a mip-maps and returns all images (including the
     /// highest resolution mip-map - the passed in `image`).
     fn generate_mipmaps(&mut self, image: DynamicImage) -> Result<Vec<DynamicImage>, Img2BfError> {
@@ -82,7 +187,7 @@ impl Img2Bf {
             let lower = higher.clone().resize(
                 higher.width() / 2,
                 higher.height() / 2,
-                FilterType::Lanczos3,
+                self.params.mip_filter.unwrap_or(FilterType::Lanczos3),
             );
             mipmaps.push(lower);
         }
@@ -139,6 +244,31 @@ impl Img2Bf {
         };
 
         Ok(result)
+    }
+
+    /// Sets channels specified in channels array to zero.
+    fn clear_channels(image: &mut DynamicImage, channels: &[usize]) {
+        match image {
+            DynamicImage::ImageRgb8(t) => {
+                for x in t.pixels_mut() {
+                    for (idx, n) in x.0.iter_mut().enumerate() {
+                        if channels.contains(&idx) {
+                            *n = 0;
+                        }
+                    }
+                }
+            }
+            DynamicImage::ImageRgba8(t) => {
+                for x in t.pixels_mut() {
+                    for (idx, n) in x.0.iter_mut().enumerate() {
+                        if channels.contains(&idx) {
+                            *n = 0;
+                        }
+                    }
+                }
+            }
+            _ => panic!("clear_channels not implemented this DynamicImage variant"),
+        }
     }
 
     /// Builds the payload of specified mip-maps by:
@@ -199,10 +329,24 @@ impl Img2Bf {
             stats: Statistics::default(),
         };
 
+        if tool.params.pack_normal_map {
+            tool.params.destination_r = Some("r".to_string());
+            tool.params.destination_g = Some("g".to_string());
+            tool.params.destination_b = Some("b".to_string());
+            tool.params.destination_a = Some("r".to_string());
+        }
+
         let image = tool.load_image()?;
         let (width, height) = tool.extract_dimensions(&image)?;
         let image = tool.v_flip(image)?;
-        let image = tool.convert_channels(image)?;
+        let mut image = tool.convert_channels(image)?;
+
+        tool.swizzle(&mut image)?;
+
+        if tool.params.pack_normal_map {
+            Img2Bf::clear_channels(&mut image, &[0, 2]);
+        }
+
         let mipmaps = tool.generate_mipmaps(image)?;
         let payload = tool.build_payload(mipmaps)?;
 
