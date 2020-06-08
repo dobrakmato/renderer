@@ -7,8 +7,6 @@ use vulkano::buffer::ImmutableBuffer;
 /// buffer.
 pub trait IndexType {}
 
-impl IndexType for u8 {}
-
 impl IndexType for u16 {}
 
 impl IndexType for u32 {}

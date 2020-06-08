@@ -1,4 +1,4 @@
-use bf::Format as BfFormat;
+use bf::image::Format as BfFormat;
 use vulkano::format::Format;
 
 /// Trait used to implement conversion from `bf::Format` to
@@ -21,6 +21,9 @@ impl ToVulkanFormat for BfFormat {
             BfFormat::SrgbDxt5 => Format::BC3SrgbBlock,
             BfFormat::Srgb8 => Format::R8G8B8Srgb,
             BfFormat::Srgb8A8 => Format::R8G8B8A8Srgb,
+            BfFormat::BC6H => Format::BC6HUfloatBlock,
+            BfFormat::BC7 => Format::BC7UnormBlock,
+            BfFormat::SrgbBC7 => Format::BC7SrgbBlock,
         }
     }
 }
