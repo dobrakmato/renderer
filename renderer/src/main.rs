@@ -84,7 +84,7 @@ fn main() {
             objects_u32: vec![],
             directional_lights: vec![DirectionalLight {
                 direction: vec3(3.0, 5.0, 1.0).normalize(),
-                intensity: 0.3,
+                intensity: 1.5,
                 color: vec3(1.0, 1.0, 0.8),
             }],
             materials: vec![],
