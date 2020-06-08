@@ -90,6 +90,57 @@ impl Img2Bf {
         Ok(mipmaps)
     }
 
+    /// Performs the image block compression to specified `target_format`. Parameters
+    /// `width` and `height` represent width and height of image data in parameter
+    /// `raw`.
+    ///
+    /// Depending on the `target_format` best encoder will be used.
+    fn compress_image(target_format: Format, image: &DynamicImage) -> Result<Vec<u8>, Img2BfError> {
+        // image-rs dxt encoder function
+        let image_dxt = |variant| {
+            let mut storage: Vec<u8> = vec![];
+            DXTEncoder::new(&mut storage)
+                .encode(&image.to_bytes(), image.width(), image.height(), variant)
+                .map_err(Img2BfError::BlockCompressionError)
+                .map(|()| storage)
+        };
+
+        let rgba_image = image.to_rgba(); // todo: lazily evaluate
+        let intel_tex_surface = || intel_tex::RgbaSurface {
+            data: rgba_image.as_ref(),
+            width: image.width(),
+            height: image.height(),
+            stride: image.width() * 4,
+        };
+
+        let intel_tex_bc6h =
+            |settings| intel_tex::bc6h::compress_blocks(&settings, &intel_tex_surface());
+
+        let intel_tex_bc7 =
+            |settings| intel_tex::bc7::compress_blocks(&settings, &intel_tex_surface());
+
+        // match the requested format and compress with best encoder for specified
+        // format.
+        let result = match target_format {
+            Format::SrgbDxt1 | Format::Dxt1 => {
+                intel_tex::bc1::compress_blocks(&intel_tex_surface())
+            }
+            Format::SrgbDxt3 | Format::Dxt3 => image_dxt(DXTVariant::DXT3)?,
+            Format::SrgbDxt5 | Format::Dxt5 => {
+                intel_tex::bc3::compress_blocks(&intel_tex_surface())
+            }
+            Format::BC7 => intel_tex_bc7(intel_tex::bc7::alpha_slow_settings()),
+            Format::SrgbBC7 => intel_tex_bc7(intel_tex::bc7::opaque_slow_settings()),
+            Format::BC6H => intel_tex_bc6h(intel_tex::bc6h::slow_settings()),
+            _ => panic!(
+                "Format {:?} is not compressed but `compress_image` was called.",
+                target_format
+            ),
+        };
+
+        Ok(result)
+    }
+
     /// Builds the payload of specified mip-maps by:
     ///   1. compressing them with requested block compression algorithm
     ///   2. appending them to `Vec<u8>`
@@ -99,27 +150,12 @@ impl Img2Bf {
 
         let mut payload = vec![];
         for img in mipmaps {
-            let raw = img.to_bytes();
-
-            let dxt = |variant| {
-                let mut storage: Vec<u8> = vec![];
-                match DXTEncoder::new(&mut storage)
-                    .encode(&raw, img.width(), img.height(), variant)
-                    .map_err(Img2BfError::BlockCompressionError)
-                {
-                    Ok(_) => Ok(storage),
-                    Err(e) => Err(e),
-                }
-            };
-
-            let result = match self.params.format {
-                // we need to perform dxt compression
-                Format::SrgbDxt1 | Format::Dxt1 => dxt(DXTVariant::DXT1)?,
-                Format::SrgbDxt3 | Format::Dxt3 => dxt(DXTVariant::DXT3)?,
-                Format::SrgbDxt5 | Format::Dxt5 => dxt(DXTVariant::DXT5)?,
-
-                // for uncompressed formats we just copy the buffer
-                _ => raw,
+            // if the target format is compressed we need to compress raw image
+            // data before appending it to payload
+            let result = if self.params.format.compressed() {
+                Img2Bf::compress_image(self.params.format, &img)?
+            } else {
+                img.to_bytes()
             };
 
             payload.extend(result);

@@ -2,9 +2,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Format {
-    Dxt1 = 0, // BC1
-    Dxt3 = 1, // BC2
-    Dxt5 = 2, // BC3
+    Dxt1 = 0,
+    // BC1
+    Dxt3 = 1,
+    // BC2
+    Dxt5 = 2,
+    // BC3
     Rgb8 = 3,
     Rgba8 = 4,
     SrgbDxt1 = 5,
@@ -13,8 +16,10 @@ pub enum Format {
     Srgb8 = 8,
     Srgb8A8 = 9,
     R8 = 10,
-    BC6H = 11,    // BC6H
-    BC7 = 12,     // BC7
+    BC6H = 11,
+    // BC6H
+    BC7 = 12,
+    // BC7
     SrgbBC7 = 13, // BC7 (srgb)
 }
 
@@ -35,6 +40,25 @@ impl Format {
             Format::BC6H => 3,
             Format::BC7 => 4,
             Format::SrgbBC7 => 3,
+        }
+    }
+
+    pub fn compressed(self) -> bool {
+        match self {
+            Format::Dxt1 => true,
+            Format::Dxt3 => true,
+            Format::Dxt5 => true,
+            Format::Rgb8 => false,
+            Format::Rgba8 => false,
+            Format::SrgbDxt1 => true,
+            Format::SrgbDxt3 => true,
+            Format::SrgbDxt5 => true,
+            Format::Srgb8 => false,
+            Format::Srgb8A8 => false,
+            Format::R8 => false,
+            Format::BC6H => true,
+            Format::BC7 => true,
+            Format::SrgbBC7 => true,
         }
     }
 
