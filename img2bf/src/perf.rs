@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
-pub struct Stopwatch<'a> {
+#[derive(Debug)]
+pub struct CPUProfiler<'a> {
     runs: u64,
     total_time: u64,
     last_time: u64,
@@ -8,10 +9,10 @@ pub struct Stopwatch<'a> {
     last_start: Option<Instant>,
 }
 
-impl<'a> Stopwatch<'a> {
-    /// Creates a new Stopwatch with specified name.
+impl<'a> CPUProfiler<'a> {
+    /// Creates a new profiler with specified name.
     pub fn new(name: &'a str) -> Self {
-        Stopwatch {
+        CPUProfiler {
             runs: 0,
             total_time: 0,
             last_time: 0,
@@ -20,14 +21,14 @@ impl<'a> Stopwatch<'a> {
         }
     }
 
-    /// Creates a new Stopwatch with specified name that is already start()-ed.
+    /// Creates a new profiler with specified name that is already start()-ed.
     pub fn new_started(name: &'a str) -> Self {
         let mut watch = Self::new(name);
         watch.start();
         watch
     }
 
-    /// If the stopwatch is currently stopped, starts the stopwatch. If the stopwatch
+    /// If the profiler is currently stopped, starts the stopwatch. If the stopwatch
     /// is currently running panics with error. Stopwatch cannot be started when it is
     /// already running.
     ///
@@ -40,7 +41,7 @@ impl<'a> Stopwatch<'a> {
         }
     }
 
-    /// If the stopwatch is currently running, stops the stopwatch and records the result. If
+    /// If the profiler is currently running, stops the stopwatch and records the result. If
     /// the stopwatch is already stopped, panics. Stopwatch cannot be stopped before it is
     /// started again.
     ///
@@ -75,39 +76,133 @@ impl<'a> Stopwatch<'a> {
     }
 
     #[inline]
-    pub fn last_time(&self) -> u64 {
-        self.last_time
+    pub fn last_time(&self) -> Duration {
+        Duration::from_micros(self.last_time)
     }
 
     #[inline]
-    pub fn avg_time(&self) -> f64 {
+    pub fn avg_time(&self) -> Duration {
         if self.runs == 0 {
-            return 0.0;
+            return Duration::new(0, 0);
         }
-        self.total_time as f64 / self.runs as f64
+        Duration::from_micros((self.total_time as f64 / self.runs as f64) as u64)
     }
+}
+
+/// This macro generates a struct containing CPUProfiler objects with
+/// specified names. It also implements a `Default` trait for it so it
+/// can be easily initialized.
+///
+/// You can prefix the name of generated struct with `pub` modifier to
+/// generate a pub struct. If you only specify the name, the generated
+/// struct will not have the `pub` access modifier.
+///
+/// # Example
+///
+/// The following invocation
+///
+/// ```rust
+/// impl_stats_struct!(pub Statistics; item1, item2);
+/// ```
+/// expands to
+///
+/// ```rust
+/// #[derive(Debug)]
+/// pub struct Statistics<'a> {
+///     pub item1: CPUProfiler<'a>,
+///     pub item2: CPUProfiler<'a>,
+/// }
+/// impl<'a> Default for Statistics<'a> {
+///     fn default() -> Self {
+///         Statistics {
+///             item1: CPUProfiler::new("item1"),
+///             item2: CPUProfiler::new("item2"),
+///         }
+///     }
+/// }
+/// ```
+///
+#[macro_use]
+macro_rules! impl_stats_struct {
+    (pub $name: ident; $($it: ident),+) => {
+        #[derive(Debug)]
+        pub struct $name<'a> {
+            $(pub $it: CPUProfiler<'a>,)+
+        }
+
+        impl<'a> Default for $name<'a> {
+            fn default() -> Self {
+                $name {
+                    $($it: CPUProfiler::new(stringify!($it)),)+
+                }
+            }
+        }
+    };
+    ($name: ident; $($it: ident),+) => {
+        #[derive(Debug)]
+        struct $name<'a> {
+            $($it: CPUProfiler<'a>,)+
+        }
+
+        impl<'a> Default for $name<'a> {
+            fn default() -> Self {
+                $name {
+                    $($it: CPUProfiler::new(stringify!($it)),)+
+                }
+            }
+        }
+    };
+}
+
+/// This macro automatically inserts `start()` and `end()` calls with
+/// specified `CPUProfiler` at the start and end of the current scope.
+///
+/// The `start()` call is placed at macro invocation site while `end()`
+/// is automatically called with the help of `Drop` trait.
+///
+/// # Example
+///
+///
+#[macro_use]
+macro_rules! measure_scope {
+    ($profiler: expr) => {
+        struct ScopedMeasure<'a, 'b>(&'b mut CPUProfiler<'a>);
+        impl<'a, 'b> ScopedMeasure<'a, 'b> {
+            fn start_with_drop_guard(item: &'b mut CPUProfiler<'a>) -> Self {
+                item.start();
+                return Self(item);
+            }
+        }
+        impl<'a, 'b> Drop for ScopedMeasure<'a, 'b> {
+            fn drop(&mut self) {
+                self.0.end();
+            }
+        }
+        #[allow(unused)]
+        let scoped = ScopedMeasure::start_with_drop_guard(&mut $profiler);
+    };
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::perf::Stopwatch;
+    use crate::perf::CPUProfiler;
     use std::thread::sleep;
     use std::time::Duration;
 
     #[test]
     fn stopwatch_creates() {
-        let root = Stopwatch::new("root");
+        let root = CPUProfiler::new("root");
 
         assert_eq!(root.runs(), 0);
         assert_eq!(root.total_time().as_micros(), 0);
-        assert!(root.avg_time() < std::f64::EPSILON);
-        assert_eq!(root.last_time(), 0);
+        assert!(root.avg_time().as_secs_f64() <= 0.0);
+        assert_eq!(root.last_time().as_micros(), 0);
         assert_eq!(root.name(), "root");
     }
 
     #[test]
     fn stopwatch_counts_time() {
-        let mut root = Stopwatch::new("root");
+        let mut root = CPUProfiler::new("root");
 
         root.start();
         sleep(Duration::from_millis(10));
@@ -115,16 +210,16 @@ mod tests {
 
         assert_eq!(root.runs(), 1);
         assert_ne!(root.total_time().as_micros(), 0);
-        assert!(root.avg_time() > 0.0);
-        assert_ne!(root.last_time(), 0);
-        assert_eq!(root.last_time(), root.total_time().as_micros() as u64);
-        assert!(root.last_time() as f64 - root.avg_time() < std::f64::EPSILON);
+        assert!(root.avg_time().as_secs_f64() > 0.0);
+        assert!(root.last_time().as_secs_f64() > 0.0);
+        assert_eq!(root.last_time().as_micros(), root.total_time().as_micros());
+        assert!((root.last_time() - root.avg_time()).as_secs_f64() < std::f64::EPSILON);
     }
 
     #[test]
     #[should_panic]
     fn stopwatch_panics_when_multiple_starts() {
-        let mut stopwatch = Stopwatch::new("root");
+        let mut stopwatch = CPUProfiler::new("root");
 
         stopwatch.start();
         stopwatch.start();
@@ -133,14 +228,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn new_started_stopwatch_panics_when_multiple_starts() {
-        let mut stopwatch = Stopwatch::new_started("root");
+        let mut stopwatch = CPUProfiler::new_started("root");
         stopwatch.start();
     }
 
     #[test]
     #[should_panic]
     fn stopwatch_panics_when_multiple_ends() {
-        let mut stopwatch = Stopwatch::new("root");
+        let mut stopwatch = CPUProfiler::new("root");
 
         stopwatch.start();
         stopwatch.end();
