@@ -1,4 +1,6 @@
-use bf::{load_bf_from_bytes, Container, Data, Format, Geometry, Image};
+use bf::image::{Format, Image};
+use bf::mesh::Mesh;
+use bf::{load_bf_from_bytes, Container, Data};
 use image::dxt::{DXTVariant, DxtDecoder};
 use image::{DynamicImage, ImageBuffer, ImageDecoder, ImageFormat};
 use std::path::PathBuf;
@@ -29,7 +31,7 @@ fn main() {
 
     match container {
         Container::Image(i) => handle_image(i, opt.dump),
-        Container::Geometry(g) => handle_geometry(g),
+        Container::Mesh(g) => handle_mesh(g),
     }
 }
 
@@ -79,8 +81,8 @@ fn handle_image(image: Image, dump: bool) {
     }
 }
 
-fn handle_geometry(geo: Geometry) {
-    println!("geometry");
+fn handle_mesh(geo: Mesh) {
+    println!("mesh");
 
     println!("vertex_data_format={:?}", geo.vertex_format);
     println!("index_type={:?}", geo.index_type);
