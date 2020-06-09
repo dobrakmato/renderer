@@ -1,11 +1,13 @@
 use crate::image::Image;
 use crate::lz4::Compressed;
+use crate::material::Material;
 use crate::mesh::Mesh;
 use bincode::config;
 use serde::{Deserialize, Serialize};
 
 pub mod image;
 pub mod lz4;
+pub mod material;
 pub mod mesh;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,6 +16,7 @@ pub enum Container<'a> {
     Image(Image<'a>),
     #[serde(borrow)]
     Mesh(Mesh<'a>),
+    Material(Material),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,6 +33,19 @@ pub struct File<'a> {
     pub version: u8,
     #[serde(borrow)]
     pub data: Data<'a>,
+}
+
+/// This macro generates code required for converting the `Container` type
+/// into a specific type in fallible way. The generated code evaluates to
+/// ```Ok($type)``` if the requested type is correct, ```Err(())```
+/// otherwise.  
+macro_rules! try_to_dynamic {
+    ($container: expr, $type: ident) => {
+        match $container {
+            Container::$type(t) => Ok(t),
+            _ => Err(()),
+        };
+    };
 }
 
 impl<'a> File<'a> {
@@ -66,17 +82,15 @@ impl<'a> File<'a> {
     }
 
     pub fn try_to_geometry(self) -> Result<Mesh<'a>, ()> {
-        match self.container() {
-            Container::Mesh(g) => Ok(g),
-            _ => Err(()),
-        }
+        try_to_dynamic!(self.container(), Mesh)
     }
 
     pub fn try_to_image(self) -> Result<Image<'a>, ()> {
-        match self.container() {
-            Container::Image(i) => Ok(i),
-            _ => Err(()),
-        }
+        try_to_dynamic!(self.container(), Image)
+    }
+
+    pub fn try_to_material(self) -> Result<Material, ()> {
+        try_to_dynamic!(self.container(), Material)
     }
 }
 
