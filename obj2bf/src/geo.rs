@@ -218,10 +218,15 @@ impl TryFrom<(&Object, usize)> for Geometry {
     /// constraints are violated the conversion fails.
     fn try_from(geometry_selector: (&Object, usize)) -> Result<Self, Self::Error> {
         let (obj, geo_idx) = geometry_selector;
-        
+
         // try to choose geometry by index
-        let geo = match obj.geometry.iter().nth(geo_idx) {
-            None => return Err(ObjImportError::InvalidGeometryIndex(geo_idx, obj.geometry.len())),
+        let geo = match obj.geometry.get(geo_idx) {
+            None => {
+                return Err(ObjImportError::InvalidGeometryIndex(
+                    geo_idx,
+                    obj.geometry.len(),
+                ))
+            }
             Some(t) => t,
         };
 

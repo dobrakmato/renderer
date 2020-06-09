@@ -85,7 +85,7 @@ impl Obj2Bf {
                 .geometry
                 .iter()
                 .enumerate()
-                .find(|(_, g)| g.shapes.len() > 0)
+                .find(|(_, g)| !g.shapes.is_empty())
                 .map(|(idx, _)| idx)
                 .ok_or(Obj2BfError::NoNonEmptyGeometriesFound)?,
         };
