@@ -203,32 +203,32 @@ impl Geometry {
     }
 }
 
-// todo: add non-exhaustive annotation (when stable)
 #[derive(Debug)]
 pub enum ObjImportError {
-    TooManyGeometries,
-    NoGeometries,
+    InvalidGeometryIndex(usize, usize),
     UnsupportedPrimitive(wavefront_obj::obj::Primitive),
 }
 
-impl TryFrom<&Object> for Geometry {
+impl TryFrom<(&Object, usize)> for Geometry {
     type Error = ObjImportError;
 
     /// Converts Wavefront Object instance to Geometry. This function
     /// expects the object to have exactly one geometry inside and
     /// the geometry may not contain points or lines. If any of these
     /// constraints are violated the conversion fails.
-    fn try_from(obj: &Object) -> Result<Self, Self::Error> {
-        if obj.geometry.is_empty() {
-            return Err(ObjImportError::NoGeometries);
-        } else if obj.geometry.len() > 1 {
-            return Err(ObjImportError::TooManyGeometries);
-        }
+    fn try_from(geometry_selector: (&Object, usize)) -> Result<Self, Self::Error> {
+        let (obj, geo_idx) = geometry_selector;
+        
+        // try to choose geometry by index
+        let geo = match obj.geometry.iter().nth(geo_idx) {
+            None => return Err(ObjImportError::InvalidGeometryIndex(geo_idx, obj.geometry.len())),
+            Some(t) => t,
+        };
 
         let mut triplets: Vec<(usize, usize, usize)> = Vec::new();
         let mut g = Self::default();
 
-        for x in obj.geometry.first().unwrap().shapes.iter() {
+        for x in geo.shapes.iter() {
             /* the library will automatically convert polygons to triangles */
             if let Triangle(
                 (vi, Some(ti), Some(ni)),
