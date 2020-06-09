@@ -4,7 +4,7 @@ use bf::image::{Format, Image};
 use bf::{save_bf_to_bytes, Container, File};
 use image::dxt::{DXTEncoder, DXTVariant};
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel, RgbImage, RgbaImage};
+use image::{DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel};
 use std::ops::{Deref, DerefMut};
 
 // generate `Statistics` struct with `CPUProfiler`s
