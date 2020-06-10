@@ -1,5 +1,5 @@
 use crate::tool::Obj2Bf;
-use bf::mesh::{IndexType, VertexDataFormat};
+use bf::mesh::{IndexType, VertexFormat};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -26,7 +26,7 @@ pub struct Obj2BfParameters {
 
     /// Vertex data format.
     #[structopt(long, parse(try_from_str = parse_vertex_format))]
-    vertex_format: Option<VertexDataFormat>,
+    vertex_format: Option<VertexFormat>,
 
     /// Target level of detail (LOD). Original = 0, Worst = 255.
     #[structopt(short, long)]
@@ -53,9 +53,9 @@ fn parse_index_type(src: &str) -> Result<IndexType, &'static str> {
     }
 }
 
-fn parse_vertex_format(src: &str) -> Result<VertexDataFormat, &'static str> {
+fn parse_vertex_format(src: &str) -> Result<VertexFormat, &'static str> {
     match src.to_lowercase().as_str() {
-        "pnut" => Ok(VertexDataFormat::PositionNormalUvTangent),
+        "pnut" => Ok(VertexFormat::PositionNormalUvTangent),
         _ => Err("unknown format"),
     }
 }

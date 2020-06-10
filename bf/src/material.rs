@@ -3,14 +3,19 @@ use uuid::Uuid;
 
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-pub enum ShadingMode {
+pub enum BlendMode {
+    /// Suitable for normal solid objects with no transparent areas.
     Opaque,
+    /// Allows you to create a transparent effect that has hard edges between the opaque and
+    /// transparent areas. In this mode, there are no semi-transparent areas, the texture is
+    /// either 100% opaque, or invisible.
     Masked,
 }
 
+/// Material is a descriptive asset that contains some properties and links to other assets (maps).
 #[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Material {
-    pub mode: ShadingMode,
+    pub blend_mode: BlendMode,
 
     pub albedo_color: [f32; 3],
     pub roughness: f32,
@@ -30,7 +35,7 @@ pub struct Material {
 impl Default for Material {
     fn default() -> Self {
         Self {
-            mode: ShadingMode::Opaque,
+            blend_mode: BlendMode::Opaque,
             albedo_color: [86.0 / 255.0, 93.0 / 255.0, 110.0 / 255.0],
             roughness: 0.5,
             metallic: 0.0,

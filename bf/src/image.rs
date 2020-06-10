@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Format {
-    Dxt1 = 0,
     // BC1
-    Dxt3 = 1,
+    Dxt1 = 0,
     // BC2
-    Dxt5 = 2,
+    Dxt3 = 1,
     // BC3
+    Dxt5 = 2,
     Rgb8 = 3,
     Rgba8 = 4,
     SrgbDxt1 = 5,
@@ -17,13 +17,12 @@ pub enum Format {
     Srgb8A8 = 9,
     R8 = 10,
     BC6H = 11,
-    // BC6H
     BC7 = 12,
-    // BC7
     SrgbBC7 = 13, // BC7 (srgb)
 }
 
 impl Format {
+    /// Returns the number of channels this format has.
     pub fn channels(self) -> u8 {
         match self {
             Format::R8 => 1,
@@ -43,6 +42,7 @@ impl Format {
         }
     }
 
+    /// Returns whether this image format is compressed or not.
     pub fn compressed(self) -> bool {
         match self {
             Format::Dxt1 => true,
@@ -62,6 +62,8 @@ impl Format {
         }
     }
 
+    /// Returns the average number of bits that this format uses for one pixel of image
+    /// data.
     pub fn bits_per_pixel(self) -> u16 {
         match self {
             Format::R8 => 8,
@@ -82,11 +84,18 @@ impl Format {
     }
 }
 
+/// Asset type that is used to store single layer of 2D raster graphics in
+/// various formats (channel count, color depth, gamma).
+///
+/// To iterate over stored mip-maps you can use `Image::mipmaps()` method that
+/// provides an `Iterator` over `MipMap`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Image<'a> {
     pub format: Format,
     pub width: u16,
     pub height: u16,
+    /// Bytes of individual mip-maps ordered from highest resolution to
+    /// lowest. The number of mip-maps can be computed from length of the payload.
     pub mipmap_data: &'a [u8],
 }
 
@@ -124,6 +133,7 @@ impl<'a> Image<'a> {
     }
 }
 
+/// Iterator over `Image` that provides individual mip-maps as `MipMap` structs.  
 pub struct MipMaps<'a> {
     data: &'a [u8],
     format: Format,
@@ -132,7 +142,7 @@ pub struct MipMaps<'a> {
     height: usize,
 }
 
-/// Struct representing a single mip-map of the parent Image object.
+/// Struct representing a view of single mip-map of the parent `Image` object.
 pub struct MipMap<'a> {
     /// Raw bytes in `format` data type of this mip-map.
     pub data: &'a [u8],

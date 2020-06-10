@@ -1,7 +1,7 @@
 use crate::geo::{Geometry, ObjImportError};
 use crate::perf::CPUProfiler;
 use crate::Obj2BfParameters;
-use bf::mesh::{Mesh, VertexDataFormat};
+use bf::mesh::{Mesh, VertexFormat};
 use bf::{save_bf_to_bytes, Container, File};
 use std::convert::TryFrom;
 use std::io::Error;
@@ -12,7 +12,7 @@ use wavefront_obj::ParseError;
 impl_stats_struct!(pub Statistics; load, lods, normalize, optimize, save);
 
 // default vertex format to use when no is specified
-const DEFAULT_VERTEX_FORMAT: VertexDataFormat = VertexDataFormat::PositionNormalUvTangent;
+const DEFAULT_VERTEX_FORMAT: VertexFormat = VertexFormat::PositionNormalUvTangent;
 
 #[derive(Debug)]
 pub enum Obj2BfError {

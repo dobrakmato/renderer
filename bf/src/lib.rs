@@ -96,10 +96,14 @@ impl<'a> File<'a> {
 
 #[derive(Debug)]
 pub enum Error {
+    /// File is too short to be valid .bf file.
     FileTooShort,
+    /// File has invalid magic bytes.
     InvalidMagic,
-    UnsupportedVersion { lib: u8, file: u8 },
-    SerdeError(bincode::Error),
+    /// The opened file has different version then this library can decode.
+    UnsupportedVersion { library: u8, file: u8 },
+    /// Internal `bincode` error.
+    BincodeError(bincode::Error),
 }
 
 /* Constant representing the two byte magic sequence 'BF' */
@@ -113,7 +117,7 @@ fn verify_bf_file_header(file: File) -> Result<File, Error> {
 
     if file.version != BF_VERSION {
         return Err(Error::UnsupportedVersion {
-            lib: BF_VERSION,
+            library: BF_VERSION,
             file: file.version,
         });
     }
@@ -144,7 +148,7 @@ pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, Error> {
     config()
         .little_endian()
         .deserialize(bytes)
-        .map_err(Error::SerdeError)
+        .map_err(Error::BincodeError)
         .and_then(verify_bf_file_header)
 }
 
@@ -156,5 +160,5 @@ pub fn save_bf_to_bytes(file: &File) -> Result<Vec<u8>, Error> {
     config()
         .little_endian()
         .serialize(file)
-        .map_err(Error::SerdeError)
+        .map_err(Error::BincodeError)
 }

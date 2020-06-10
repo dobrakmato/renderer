@@ -1,5 +1,5 @@
 use crate::math::Vec3;
-use bf::mesh::{IndexType, VertexDataFormat};
+use bf::mesh::{IndexType, VertexFormat};
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::convert::TryFrom;
 use wavefront_obj::obj::Object;
@@ -112,9 +112,9 @@ impl Geometry {
     /// Encodes this geometry into byte buffer containing
     /// bytes with format (layout, padding) specified by `VertexDataFormat`
     /// parameter.
-    pub fn generate_vertex_data(&self, format: VertexDataFormat) -> Vec<u8> {
+    pub fn generate_vertex_data(&self, format: VertexFormat) -> Vec<u8> {
         // the only supported format
-        assert_eq!(format, VertexDataFormat::PositionNormalUvTangent);
+        assert_eq!(format, VertexFormat::PositionNormalUvTangent);
 
         let capacity = (self.positions.len() * std::mem::size_of::<f32>() * 3)
             + (self.normals.len() * std::mem::size_of::<f32>() * 3)
