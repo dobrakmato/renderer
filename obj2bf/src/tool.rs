@@ -1,8 +1,9 @@
 use crate::geo::{Geometry, ObjImportError};
-use crate::perf::CPUProfiler;
 use crate::Obj2BfParameters;
 use bf::mesh::{Mesh, VertexFormat};
 use bf::{save_bf_to_bytes, Container, File};
+use core::impl_stats_struct;
+use core::measure_scope;
 use std::convert::TryFrom;
 use std::io::Error;
 use wavefront_obj::obj::{parse, ObjSet, Object};

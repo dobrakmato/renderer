@@ -5,8 +5,6 @@ use structopt::StructOpt;
 
 mod geo;
 mod math;
-#[macro_use]
-mod perf;
 mod tool;
 
 #[derive(StructOpt, Debug)]

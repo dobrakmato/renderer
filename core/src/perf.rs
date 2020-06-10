@@ -107,6 +107,8 @@ impl<'a> CPUProfiler<'a> {
 /// expands to
 ///
 /// ```rust
+/// use core::perf::CPUProfiler;
+///
 /// #[derive(Debug)]
 /// pub struct Statistics<'a> {
 ///     pub item1: CPUProfiler<'a>,
@@ -122,18 +124,18 @@ impl<'a> CPUProfiler<'a> {
 /// }
 /// ```
 ///
-#[macro_use]
+#[macro_export]
 macro_rules! impl_stats_struct {
     (pub $name: ident; $($it: ident),+) => {
         #[derive(Debug)]
         pub struct $name<'a> {
-            $(pub $it: CPUProfiler<'a>,)+
+            $(pub $it: core::perf::CPUProfiler<'a>,)+
         }
 
         impl<'a> Default for $name<'a> {
             fn default() -> Self {
                 $name {
-                    $($it: CPUProfiler::new(stringify!($it)),)+
+                    $($it: core::perf::CPUProfiler::new(stringify!($it)),)+
                 }
             }
         }
@@ -141,13 +143,13 @@ macro_rules! impl_stats_struct {
     ($name: ident; $($it: ident),+) => {
         #[derive(Debug)]
         struct $name<'a> {
-            $($it: CPUProfiler<'a>,)+
+            $($it: core::perf::CPUProfiler<'a>,)+
         }
 
         impl<'a> Default for $name<'a> {
             fn default() -> Self {
                 $name {
-                    $($it: CPUProfiler::new(stringify!($it)),)+
+                    $($it: core::perf::CPUProfiler::new(stringify!($it)),)+
                 }
             }
         }
@@ -160,15 +162,13 @@ macro_rules! impl_stats_struct {
 /// The `start()` call is placed at macro invocation site while `end()`
 /// is automatically called with the help of `Drop` trait.
 ///
-/// # Example
 ///
-///
-#[macro_use]
+#[macro_export]
 macro_rules! measure_scope {
     ($profiler: expr) => {
-        struct ScopedMeasure<'a, 'b>(&'b mut CPUProfiler<'a>);
+        struct ScopedMeasure<'a, 'b>(&'b mut core::perf::CPUProfiler<'a>);
         impl<'a, 'b> ScopedMeasure<'a, 'b> {
-            fn start_with_drop_guard(item: &'b mut CPUProfiler<'a>) -> Self {
+            fn start_with_drop_guard(item: &'b mut core::perf::CPUProfiler<'a>) -> Self {
                 item.start();
                 return Self(item);
             }

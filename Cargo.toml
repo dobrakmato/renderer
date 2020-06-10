@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "core",
     "bf",
     "img2bf",
     "obj2bf",

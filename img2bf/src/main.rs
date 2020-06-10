@@ -4,8 +4,6 @@ use image::imageops::FilterType;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-#[macro_use]
-mod perf;
 mod tool;
 
 /// You can use destination parameters to swizzle channels around or replace some channel

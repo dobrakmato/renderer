@@ -1,7 +1,8 @@
-use crate::perf::CPUProfiler;
 use crate::Img2BfParameters;
 use bf::image::{Format, Image};
 use bf::{save_bf_to_bytes, Container, File};
+use core::impl_stats_struct;
+use core::measure_scope;
 use image::dxt::{DXTEncoder, DXTVariant};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel};

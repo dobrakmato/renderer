@@ -9,3 +9,4 @@ image = "0.23.0"
 intel_tex = "0.1.4"
 structopt = "0.3.7"
 bf = { path = "../bf" }
+core = { path = "../core" }
