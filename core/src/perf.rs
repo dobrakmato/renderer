@@ -102,6 +102,8 @@ impl<'a> CPUProfiler<'a> {
 /// The following invocation
 ///
 /// ```rust
+/// use core::impl_stats_struct;
+///
 /// impl_stats_struct!(pub Statistics; item1, item2);
 /// ```
 /// expands to
