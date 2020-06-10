@@ -110,8 +110,9 @@ impl<I: IndexType + TriviallyTransmutable + Send + Sync + 'static> Load for Mesh
             }
         }
 
-        let vertices = possible_non_zero_copy::<BasicVertex>(geometry.vertex_data, &mut vertex_vec);
-        let indices = possible_non_zero_copy::<I>(geometry.index_data, &mut index_vec);
+        let vertices =
+            possible_non_zero_copy::<BasicVertex>(geometry.vertex_data.as_slice(), &mut vertex_vec);
+        let indices = possible_non_zero_copy::<I>(geometry.index_data.as_slice(), &mut index_vec);
 
         fn buf<T: 'static + Clone + Send + Sync>(
             data: &[T],

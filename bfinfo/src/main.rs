@@ -29,7 +29,7 @@ fn main() {
     println!("version={}", file.version);
 
     let container = match file.data {
-        Data::Compressed(c) => c.0,
+        Data::Compressed(c) => c.into(),
         Data::Uncompressed(c) => c,
     };
 

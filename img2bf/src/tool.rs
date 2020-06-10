@@ -309,7 +309,7 @@ impl Img2Bf {
             width,
             height,
             format: self.params.format,
-            mipmap_data: payload.as_slice(),
+            mipmap_data: payload,
         }));
 
         let default_output = self.params.input.with_extension("bf");

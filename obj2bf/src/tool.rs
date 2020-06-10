@@ -117,8 +117,8 @@ impl Obj2Bf {
         let file = File::create_compressed(Container::Mesh(Mesh {
             vertex_format,
             index_type,
-            vertex_data: vertex_data.as_slice(),
-            index_data: index_data.as_slice(),
+            vertex_data,
+            index_data,
         }));
 
         let default_output = self.params.input.with_extension("bf");
