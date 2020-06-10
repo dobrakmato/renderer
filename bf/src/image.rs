@@ -90,16 +90,17 @@ impl Format {
 /// To iterate over stored mip-maps you can use `Image::mipmaps()` method that
 /// provides an `Iterator` over `MipMap`.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Image<'a> {
+pub struct Image {
     pub format: Format,
     pub width: u16,
     pub height: u16,
     /// Bytes of individual mip-maps ordered from highest resolution to
     /// lowest. The number of mip-maps can be computed from length of the payload.
-    pub mipmap_data: &'a [u8],
+    #[serde(with = "serde_bytes")]
+    pub mipmap_data: Vec<u8>,
 }
 
-impl<'a> Image<'a> {
+impl Image {
     /// Returns the number of mip-maps stored in `mipmap_data` buffer
     /// of this Image struct. If the Image contains only one level of
     /// mip-maps this function returns 1.
@@ -122,9 +123,9 @@ impl<'a> Image<'a> {
 
     /// Returns iterator that splits the `mipmap_data` bytes slice into
     /// type that represents individual mip-maps in this Image.
-    pub fn mipmaps(&self) -> MipMaps<'a> {
+    pub fn mipmaps(&self) -> MipMaps {
         MipMaps {
-            data: self.mipmap_data,
+            data: self.mipmap_data.as_slice(),
             format: self.format,
             width: self.width as usize,
             height: self.height as usize,

@@ -11,28 +11,23 @@ pub mod material;
 pub mod mesh;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum Container<'a> {
-    #[serde(borrow)]
-    Image(Image<'a>),
-    #[serde(borrow)]
-    Mesh(Mesh<'a>),
+pub enum Container {
+    Image(Image),
+    Mesh(Mesh),
     Material(Material),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum Data<'a> {
-    #[serde(borrow)]
-    Compressed(Compressed<Container<'a>>),
-    #[serde(borrow)]
-    Uncompressed(Container<'a>),
+pub enum Data {
+    Compressed(Compressed<Container>),
+    Uncompressed(Container),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct File<'a> {
+pub struct File {
     pub magic: u16,
     pub version: u8,
-    #[serde(borrow)]
-    pub data: Data<'a>,
+    pub data: Data,
 }
 
 /// This macro generates code required for converting the `Container` type
@@ -48,9 +43,9 @@ macro_rules! try_to_dynamic {
     };
 }
 
-impl<'a> File<'a> {
+impl File {
     // Creates a new File object with specified Data.
-    fn with_data(data: Data<'a>) -> Self {
+    fn with_data(data: Data) -> Self {
         File {
             magic: BF_MAGIC,
             version: BF_VERSION,
@@ -60,32 +55,32 @@ impl<'a> File<'a> {
 
     /// Creates a new File object with correct header and specified
     /// container value.
-    pub fn create_uncompressed(container: Container<'a>) -> Self {
-        Self::with_data(Data::Compressed(Compressed::new(container)))
+    pub fn create_uncompressed(container: Container) -> Self {
+        Self::with_data(Data::Uncompressed(container))
     }
 
     /// Creates a new File object with correct header and specified
     /// container value which will be compressed when this object
     /// will be serialized.
     ///
-    /// Note: This method does not perform any serialization and
+    /// Note: This method does not perform any compression and
     /// returns instantly.
-    pub fn create_compressed(container: Container<'a>) -> Self {
-        Self::with_data(Data::Uncompressed(container))
+    pub fn create_compressed(container: Container) -> Self {
+        Self::with_data(Data::Compressed(Compressed::new(container)))
     }
 
-    fn container(self) -> Container<'a> {
+    fn container(self) -> Container {
         match self.data {
-            Data::Compressed(c) => c.0,
+            Data::Compressed(c) => c.into(),
             Data::Uncompressed(x) => x,
         }
     }
 
-    pub fn try_to_geometry(self) -> Result<Mesh<'a>, ()> {
+    pub fn try_to_geometry(self) -> Result<Mesh, ()> {
         try_to_dynamic!(self.container(), Mesh)
     }
 
-    pub fn try_to_image(self) -> Result<Image<'a>, ()> {
+    pub fn try_to_image(self) -> Result<Image, ()> {
         try_to_dynamic!(self.container(), Image)
     }
 

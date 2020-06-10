@@ -37,9 +37,11 @@ impl IndexType {
 /// Asset type that is used to store indexed triangular geometry data. Each mesh has specified
 /// format of vertex data and index type.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Mesh<'a> {
+pub struct Mesh {
     pub vertex_format: VertexFormat,
-    pub vertex_data: &'a [u8],
+    #[serde(with = "serde_bytes")]
+    pub vertex_data: Vec<u8>,
     pub index_type: IndexType,
-    pub index_data: &'a [u8],
+    #[serde(with = "serde_bytes")]
+    pub index_data: Vec<u8>,
 }
