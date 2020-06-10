@@ -1,4 +1,5 @@
 use bf::image::{Format, Image};
+use bf::material::Material;
 use bf::mesh::Mesh;
 use bf::{load_bf_from_bytes, Container, Data};
 use image::dxt::{DXTVariant, DxtDecoder};
@@ -35,6 +36,7 @@ fn main() {
     match container {
         Container::Image(i) => handle_image(i, opt.dump, opt.unpack_normal_map),
         Container::Mesh(g) => handle_mesh(g),
+        Container::Material(m) => handle_material(m),
     }
 }
 
@@ -127,4 +129,10 @@ fn handle_mesh(geo: Mesh) {
         "indices={}",
         geo.index_data.len() / geo.index_type.size_of_one_index()
     );
+}
+
+fn handle_material(material: Material) {
+    println!("material");
+
+    println!("{:#?}", material)
 }
