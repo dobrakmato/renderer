@@ -1,9 +1,12 @@
 use crate::math::Vec3;
 use bf::mesh::{IndexType, VertexFormat};
 use byteorder::{LittleEndian, WriteBytesExt};
+use ordered_float::{FloatIsNan, NotNan};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::convert::TryFrom;
-use wavefront_obj::obj::Object;
 use wavefront_obj::obj::Primitive::Triangle;
+use wavefront_obj::obj::{Object, TVertex, Vertex};
 
 #[derive(Default)]
 pub struct Geometry {
@@ -206,6 +209,7 @@ impl Geometry {
 #[derive(Debug)]
 pub enum ObjImportError {
     InvalidGeometryIndex(usize, usize),
+    NotANumber(FloatIsNan),
     UnsupportedPrimitive(wavefront_obj::obj::Primitive),
 }
 
@@ -225,51 +229,71 @@ impl TryFrom<(&Object, usize)> for Geometry {
                 return Err(ObjImportError::InvalidGeometryIndex(
                     geo_idx,
                     obj.geometry.len(),
-                ))
+                ));
             }
             Some(t) => t,
         };
 
-        let mut triplets: Vec<(usize, usize, usize)> = Vec::new();
-        let mut g = Self::default();
+        // to find unique vertex data triplets we need to store all vertices
+        // in a hashmap. because rust f32, f64 is not Hash by default we use
+        // a crate `ordered-float`. before finding unique vertices we wrap them
+        // to ordered variant `NotNan<f64>` which is Hash and after the uniqueness
+        // we convert them back to raw f64.
+        let vertex_to_vec = |v: &Vertex| {
+            let x = NotNan::new(v.x).map_err(ObjImportError::NotANumber)?;
+            let y = NotNan::new(v.y).map_err(ObjImportError::NotANumber)?;
+            let z = NotNan::new(v.z).map_err(ObjImportError::NotANumber)?;
+            Ok(Vec3::new(x, y, z))
+        };
+        let tvertex_to_vec = |v: &TVertex| {
+            let x = NotNan::new(v.u).map_err(ObjImportError::NotANumber)?;
+            let y = NotNan::new(v.v).map_err(ObjImportError::NotANumber)?;
+            let z = NotNan::new(v.w).map_err(ObjImportError::NotANumber)?;
+            Ok(Vec3::new(x, y, z))
+        };
+        let not_nan_to_f = |v: Vec3<NotNan<f64>>| Vec3::new(*v.x, *v.y, *v.z);
 
-        for x in geo.shapes.iter() {
+        let mut triplets_idx = 0;
+        let mut triplets_unique = HashMap::new();
+        let mut geometry = Self::default();
+
+        for shape in geo.shapes.iter() {
             /* the library will automatically convert polygons to triangles */
             if let Triangle(
                 (vi, Some(ti), Some(ni)),
                 (vj, Some(tj), Some(nj)),
                 (vk, Some(tk), Some(nk)),
-            ) = x.primitive
+            ) = shape.primitive
             {
                 for (v, t, n) in [(vi, ti, ni), (vj, tj, nj), (vk, tk, nk)].iter() {
-                    let triplet = (*v, *t, *n);
-                    let idx = triplets
-                        .iter()
-                        .position(|it| *it == triplet)
-                        .unwrap_or_else(|| {
-                            triplets.push(triplet);
+                    /* Safe: indices are guaranteed to be valid by the library */
+                    let triplet = unsafe {
+                        let v = vertex_to_vec(obj.vertices.get_unchecked(*v))?;
+                        let t = tvertex_to_vec(obj.tex_vertices.get_unchecked(*t))?;
+                        let n = vertex_to_vec(obj.normals.get_unchecked(*n))?;
+                        (v, t, n)
+                    };
 
-                            /* Safe: indices are guaranteed to be valid by the library */
-                            let (v, t, n) = unsafe {
-                                let v = obj.vertices.get_unchecked(*v);
-                                let t = obj.tex_vertices.get_unchecked(*t);
-                                let n = obj.normals.get_unchecked(*n);
-                                (v, t, n)
-                            };
+                    let idx = match triplets_unique.entry(triplet) {
+                        Entry::Occupied(e) => *e.get(),
+                        Entry::Vacant(e) => {
+                            let idx = *e.insert(triplets_idx);
+                            triplets_idx += 1;
 
-                            g.positions.push(Vec3::new(v.x, v.y, v.z));
-                            g.normals.push(Vec3::new(n.x, n.y, n.z));
-                            g.tex_coords.push(Vec3::new(t.u, t.v, t.w));
+                            geometry.positions.push(not_nan_to_f(triplet.0));
+                            geometry.tex_coords.push(not_nan_to_f(triplet.1));
+                            geometry.normals.push(not_nan_to_f(triplet.2));
 
-                            triplets.len() - 1
-                        });
+                            idx
+                        }
+                    };
 
-                    g.indices.push(idx);
+                    geometry.indices.push(idx);
                 }
             } else {
-                return Err(ObjImportError::UnsupportedPrimitive(x.primitive));
+                return Err(ObjImportError::UnsupportedPrimitive(shape.primitive));
             }
         }
-        Ok(g)
+        Ok(geometry)
     }
 }

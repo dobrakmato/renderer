@@ -44,7 +44,7 @@ macro_rules! zero_one_impl_float {
 zero_one_impl_float! { f32 f64 }
 
 // todo: simd
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vec3<T> {
     pub x: T,
     pub y: T,
