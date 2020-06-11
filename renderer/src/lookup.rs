@@ -4,20 +4,15 @@ use once_cell::sync::OnceCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
-// include whole look-up database in source code
-const LOOKUP_DATA: &str = include_str!(env!(
-    "LOOKUP_DB",
-    "Environment variable LOOKUP_DB was not specified!"
-));
-
 // lazily create a hash map first time the `lookup` function is called
-static LOOKUP_MAP: OnceCell<HashMap<&str, Uuid>> = OnceCell::new();
+static LOOKUP_MAP: OnceCell<HashMap<String, Uuid>> = OnceCell::new();
 
-fn build_lookup_map() -> HashMap<&'static str, Uuid> {
+fn build_lookup_map() -> HashMap<String, Uuid> {
     info!("Initializing internal lookup-map for `lookup` function.");
-    let mut map = HashMap::<&str, Uuid>::new();
+    let mut map = HashMap::<String, Uuid>::new();
 
-    LOOKUP_DATA
+    std::fs::read_to_string(std::env::var("LOOKUP_DB").ok().unwrap().as_str())
+        .unwrap()
         .split('\n')
         .filter(|l| !l.is_empty())
         .map(|line| {
@@ -27,7 +22,7 @@ fn build_lookup_map() -> HashMap<&'static str, Uuid> {
             )
         })
         .map(|(k, v)| (k, &v[1..]))
-        .for_each(|(k, v)| match map.entry(k) {
+        .for_each(|(k, v)| match map.entry(k.to_string()) {
             Entry::Occupied(t) => error!(
                 "Duplicate look-up name {} for entries {} and {}",
                 k,
