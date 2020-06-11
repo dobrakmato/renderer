@@ -90,7 +90,7 @@ fn main() {
         metallic_map: parse_uuid(params.metallic_map),
     };
 
-    let file = File::create_compressed(Container::Material(material));
+    let file = File::create_uncompressed(Container::Material(material));
     let bytes = save_bf_to_bytes(&file).expect("cannot convert bf::material::Material");
 
     std::fs::write(params.output, bytes).expect("cannot save file!");
