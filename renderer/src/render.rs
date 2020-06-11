@@ -159,7 +159,7 @@ impl VulkanState {
 pub struct RendererState {
     pub render_path: RenderPath,
     device: Arc<Device>,
-    graphical_queue: Arc<Queue>,
+    pub graphical_queue: Arc<Queue>,
     /* swapchain related stuff */
     swapchain: Arc<Swapchain<Window>>,
     framebuffers: SmallVec<[Arc<dyn FramebufferAbstract + Send + Sync>; 4]>,
@@ -338,13 +338,13 @@ impl RendererState {
 pub struct Object<VDef, I: IndexType> {
     pub transform: Transform,
     mesh: Arc<Mesh<VDef, I>>,
-    pub material: Arc<Material>,
+    pub material: Arc<dyn Material>,
 }
 
 impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> Object<VDef, I> {
     pub fn new(
         mesh: Arc<Future<Mesh<VDef, I>>>,
-        material: Arc<Material>,
+        material: Arc<dyn Material>,
         transform: Transform,
     ) -> Self {
         Self {
@@ -384,7 +384,7 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
             vec![self.mesh.vertex_buffer.clone()],
             self.mesh.index_buffer.clone(),
             (
-                self.material.descriptor_set.clone(),
+                self.material.descriptor_set(),
                 ds_frame_matrix_data,
                 ds_object_matrix_data,
             ),

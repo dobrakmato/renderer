@@ -136,3 +136,21 @@ impl<I: IndexType + TriviallyTransmutable + Send + Sync + 'static> Load for Mesh
         )
     }
 }
+
+mod bf_material {
+    cache_storage_impl!(bf::material::Material);
+}
+
+impl Load for bf::material::Material {
+    fn load(bytes: &[u8], _: Arc<Queue>) -> Result<Self> {
+        (
+            Arc::new(
+                load_bf_from_bytes(bytes)
+                    .expect("cannot read bytes as bf::material::Material")
+                    .try_to_material()
+                    .expect("file is not bf::material::Material"),
+            ),
+            None,
+        )
+    }
+}

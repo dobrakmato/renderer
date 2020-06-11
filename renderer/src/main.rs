@@ -1,7 +1,7 @@
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
 use crate::lookup::lookup;
-use crate::material::{Material, MaterialExt};
+use crate::material::{FallbackMaps, StaticMaterial};
 use crate::pod::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
 use cgmath::{vec3, Deg, InnerSpace, Point3};
@@ -52,7 +52,7 @@ pub struct GameState {
     objects_u16: Vec<Object<BasicVertex, u16>>,
     objects_u32: Vec<Object<BasicVertex, u32>>,
     directional_lights: Vec<DirectionalLight>,
-    materials: Vec<Arc<Material>>,
+    materials: Vec<Arc<StaticMaterial>>,
     floor_mat: usize,
 }
 
@@ -106,17 +106,31 @@ fn load(engine: &mut Engine) {
     let content = &engine.content;
     let path = &engine.renderer_state.render_path;
 
+    let fallback_maps = Arc::new(FallbackMaps {
+        fallback_white: path.white_texture.clone(),
+        fallback_black: path.white_texture.clone(),
+        fallback_normal: path.white_texture.clone(),
+    });
+
+    let static_material = |mat: Arc<bf::material::Material>| {
+        StaticMaterial::from_material(
+            mat.as_ref(),
+            content,
+            path.buffers.geometry_pipeline.clone(),
+            path.samplers.aniso_repeat.clone(),
+            engine.renderer_state.graphical_queue.clone(),
+            fallback_maps.clone(),
+        )
+        .unwrap()
+    };
+
     let apple = Object::new(
         content.load("apple.bf"),
-        content
-            .load_uuid::<bf::material::Material>(lookup("3DApple002_2K-JPG.mat"))
-            .wait_for_then_unwrap()
-            .to_material(
-                content,
-                path.buffers.geometry_pipeline.clone(),
-                path.samplers.aniso_repeat.clone(),
-                path.white_texture.clone(),
-            ),
+        static_material(
+            content
+                .load_uuid::<bf::material::Material>(lookup("3DApple002_2K-JPG.mat"))
+                .wait_for_then_unwrap(),
+        ),
         Transform {
             scale: vec3(6.0, 6.0, 6.0),
             position: vec3(0.0, 0.3, 0.0),
@@ -128,15 +142,11 @@ fn load(engine: &mut Engine) {
         content.load_uuid(lookup(
             ".\\autumn_casualwoman_01/autumn_casualwoman_01_lowpoly_3dsmax.obj",
         )),
-        content
-            .load_uuid::<bf::material::Material>(lookup("autumn_casualwoman_01.mat"))
-            .wait_for_then_unwrap()
-            .to_material(
-                content,
-                path.buffers.geometry_pipeline.clone(),
-                path.samplers.aniso_repeat.clone(),
-                path.white_texture.clone(),
-            ),
+        static_material(
+            content
+                .load_uuid::<bf::material::Material>(lookup("autumn_casualwoman_01.mat"))
+                .wait_for_then_unwrap(),
+        ),
         Transform {
             scale: vec3(0.1, 0.1, 0.1),
             position: vec3(7.0, 0.3, 0.0),
@@ -146,15 +156,11 @@ fn load(engine: &mut Engine) {
 
     let bread1 = Object::new(
         content.load("6f88a288-6ce9-5455-9bd8-3546c5b39467.bf"),
-        content
-            .load_uuid::<bf::material::Material>(lookup("3DBread001_LowPoly.mat"))
-            .wait_for_then_unwrap()
-            .to_material(
-                content,
-                path.buffers.geometry_pipeline.clone(),
-                path.samplers.aniso_repeat.clone(),
-                path.white_texture.clone(),
-            ),
+        static_material(
+            content
+                .load_uuid::<bf::material::Material>(lookup("3DBread001_LowPoly.mat"))
+                .wait_for_then_unwrap(),
+        ),
         Transform {
             scale: vec3(5.0, 5.0, 5.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -164,15 +170,11 @@ fn load(engine: &mut Engine) {
 
     let rock1 = Object::new(
         content.load("3f9e7780-6d4e-5108-9d36-23fc77339efb.bf"),
-        content
-            .load_uuid::<bf::material::Material>(lookup("3DRock001_2K.mat"))
-            .wait_for_then_unwrap()
-            .to_material(
-                content,
-                path.buffers.geometry_pipeline.clone(),
-                path.samplers.aniso_repeat.clone(),
-                path.white_texture.clone(),
-            ),
+        static_material(
+            content
+                .load_uuid::<bf::material::Material>(lookup("3DRock001_2K.mat"))
+                .wait_for_then_unwrap(),
+        ),
         Transform {
             scale: vec3(1.0, 1.0, 1.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -182,15 +184,11 @@ fn load(engine: &mut Engine) {
 
     let rock2 = Object::new(
         content.load("1a55dc06-6577-5cb5-9184-7a3b8d1e0c5a.bf"),
-        content
-            .load_uuid::<bf::material::Material>(lookup("3DRock002_9K.mat"))
-            .wait_for_then_unwrap()
-            .to_material(
-                content,
-                path.buffers.geometry_pipeline.clone(),
-                path.samplers.aniso_repeat.clone(),
-                path.white_texture.clone(),
-            ),
+        static_material(
+            content
+                .load_uuid::<bf::material::Material>(lookup("3DRock002_9K.mat"))
+                .wait_for_then_unwrap(),
+        ),
         Transform {
             scale: vec3(2.0, 2.0, 2.0),
             position: vec3(-3.0, 0.3, 0.0),
@@ -247,14 +245,7 @@ fn load(engine: &mut Engine) {
     .iter()
     .map(|x| content.load_uuid(lookup(x)))
     .map(|x| x.wait_for_then_unwrap())
-    .map(|x: Arc<bf::material::Material>| {
-        x.to_material(
-            content,
-            path.buffers.geometry_pipeline.clone(),
-            path.samplers.aniso_repeat.clone(),
-            path.white_texture.clone(),
-        )
-    })
+    .map(|x: Arc<bf::material::Material>| static_material(x))
     .collect();
 
     let state = &mut engine.game_state;
