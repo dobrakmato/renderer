@@ -21,6 +21,7 @@ mod hosek;
 mod image;
 mod input;
 mod io;
+mod lookup;
 mod material;
 mod mesh;
 mod pod;
