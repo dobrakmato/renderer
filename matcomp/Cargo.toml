@@ -1,0 +1,10 @@
+[package]
+name = "matcomp"
+version = "0.1.0"
+authors = ["Matej <dobrakmato@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+uuid = { version = "0.8.1", features = ["serde"] }
+structopt = "0.3.7"
+bf = { path = "../bf" }
