@@ -19,12 +19,14 @@ fn build_lookup_map() -> HashMap<&'static str, Uuid> {
 
     LOOKUP_DATA
         .split('\n')
+        .filter(|l| !l.is_empty())
         .map(|line| {
             line.split_at(
                 line.find('=')
                     .expect("invalid lookup db: missing = character"),
             )
         })
+        .map(|(k, v)| (k, &v[1..]))
         .for_each(|(k, v)| match map.entry(k) {
             Entry::Occupied(t) => error!(
                 "Duplicate look-up name {} for entries {} and {}",
@@ -35,8 +37,8 @@ fn build_lookup_map() -> HashMap<&'static str, Uuid> {
             Entry::Vacant(t) => {
                 t.insert(
                     Uuid::parse_str(v)
-                        .ok()
-                        .expect("invalid lookup db: invalid uuid"),
+                        .map_err(|e| error!("invalid lookup db: invalid uuid {:?} {:?}", v, e))
+                        .unwrap(),
                 );
             }
         });
@@ -53,8 +55,8 @@ fn build_lookup_map() -> HashMap<&'static str, Uuid> {
 /// This function panics if multiple assets share the same provided
 /// name or no assets with specified name was found.
 pub fn lookup(name: &str) -> Uuid {
-    *LOOKUP_MAP
-        .get_or_init(build_lookup_map)
-        .get(name)
-        .expect("no or multiple entries for specified name")
+    match LOOKUP_MAP.get_or_init(build_lookup_map).get(name) {
+        Some(t) => *t,
+        None => panic!("no or multiple entries for name {:?}", name),
+    }
 }

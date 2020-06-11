@@ -1,3 +1,4 @@
+use bf::uuid::Uuid;
 use crossbeam::channel::{Receiver, Sender};
 use log::info;
 use std::fmt::Debug;
@@ -121,6 +122,13 @@ impl Content {
                 "/home/matej/content_root/".to_path(),
             ],
         }
+    }
+
+    pub fn load_uuid<T: Debug + 'static + Send + Sync + Load + Storage>(
+        &self,
+        uuid: Uuid,
+    ) -> Arc<Future<T>> {
+        self.load(format!("{}.bf", uuid.to_hyphenated().to_string().to_lowercase()).as_str())
     }
 
     /// This function will enqueue the request to load a resource specified by `path`

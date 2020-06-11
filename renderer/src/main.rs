@@ -1,5 +1,6 @@
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
+use crate::lookup::lookup;
 use crate::material::{Material, MaterialExt};
 use crate::pod::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
@@ -108,7 +109,7 @@ fn load(engine: &mut Engine) {
     let apple = Object::new(
         content.load("apple.bf"),
         content
-            .load::<bf::material::Material, _>("3DApple002_2K-JPG.bf")
+            .load_uuid::<bf::material::Material>(lookup("3DApple002_2K-JPG.mat"))
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -124,9 +125,11 @@ fn load(engine: &mut Engine) {
     );
 
     let woman = Object::new(
-        content.load("autumn_casualwoman_01_lowpoly_3dsmax.bf"),
+        content.load_uuid(lookup(
+            ".\\autumn_casualwoman_01/autumn_casualwoman_01_lowpoly_3dsmax.obj",
+        )),
         content
-            .load::<bf::material::Material, _>("autumn_casualwoman_01.bf")
+            .load_uuid::<bf::material::Material>(lookup("autumn_casualwoman_01.mat"))
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -144,7 +147,7 @@ fn load(engine: &mut Engine) {
     let bread1 = Object::new(
         content.load("6f88a288-6ce9-5455-9bd8-3546c5b39467.bf"),
         content
-            .load::<bf::material::Material, _>("3DBread001_LowPoly.bf")
+            .load_uuid::<bf::material::Material>(lookup("3DBread001_LowPoly.mat"))
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -162,7 +165,7 @@ fn load(engine: &mut Engine) {
     let rock1 = Object::new(
         content.load("3f9e7780-6d4e-5108-9d36-23fc77339efb.bf"),
         content
-            .load::<bf::material::Material, _>("3DRock001_2K.bf")
+            .load_uuid::<bf::material::Material>(lookup("3DRock001_2K.mat"))
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -180,7 +183,7 @@ fn load(engine: &mut Engine) {
     let rock2 = Object::new(
         content.load("1a55dc06-6577-5cb5-9184-7a3b8d1e0c5a.bf"),
         content
-            .load::<bf::material::Material, _>("3DRock002_9K.bf")
+            .load_uuid::<bf::material::Material>(lookup("3DRock002_9K.mat"))
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -196,53 +199,53 @@ fn load(engine: &mut Engine) {
     );
 
     let materials = [
-        "[2K]Bricks22.bf",
-        "[2K]Concrete07.bf",
-        "[2K]Ground27.bf",
-        "[2K]Ground30.bf",
-        "[2K]Ground37.bf",
-        "[2K]Leather11.bf",
-        "[2K]Marble04.bf",
-        "[2K]Marble06.bf",
-        "[2K]Metal07.bf",
-        "[2K]Metal08.bf",
-        "[2K]Metal27.bf",
-        "[2K]Metal28.bf",
-        "[2K]PaintedPlaster05.bf",
-        "[2K]PavingStones42.bf",
-        "[2K]PavingStones53.bf",
-        "[2K]Planks12.bf",
-        "[2K]SolarPanel03.bf",
-        "[2K]Tiles15.bf",
-        "[2K]Tiles44.bf",
-        "[2K]Tiles52.bf",
-        "[2K]Wood18.bf",
-        "[2K]Wood35.bf",
-        "[2K]WoodFloor12.bf",
-        "[2K]WoodFloor32.bf",
-        "Bricks027_2K-JPG.bf",
-        "Bricks037_2K-JPG.bf",
-        "Carpet013_2K-JPG.bf",
-        "CorrugatedSteel005_2K-JPG.bf",
-        "Fabric031_2K-JPG.bf",
-        "Fabric032_2K-JPG.bf",
-        "Ground036_2K-JPG.bf",
-        "Ice004_2K-JPG.bf",
-        "Leather021_2K-JPG.bf",
-        "Metal017_2K-JPG.bf",
-        "Paint002_2K-JPG.bf",
-        "PaintedWood005_2K-JPG.bf",
-        "PavingStones055_2K-JPG.bf",
-        "Road006_2K-JPG.bf",
-        "Rock020_2K-JPG.bf",
-        "Rocks017_2K-JPG.bf",
-        "Terrazzo003_2K-JPG.bf",
-        "Tiles059_2K-JPG.bf",
-        "Tiles072_2K-JPG.bf",
-        "WoodSiding007_2K-JPG.bf",
+        "[2K]Bricks22.mat",
+        "[2K]Concrete07.mat",
+        "[2K]Ground27.mat",
+        "[2K]Ground30.mat",
+        "[2K]Ground37.mat",
+        "[2K]Leather11.mat",
+        "[2K]Marble04.mat",
+        "[2K]Marble06.mat",
+        "[2K]Metal07.mat",
+        "[2K]Metal08.mat",
+        "[2K]Metal27.mat",
+        "[2K]Metal28.mat",
+        "[2K]PaintedPlaster05.mat",
+        "[2K]PavingStones42.mat",
+        "[2K]PavingStones53.mat",
+        "[2K]Planks12.mat",
+        "[2K]SolarPanel03.mat",
+        "[2K]Tiles15.mat",
+        "[2K]Tiles44.mat",
+        "[2K]Tiles52.mat",
+        "[2K]Wood18.mat",
+        "[2K]Wood35.mat",
+        "[2K]WoodFloor12.mat",
+        "[2K]WoodFloor32.mat",
+        "Bricks027_2K-JPG.mat",
+        "Bricks037_2K-JPG.mat",
+        "Carpet013_2K-JPG.mat",
+        "CorrugatedSteel005_2K-JPG.mat",
+        "Fabric031_2K-JPG.mat",
+        "Fabric032_2K-JPG.mat",
+        "Ground036_2K-JPG.mat",
+        "Ice004_2K-JPG.mat",
+        "Leather021_2K-JPG.mat",
+        "Metal017_2K-JPG.mat",
+        "Paint002_2K-JPG.mat",
+        "PaintedWood005_2K-JPG.mat",
+        "PavingStones055_2K-JPG.mat",
+        "Road006_2K-JPG.mat",
+        "Rock020_2K-JPG.mat",
+        "Rocks017_2K-JPG.mat",
+        "Terrazzo003_2K-JPG.mat",
+        "Tiles059_2K-JPG.mat",
+        "Tiles072_2K-JPG.mat",
+        "WoodSiding007_2K-JPG.mat",
     ]
     .iter()
-    .map(|x| content.load(*x))
+    .map(|x| content.load_uuid(lookup(x)))
     .map(|x| x.wait_for_then_unwrap())
     .map(|x: Arc<bf::material::Material>| {
         x.to_material(
