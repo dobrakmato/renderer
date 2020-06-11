@@ -3,11 +3,10 @@ use cgmath::{vec3, InnerSpace, Matrix4, Vector3};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MaterialData {
-    pub albedo_color: Vector3<f32>,
+    pub albedo_color: [f32; 3],
     pub alpha_cutoff: f32,
     pub roughness: f32,
     pub metallic: f32,
-    pub normal_map_strength: f32,
 }
 
 #[derive(Copy, Clone)]

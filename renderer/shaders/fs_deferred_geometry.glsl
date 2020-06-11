@@ -19,9 +19,9 @@ layout(set = 0, binding = 6) uniform MaterialData {
     float alpha_cutoff;
     float roughness;
     float metallic;
-    float normal_map_strength;
 } material_data;
 
+// unpacks normal from DXT5nm format
 vec3 unpack_normal(vec4 packednormal) {
     vec3 normal;
     normal.xy = packednormal.wy * 2 - 1;
@@ -31,7 +31,7 @@ vec3 unpack_normal(vec4 packednormal) {
 
 void main() {
     vec3 albedo = material_data.albedo_color * texture(albedo_map, in_uv).xyz;
-    vec3 normal = vec3(material_data.normal_map_strength, material_data.normal_map_strength, 1) * unpack_normal(texture(normal_map, in_uv));
+    vec3 normal = unpack_normal(texture(normal_map, in_uv));
     float roughness = material_data.roughness * texture(roughness_map, in_uv).r;
     float metallic = material_data.metallic * texture(metallic_map, in_uv).r;
     float occlusion = texture(occlusion_map, in_uv).r;

@@ -1,6 +1,6 @@
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
-use crate::material::{Material, MaterialDesc};
+use crate::material::{Material, MaterialExt};
 use crate::pod::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
 use cgmath::{vec3, Deg, InnerSpace, Point3};
@@ -84,7 +84,7 @@ fn main() {
             objects_u32: vec![],
             directional_lights: vec![DirectionalLight {
                 direction: vec3(3.0, 5.0, 1.0).normalize(),
-                intensity: 1.5,
+                intensity: 2.5,
                 color: vec3(1.0, 1.0, 0.8),
             }],
             materials: vec![],
@@ -104,28 +104,10 @@ fn load(engine: &mut Engine) {
     let content = &engine.content;
     let path = &engine.renderer_state.render_path;
 
-    let rock = Object::new(
-        content.load("Rock_1.bf"),
-        content
-            .load::<MaterialDesc, _>("mat_rock.json")
-            .wait_for_then_unwrap()
-            .to_material(
-                content,
-                path.buffers.geometry_pipeline.clone(),
-                path.samplers.aniso_repeat.clone(),
-                path.white_texture.clone(),
-            ),
-        Transform {
-            scale: vec3(0.03, 0.03, 0.03),
-            position: vec3(5.0, 0.3, 0.0),
-            ..Transform::default()
-        },
-    );
-
     let apple = Object::new(
         content.load("apple.bf"),
         content
-            .load::<MaterialDesc, _>("3DApple002_2K-JPG.json")
+            .load::<bf::material::Material, _>("3DApple002_2K-JPG.bf")
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -143,7 +125,7 @@ fn load(engine: &mut Engine) {
     let woman = Object::new(
         content.load("autumn_casualwoman_01_lowpoly_3dsmax.bf"),
         content
-            .load::<MaterialDesc, _>("autumn_casualwoman_01.json")
+            .load::<bf::material::Material, _>("autumn_casualwoman_01.bf")
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -159,9 +141,9 @@ fn load(engine: &mut Engine) {
     );
 
     let bread1 = Object::new(
-        content.load("1a0a130b5af1159eaaac0bad497b1595.bf"),
+        content.load("6f88a288-6ce9-5455-9bd8-3546c5b39467.bf"),
         content
-            .load::<MaterialDesc, _>("3DBread001_LowPoly.json")
+            .load::<bf::material::Material, _>("3DBread001_LowPoly.bf")
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -177,9 +159,9 @@ fn load(engine: &mut Engine) {
     );
 
     let rock1 = Object::new(
-        content.load("8a67105b70c7ea6c75a8216a52efd628.bf"),
+        content.load("3f9e7780-6d4e-5108-9d36-23fc77339efb.bf"),
         content
-            .load::<MaterialDesc, _>("3DRock001_2K.json")
+            .load::<bf::material::Material, _>("3DRock001_2K.bf")
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -195,9 +177,9 @@ fn load(engine: &mut Engine) {
     );
 
     let rock2 = Object::new(
-        content.load("8ae3a34c17f6b4bf2470941fafef88b7.bf"),
+        content.load("1a55dc06-6577-5cb5-9184-7a3b8d1e0c5a.bf"),
         content
-            .load::<MaterialDesc, _>("3DRock002_9K.json")
+            .load::<bf::material::Material, _>("3DRock002_9K.bf")
             .wait_for_then_unwrap()
             .to_material(
                 content,
@@ -213,55 +195,55 @@ fn load(engine: &mut Engine) {
     );
 
     let materials = [
-        "[2K]Bricks22.json",
-        "[2K]Concrete07.json",
-        "[2K]Ground27.json",
-        "[2K]Ground30.json",
-        "[2K]Ground37.json",
-        "[2K]Leather11.json",
-        "[2K]Marble04.json",
-        "[2K]Marble06.json",
-        "[2K]Metal07.json",
-        "[2K]Metal08.json",
-        "[2K]Metal27.json",
-        "[2K]Metal28.json",
-        "[2K]PaintedPlaster05.json",
-        "[2K]PavingStones42.json",
-        "[2K]PavingStones53.json",
-        "[2K]Planks12.json",
-        "[2K]SolarPanel03.json",
-        "[2K]Tiles15.json",
-        "[2K]Tiles44.json",
-        "[2K]Tiles52.json",
-        "[2K]Wood18.json",
-        "[2K]Wood35.json",
-        "[2K]WoodFloor12.json",
-        "[2K]WoodFloor32.json",
-        "Bricks027_2K-JPG.json",
-        "Bricks037_2K-JPG.json",
-        "Carpet013_2K-JPG.json",
-        "CorrugatedSteel005_2K-JPG.json",
-        "Fabric031_2K-JPG.json",
-        "Fabric032_2K-JPG.json",
-        "Ground036_2K-JPG.json",
-        "Ice004_2K-JPG.json",
-        "Leather021_2K-JPG.json",
-        "Metal017_2K-JPG.json",
-        "Paint002_2K-JPG.json",
-        "PaintedWood005_2K-JPG.json",
-        "PavingStones055_2K-JPG.json",
-        "Road006_2K-JPG.json",
-        "Rock020_2K-JPG.json",
-        "Rocks017_2K-JPG.json",
-        "Terrazzo003_2K-JPG.json",
-        "Tiles059_2K-JPG.json",
-        "Tiles072_2K-JPG.json",
-        "WoodSiding007_2K-JPG.json",
+        "[2K]Bricks22.bf",
+        "[2K]Concrete07.bf",
+        "[2K]Ground27.bf",
+        "[2K]Ground30.bf",
+        "[2K]Ground37.bf",
+        "[2K]Leather11.bf",
+        "[2K]Marble04.bf",
+        "[2K]Marble06.bf",
+        "[2K]Metal07.bf",
+        "[2K]Metal08.bf",
+        "[2K]Metal27.bf",
+        "[2K]Metal28.bf",
+        "[2K]PaintedPlaster05.bf",
+        "[2K]PavingStones42.bf",
+        "[2K]PavingStones53.bf",
+        "[2K]Planks12.bf",
+        "[2K]SolarPanel03.bf",
+        "[2K]Tiles15.bf",
+        "[2K]Tiles44.bf",
+        "[2K]Tiles52.bf",
+        "[2K]Wood18.bf",
+        "[2K]Wood35.bf",
+        "[2K]WoodFloor12.bf",
+        "[2K]WoodFloor32.bf",
+        "Bricks027_2K-JPG.bf",
+        "Bricks037_2K-JPG.bf",
+        "Carpet013_2K-JPG.bf",
+        "CorrugatedSteel005_2K-JPG.bf",
+        "Fabric031_2K-JPG.bf",
+        "Fabric032_2K-JPG.bf",
+        "Ground036_2K-JPG.bf",
+        "Ice004_2K-JPG.bf",
+        "Leather021_2K-JPG.bf",
+        "Metal017_2K-JPG.bf",
+        "Paint002_2K-JPG.bf",
+        "PaintedWood005_2K-JPG.bf",
+        "PavingStones055_2K-JPG.bf",
+        "Road006_2K-JPG.bf",
+        "Rock020_2K-JPG.bf",
+        "Rocks017_2K-JPG.bf",
+        "Terrazzo003_2K-JPG.bf",
+        "Tiles059_2K-JPG.bf",
+        "Tiles072_2K-JPG.bf",
+        "WoodSiding007_2K-JPG.bf",
     ]
     .iter()
     .map(|x| content.load(*x))
     .map(|x| x.wait_for_then_unwrap())
-    .map(|x: Arc<MaterialDesc>| {
+    .map(|x: Arc<bf::material::Material>| {
         x.to_material(
             content,
             path.buffers.geometry_pipeline.clone(),
@@ -284,6 +266,6 @@ fn load(engine: &mut Engine) {
     );
     info!("data loaded after {}s!", start.elapsed().as_secs_f32());
 
-    state.objects_u16 = vec![plane, rock, apple, bread1, rock1, rock2];
+    state.objects_u16 = vec![plane, apple, bread1, rock1, rock2];
     state.objects_u32 = vec![woman];
 }

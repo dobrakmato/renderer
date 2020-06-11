@@ -1,8 +1,8 @@
 use crate::content::Result as ContentResult;
 use crate::content::{Content, Load};
 use crate::pod::MaterialData;
-use cgmath::Vector3;
-use serde::{Deserialize, Serialize};
+use bf::load_bf_from_bytes;
+use bf::uuid::Uuid;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::descriptor::descriptor_set::{PersistentDescriptorSet, PersistentDescriptorSetError};
@@ -13,59 +13,38 @@ use vulkano::image::ImmutableImage;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
 
-/// On disk representation of Material.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MaterialDesc {
-    albedo_color: Vector3<f32>,
-    roughness: f32,
-    metallic: f32,
-    normal_map_strength: f32,
-    albedo_map: Option<String>,
-    normal_map: Option<String>,
-    displacement_map: Option<String>,
-    roughness_map: Option<String>,
-    ao_map: Option<String>,
-    metallic_map: Option<String>,
+pub trait MaterialExt {
+    fn to_material(
+        &self,
+        content: &Content,
+        pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+        sampler: Arc<Sampler>,
+        fallback: Arc<ImmutableImage<Format>>,
+    ) -> Arc<Material>;
 }
 
-impl MaterialDesc {
-    pub fn to_material(
+impl MaterialExt for Arc<bf::material::Material> {
+    fn to_material(
         &self,
         content: &Content,
         pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
         fallback: Arc<ImmutableImage<Format>>,
     ) -> Arc<Material> {
-        let albedo = self
-            .albedo_map
-            .as_ref()
-            .map(|x| content.load(x.as_str()))
-            .map(|x| x.wait_for_then_unwrap());
-        let normal = self
-            .normal_map
-            .as_ref()
-            .map(|x| content.load(x.as_str()))
-            .map(|x| x.wait_for_then_unwrap());
-        let displacement = self
-            .displacement_map
-            .as_ref()
-            .map(|x| content.load(x.as_str()))
-            .map(|x| x.wait_for_then_unwrap());
-        let roughness = self
-            .roughness_map
-            .as_ref()
-            .map(|x| content.load(x.as_str()))
-            .map(|x| x.wait_for_then_unwrap());
-        let ao = self
-            .ao_map
-            .as_ref()
-            .map(|x| content.load(x.as_str()))
-            .map(|x| x.wait_for_then_unwrap());
-        let metallic = self
-            .metallic_map
-            .as_ref()
-            .map(|x| content.load(x.as_str()))
-            .map(|x| x.wait_for_then_unwrap());
+        // helper function to load Image asset from Option<Uuid>
+        let load = |opt: Option<Uuid>| {
+            opt.as_ref()
+                .map(|x| format!("{}.bf", x.to_hyphenated().to_string().to_lowercase()))
+                .map(|x| content.load(x.as_str()))
+                .map(|x| x.wait_for_then_unwrap())
+        };
+
+        let albedo = load(self.albedo_map);
+        let normal = load(self.normal_map);
+        let displacement = load(self.displacement_map);
+        let roughness = load(self.roughness_map);
+        let ao = load(self.ao_map);
+        let metallic = load(self.metallic_map);
 
         Material::new(
             pipeline,
@@ -79,22 +58,26 @@ impl MaterialDesc {
             metallic,
             MaterialData {
                 albedo_color: self.albedo_color,
-                alpha_cutoff: 0.0,
+                alpha_cutoff: self.alpha_cutoff,
                 roughness: self.roughness,
                 metallic: self.metallic,
-                normal_map_strength: self.normal_map_strength,
             },
         )
         .expect("cannot create Material instance")
     }
 }
 
-cache_storage_impl!(MaterialDesc);
+cache_storage_impl!(bf::material::Material);
 
-impl Load for MaterialDesc {
+impl Load for bf::material::Material {
     fn load(bytes: &[u8], _: Arc<Queue>) -> ContentResult<Self> {
         (
-            Arc::new(serde_json::from_slice(bytes).expect("cannot read bytes as MaterialDesc")),
+            Arc::new(
+                load_bf_from_bytes(bytes)
+                    .expect("cannot read bytes as bf::material::Material")
+                    .try_to_material()
+                    .expect("file is not bf::material::Material"),
+            ),
             None,
         )
     }
