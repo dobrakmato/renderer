@@ -5,6 +5,7 @@ use crate::mesh::Mesh;
 use bincode::config;
 use serde::{Deserialize, Serialize};
 
+pub use uuid;
 pub mod image;
 pub mod lz4;
 pub mod material;
