@@ -25,13 +25,11 @@ fn main() {
     let bytes = std::fs::read(opt.input).unwrap();
     let file = load_bf_from_bytes(bytes.as_slice()).unwrap();
 
-    println!("magic={} (ok)", file.magic);
-    println!("version={}", file.version);
+    println!("magic={} (ok)", file.magic());
+    println!("version={}", file.version());
+    println!("compressed={}", file.is_compressed());
 
-    let container = match file.data {
-        Data::Compressed(c) => c.into(),
-        Data::Uncompressed(c) => c,
-    };
+    let container = file.into_container();
 
     match container {
         Container::Image(i) => handle_image(i, opt.dump, opt.unpack_normal_map),

@@ -45,6 +45,24 @@ macro_rules! try_to_dynamic {
 }
 
 impl File {
+    #[inline]
+    pub fn magic(&self) -> u16 {
+        self.magic
+    }
+
+    #[inline]
+    pub fn version(&self) -> u8 {
+        self.version
+    }
+
+    #[inline]
+    pub fn is_compressed(&self) -> bool {
+        match &self.data {
+            Data::Compressed(_) => true,
+            Data::Uncompressed(_) => false,
+        }
+    }
+
     // Creates a new File object with specified Data.
     fn with_data(data: Data) -> Self {
         File {
