@@ -130,7 +130,8 @@ fn load(engine: &mut Engine) {
             content
                 .load_uuid::<bf::material::Material>(lookup("3DApple002_2K-JPG.mat"))
                 .wait_for_then_unwrap(),
-        ),
+        )
+        .0,
         Transform {
             scale: vec3(6.0, 6.0, 6.0),
             position: vec3(0.0, 0.3, 0.0),
@@ -146,7 +147,8 @@ fn load(engine: &mut Engine) {
             content
                 .load_uuid::<bf::material::Material>(lookup("autumn_casualwoman_01.mat"))
                 .wait_for_then_unwrap(),
-        ),
+        )
+        .0,
         Transform {
             scale: vec3(0.1, 0.1, 0.1),
             position: vec3(7.0, 0.3, 0.0),
@@ -160,7 +162,8 @@ fn load(engine: &mut Engine) {
             content
                 .load_uuid::<bf::material::Material>(lookup("3DBread001_LowPoly.mat"))
                 .wait_for_then_unwrap(),
-        ),
+        )
+        .0,
         Transform {
             scale: vec3(5.0, 5.0, 5.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -174,7 +177,8 @@ fn load(engine: &mut Engine) {
             content
                 .load_uuid::<bf::material::Material>(lookup("3DRock001_2K.mat"))
                 .wait_for_then_unwrap(),
-        ),
+        )
+        .0,
         Transform {
             scale: vec3(1.0, 1.0, 1.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -188,7 +192,8 @@ fn load(engine: &mut Engine) {
             content
                 .load_uuid::<bf::material::Material>(lookup("3DRock002_9K.mat"))
                 .wait_for_then_unwrap(),
-        ),
+        )
+        .0,
         Transform {
             scale: vec3(2.0, 2.0, 2.0),
             position: vec3(-3.0, 0.3, 0.0),
@@ -245,7 +250,7 @@ fn load(engine: &mut Engine) {
     .iter()
     .map(|x| content.load_uuid(lookup(x)))
     .map(|x| x.wait_for_then_unwrap())
-    .map(|x: Arc<bf::material::Material>| static_material(x))
+    .map(|x: Arc<bf::material::Material>| static_material(x).0)
     .collect();
 
     let state = &mut engine.game_state;

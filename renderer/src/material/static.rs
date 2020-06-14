@@ -12,6 +12,7 @@ use vulkano::device::Queue;
 use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
+use vulkano::sync::GpuFuture;
 
 #[derive(Debug)]
 pub enum StaticMaterialError {
@@ -36,7 +37,7 @@ impl StaticMaterial {
         sampler: Arc<Sampler>,
         queue: Arc<Queue>,
         fallback: Arc<FallbackMaps>,
-    ) -> Result<Arc<Self>, StaticMaterialError> {
+    ) -> Result<(Arc<Self>, impl GpuFuture), StaticMaterialError> {
         // helper function to load Image asset from Option<Uuid>
         let load = |opt: Option<Uuid>| {
             opt.map(|x| content.load_uuid(x))
@@ -89,9 +90,12 @@ impl StaticMaterial {
             .build()
             .map_err(StaticMaterialError::CannotBuildDescriptorSet)?;
 
-        Ok(Arc::new(Self {
-            descriptor_set: Arc::new(set),
-        }))
+        Ok((
+            Arc::new(Self {
+                descriptor_set: Arc::new(set),
+            }),
+            future,
+        ))
     }
 }
 

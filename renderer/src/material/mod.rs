@@ -10,14 +10,16 @@ pub use dynamic::DynamicMaterial;
 pub use r#static::StaticMaterial;
 use vulkano::descriptor::DescriptorSet;
 
+/// Index of descriptor set that is used for material data.
+pub const MATERIAL_UBO_DESCRIPTOR_SET: usize = 0;
+
 /// Trait that represents an object that can be used as a material
 /// in rendering process.
 pub trait Material {
+    /// Returns a descriptor set that will be used for rendering
+    /// during this frame.
     fn descriptor_set(&self) -> Arc<dyn DescriptorSet + Send + Sync>;
 }
-
-/// Index of descriptor set that is used for material data.
-pub const MATERIAL_UBO_DESCRIPTOR_SET: usize = 0;
 
 impl Into<MaterialData> for bf::material::Material {
     fn into(self) -> MaterialData {
@@ -38,37 +40,23 @@ pub struct FallbackMaps {
     pub fallback_normal: Arc<ImmutableImage<Format>>,
 }
 
+macro_rules! fallback_fn {
+    ($name: ident, $field: ident) => {
+        #[inline]
+        pub fn $name(
+            &self,
+            expected: &Option<Arc<ImmutableImage<Format>>>,
+        ) -> Arc<ImmutableImage<Format>> {
+            expected
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| self.$field.clone())
+        }
+    };
+}
+
 impl FallbackMaps {
-    #[inline]
-    pub fn black(
-        &self,
-        expected: &Option<Arc<ImmutableImage<Format>>>,
-    ) -> Arc<ImmutableImage<Format>> {
-        expected
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(|| self.fallback_white.clone())
-    }
-
-    #[inline]
-    pub fn white(
-        &self,
-        expected: &Option<Arc<ImmutableImage<Format>>>,
-    ) -> Arc<ImmutableImage<Format>> {
-        expected
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(|| self.fallback_white.clone())
-    }
-
-    #[inline]
-    pub fn normal(
-        &self,
-        expected: &Option<Arc<ImmutableImage<Format>>>,
-    ) -> Arc<ImmutableImage<Format>> {
-        expected
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(|| self.fallback_normal.clone())
-    }
+    fallback_fn!(white, fallback_white);
+    fallback_fn!(black, fallback_black);
+    fallback_fn!(normal, fallback_normal);
 }
