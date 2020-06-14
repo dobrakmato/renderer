@@ -17,16 +17,13 @@ use winit::event_loop::EventLoop;
 #[cfg(debug_assertions)]
 use log::warn;
 
+#[macro_use]
+mod futures;
 mod assets;
 mod camera;
-#[macro_use]
-mod content;
 mod engine;
-mod futures;
 mod hosek;
-mod image;
 mod input;
-mod io;
 mod pod;
 mod render;
 mod resources;
@@ -106,7 +103,6 @@ fn main() {
 fn load(engine: &mut Engine) {
     info!("loading geometry and image data...");
     let start = Instant::now();
-    let content = &engine.content;
     let assets = &engine.asset_storage;
     let path = &engine.renderer_state.render_path;
 
@@ -119,7 +115,7 @@ fn load(engine: &mut Engine) {
     let static_material = |mat: Arc<bf::material::Material>| {
         StaticMaterial::from_material(
             mat.as_ref(),
-            content,
+            &assets,
             path.buffers.geometry_pipeline.clone(),
             path.samplers.aniso_repeat.clone(),
             engine.renderer_state.graphical_queue.clone(),
@@ -272,15 +268,14 @@ fn load(engine: &mut Engine) {
         .request_load_batch(uuids)
         .sleep_loop(Duration::from_millis(10))
         .into_items();
-    println!(
-        "Material load took {} seconds!",
-        mat_start.elapsed().as_secs_f32()
-    );
-
     let materials = uuids
         .iter()
         .map(|uuid| static_material(engine.asset_storage.get(uuid).unwrap()).0)
         .collect();
+    println!(
+        "Material load took {} seconds!",
+        mat_start.elapsed().as_secs_f32()
+    );
     let plane_mesh = static_mesh(assets.request_load(lookup("./plane.obj")).wait());
     let state = &mut engine.game_state;
 

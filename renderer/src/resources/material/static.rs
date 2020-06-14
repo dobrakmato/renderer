@@ -1,5 +1,6 @@
-use crate::content::Content;
+use crate::assets::Storage;
 use crate::pod::MaterialData;
+use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
 use bf::uuid::Uuid;
 use std::sync::Arc;
@@ -32,25 +33,33 @@ pub struct StaticMaterial {
 impl StaticMaterial {
     pub fn from_material(
         material: &bf::material::Material,
-        content: &Content,
+        assets: &Storage,
         pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
         queue: Arc<Queue>,
         fallback: Arc<FallbackMaps>,
     ) -> Result<(Arc<Self>, impl GpuFuture), StaticMaterialError> {
         // helper function to load Image asset from Option<Uuid>
-        let load = |opt: Option<Uuid>| {
-            opt.map(|x| content.load_uuid(x))
-                .map(|x| x.wait_for_then_unwrap())
-        };
+        let load = |opt: Option<Uuid>| opt.map(|x| assets.request_load(x));
 
         // request to load all maps
-        let albedo = load(material.albedo_map);
-        let normal = load(material.normal_map);
-        let displacement = load(material.displacement_map);
-        let roughness = load(material.roughness_map);
-        let ao = load(material.ao_map);
-        let metallic = load(material.metallic_map);
+        let albedo_map = load(material.albedo_map);
+        let normal_map = load(material.normal_map);
+        let displacement_map = load(material.displacement_map);
+        let roughness_map = load(material.roughness_map);
+        let ao_map = load(material.ao_map);
+        let metallic_map = load(material.metallic_map);
+
+        let create = |opt: Option<Arc<bf::image::Image>>| {
+            opt.map(|x| create_image(&x, assets.transfer_queue.clone()).unwrap().0)
+        };
+
+        let albedo = create(albedo_map.map(|x| x.wait()));
+        let normal = create(normal_map.map(|x| x.wait()));
+        let displacement = create(displacement_map.map(|x| x.wait()));
+        let roughness = create(roughness_map.map(|x| x.wait()));
+        let ao = create(ao_map.map(|x| x.wait()));
+        let metallic = create(metallic_map.map(|x| x.wait()));
 
         // create a uniform buffer with material data
         let data: MaterialData = (*material).into();

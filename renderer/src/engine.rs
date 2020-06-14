@@ -1,5 +1,4 @@
 use crate::assets::Storage;
-use crate::content::Content;
 use crate::input::Input;
 use crate::pod::DirectionalLight;
 use crate::render::{RendererState, VulkanState};
@@ -13,11 +12,10 @@ use winit::event_loop::{ControlFlow, EventLoop};
 /// main struct containing everything
 pub struct Engine {
     pub game_state: GameState,
-    vulkan_state: VulkanState,
+    pub vulkan_state: VulkanState,
     pub renderer_state: RendererState,
     input_state: Input,
     pub asset_storage: Arc<Storage>,
-    pub content: Content,
     event_loop: Option<EventLoop<()>>,
 }
 
@@ -28,12 +26,10 @@ impl Engine {
         event_loop: EventLoop<()>,
     ) -> Self {
         let vulkan_state = VulkanState::new(conf, &event_loop);
-        let content = Content::new(vulkan_state.transfer_queue());
-        let asset_storage = Storage::new(8);
+        let asset_storage = Storage::new(8, vulkan_state.transfer_queue());
         let renderer_state = RendererState::new(&vulkan_state, &asset_storage);
         Self {
             game_state: initial_state,
-            content,
             renderer_state,
             vulkan_state,
             asset_storage,

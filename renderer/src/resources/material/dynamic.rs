@@ -1,4 +1,3 @@
-use crate::content::Content;
 use crate::pod::MaterialData;
 use bf::uuid::Uuid;
 use std::sync::{Arc, Mutex};
@@ -8,6 +7,8 @@ use vulkano::descriptor::descriptor_set::{
 };
 use vulkano::descriptor::DescriptorSet;
 
+use crate::assets::Storage;
+use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
 use vulkano::format::Format;
 use vulkano::image::ImmutableImage;
@@ -28,7 +29,8 @@ pub enum DynamicMaterialError {
 /// possible as they might be faster and more performant then dynamic.
 pub struct DynamicMaterial {
     uniform_buffer_pool: CpuBufferPool<MaterialData>,
-    descriptor_set_pool: Mutex<FixedSizeDescriptorSetsPool>, // todo: needs &mut reference to work internally
+    descriptor_set_pool: Mutex<FixedSizeDescriptorSetsPool>,
+    // todo: needs &mut reference to work internally
     pub fallback: Arc<FallbackMaps>,
     pub sampler: Arc<Sampler>,
     pub data: MaterialData,
@@ -43,16 +45,13 @@ pub struct DynamicMaterial {
 impl DynamicMaterial {
     pub fn from_material(
         material: &bf::material::Material,
-        content: &Content,
+        assets: &Storage,
         pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
         fallback: Arc<FallbackMaps>,
     ) -> Result<Arc<Self>, DynamicMaterialError> {
         // helper function to load Image asset from Option<Uuid>
-        let load = |opt: Option<Uuid>| {
-            opt.map(|x| content.load_uuid(x))
-                .map(|x| x.wait_for_then_unwrap())
-        };
+        let load = |opt: Option<Uuid>| opt.map(|x| assets.request_load(x));
 
         // request to load all maps
         let albedo_map = load(material.albedo_map);
@@ -61,6 +60,17 @@ impl DynamicMaterial {
         let roughness_map = load(material.roughness_map);
         let ao_map = load(material.ao_map);
         let metallic_map = load(material.metallic_map);
+
+        let create = |opt: Option<Arc<bf::image::Image>>| {
+            opt.map(|x| create_image(&x, assets.transfer_queue.clone()).unwrap().0)
+        };
+
+        let albedo_map = create(albedo_map.map(|x| x.wait()));
+        let normal_map = create(normal_map.map(|x| x.wait()));
+        let displacement_map = create(displacement_map.map(|x| x.wait()));
+        let roughness_map = create(roughness_map.map(|x| x.wait()));
+        let ao_map = create(ao_map.map(|x| x.wait()));
+        let metallic_map = create(metallic_map.map(|x| x.wait()));
 
         // create a descriptor set layout from pipeline
         let layout = pipeline

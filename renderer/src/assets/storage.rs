@@ -1,5 +1,4 @@
 use crate::assets::{asset_from_bytes_dynamic, Asset, AssetLoadError, BatchLoad};
-use crate::content::PathLike;
 use crate::futures::notification;
 use bf::uuid::Uuid;
 use log::{error, info};
@@ -7,9 +6,21 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 use std::thread::spawn;
+use vulkano::device::Queue;
+
+/// Trait representing type that can be transformed into IO path.
+pub trait PathLike {
+    fn to_path(&self) -> PathBuf;
+}
+
+impl<'a> PathLike for &'a str {
+    fn to_path(&self) -> PathBuf {
+        Path::new(self).to_path_buf()
+    }
+}
 
 /// All possible states for assets in storage.
 enum AssetState {
@@ -47,17 +58,19 @@ pub struct Storage {
     storage: RwLock<HashMap<Uuid, (AssetState, NotificationRecv)>>,
     queue_send: crossbeam::Sender<(Uuid, NotificationSend)>,
     roots: Vec<PathBuf>,
+    pub transfer_queue: Arc<Queue>,
 }
 
 impl Storage {
     /// Constructs a new `Storage` and starts a specified amount of worker
     /// threads.
-    pub fn new(worker_count: usize) -> Arc<Self> {
+    pub fn new(worker_count: usize, transfer_queue: Arc<Queue>) -> Arc<Self> {
         info!("Creating a Storage with {} worker threads.", worker_count);
 
         let (send, recv) = crossbeam::unbounded();
 
         let storage = Arc::new(Self {
+            transfer_queue,
             storage: RwLock::new(HashMap::new()),
             queue_send: send,
             roots: vec!["D:\\_MATS\\OUT\\".to_path()],
