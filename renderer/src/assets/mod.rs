@@ -2,8 +2,10 @@ use bf::{load_bf_from_bytes, Container};
 use std::any::Any;
 use std::sync::Arc;
 
+mod lookup;
 mod storage;
 
+pub use lookup::lookup;
 pub use storage::Storage;
 
 /// Result of asset load operation.

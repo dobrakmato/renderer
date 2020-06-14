@@ -1,6 +1,6 @@
+use crate::assets::lookup;
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
-use crate::lookup::lookup;
 use crate::material::{FallbackMaps, StaticMaterial};
 use crate::pod::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
@@ -23,7 +23,6 @@ mod hosek;
 mod image;
 mod input;
 mod io;
-mod lookup;
 mod material;
 mod mesh;
 mod pod;
