@@ -82,7 +82,7 @@ impl<I: IndexType + TriviallyTransmutable + Send + Sync + 'static> Load for Mesh
     fn load(bytes: &[u8], queue: Arc<Queue>) -> Result<Self> {
         let geometry = load_bf_from_bytes(bytes)
             .expect("cannot load file")
-            .try_to_geometry()
+            .try_to_mesh()
             .unwrap();
 
         // dummy Vecs to extend life-time of variables

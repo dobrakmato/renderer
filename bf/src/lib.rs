@@ -26,9 +26,9 @@ pub enum Data {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct File {
-    pub magic: u16,
-    pub version: u8,
-    pub data: Data,
+    magic: u16,
+    version: u8,
+    data: Data,
 }
 
 /// This macro generates code required for converting the `Container` type
@@ -70,23 +70,24 @@ impl File {
         Self::with_data(Data::Compressed(Compressed::new(container)))
     }
 
-    fn container(self) -> Container {
+    /// Unwraps the `Container` struct of this `File` and returns it.
+    pub fn into_container(self) -> Container {
         match self.data {
             Data::Compressed(c) => c.into(),
             Data::Uncompressed(x) => x,
         }
     }
 
-    pub fn try_to_geometry(self) -> Result<Mesh, ()> {
-        try_to_dynamic!(self.container(), Mesh)
+    pub fn try_to_mesh(self) -> Result<Mesh, ()> {
+        try_to_dynamic!(self.into_container(), Mesh)
     }
 
     pub fn try_to_image(self) -> Result<Image, ()> {
-        try_to_dynamic!(self.container(), Image)
+        try_to_dynamic!(self.into_container(), Image)
     }
 
     pub fn try_to_material(self) -> Result<Material, ()> {
-        try_to_dynamic!(self.container(), Material)
+        try_to_dynamic!(self.into_container(), Material)
     }
 }
 
