@@ -17,9 +17,12 @@ pub type LoadResult<T> = std::result::Result<T, AssetLoadError>;
 /// can be deserialized from a slice of bytes.
 pub trait Asset: Any + Send + Sync + 'static {}
 
+pub struct Dummy;
+
 impl Asset for bf::material::Material {}
 impl Asset for bf::mesh::Mesh {}
 impl Asset for bf::image::Image {}
+impl Asset for Dummy {}
 
 #[derive(Debug)]
 pub enum AssetLoadError {

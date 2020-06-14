@@ -1,13 +1,16 @@
 use crate::assets::lookup;
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
-use crate::material::{FallbackMaps, StaticMaterial};
 use crate::pod::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
+use crate::resources::material::{FallbackMaps, StaticMaterial};
+use crate::resources::mesh::create_mesh;
+use bf::uuid::Uuid;
 use cgmath::{vec3, Deg, InnerSpace, Point3};
 use log::info;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use winit::dpi::{LogicalSize, Size};
 use winit::event_loop::EventLoop;
 
@@ -19,14 +22,14 @@ mod camera;
 #[macro_use]
 mod content;
 mod engine;
+mod futures;
 mod hosek;
 mod image;
 mod input;
 mod io;
-mod material;
-mod mesh;
 mod pod;
 mod render;
+mod resources;
 mod samplers;
 mod shaders;
 
@@ -104,6 +107,7 @@ fn load(engine: &mut Engine) {
     info!("loading geometry and image data...");
     let start = Instant::now();
     let content = &engine.content;
+    let assets = &engine.asset_storage;
     let path = &engine.renderer_state.render_path;
 
     let fallback_maps = Arc::new(FallbackMaps {
@@ -124,14 +128,25 @@ fn load(engine: &mut Engine) {
         .unwrap()
     };
 
+    let static_mesh = |mesh: Arc<bf::mesh::Mesh>| {
+        create_mesh::<BasicVertex, u16>(&mesh, engine.renderer_state.graphical_queue.clone())
+            .expect("cannot create mesh from bf::mesh::Mesh")
+            .0
+    };
+
+    let static_mesh_u32 = |mesh: Arc<bf::mesh::Mesh>| {
+        create_mesh::<BasicVertex, u32>(&mesh, engine.renderer_state.graphical_queue.clone())
+            .expect("cannot create mesh from bf::mesh::Mesh")
+            .0
+    };
+
     let apple = Object::new(
-        content.load("apple.bf"),
-        static_material(
-            content
-                .load_uuid::<bf::material::Material>(lookup("3DApple002_2K-JPG.mat"))
-                .wait_for_then_unwrap(),
-        )
-        .0,
+        static_mesh(
+            assets
+                .request_load(lookup(".\\3DApple002_2K-JPG/3DApple002_2K.obj"))
+                .wait(),
+        ),
+        static_material(assets.request_load(lookup("3DApple002_2K-JPG.mat")).wait()).0,
         Transform {
             scale: vec3(6.0, 6.0, 6.0),
             position: vec3(0.0, 0.3, 0.0),
@@ -140,13 +155,17 @@ fn load(engine: &mut Engine) {
     );
 
     let woman = Object::new(
-        content.load_uuid(lookup(
-            ".\\autumn_casualwoman_01/autumn_casualwoman_01_lowpoly_3dsmax.obj",
-        )),
+        static_mesh_u32(
+            assets
+                .request_load(lookup(
+                    ".\\autumn_casualwoman_01/autumn_casualwoman_01_lowpoly_3dsmax.obj",
+                ))
+                .wait(),
+        ),
         static_material(
-            content
-                .load_uuid::<bf::material::Material>(lookup("autumn_casualwoman_01.mat"))
-                .wait_for_then_unwrap(),
+            assets
+                .request_load(lookup("autumn_casualwoman_01.mat"))
+                .wait(),
         )
         .0,
         Transform {
@@ -157,13 +176,12 @@ fn load(engine: &mut Engine) {
     );
 
     let bread1 = Object::new(
-        content.load("6f88a288-6ce9-5455-9bd8-3546c5b39467.bf"),
-        static_material(
-            content
-                .load_uuid::<bf::material::Material>(lookup("3DBread001_LowPoly.mat"))
-                .wait_for_then_unwrap(),
-        )
-        .0,
+        static_mesh(
+            assets
+                .request_load(Uuid::from_str("6f88a288-6ce9-5455-9bd8-3546c5b39467").unwrap())
+                .wait(),
+        ),
+        static_material(assets.request_load(lookup("3DBread001_LowPoly.mat")).wait()).0,
         Transform {
             scale: vec3(5.0, 5.0, 5.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -172,13 +190,12 @@ fn load(engine: &mut Engine) {
     );
 
     let rock1 = Object::new(
-        content.load("3f9e7780-6d4e-5108-9d36-23fc77339efb.bf"),
-        static_material(
-            content
-                .load_uuid::<bf::material::Material>(lookup("3DRock001_2K.mat"))
-                .wait_for_then_unwrap(),
-        )
-        .0,
+        static_mesh(
+            assets
+                .request_load(Uuid::from_str("3f9e7780-6d4e-5108-9d36-23fc77339efb").unwrap())
+                .wait(),
+        ),
+        static_material(assets.request_load(lookup("3DRock001_2K.mat")).wait()).0,
         Transform {
             scale: vec3(1.0, 1.0, 1.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -187,13 +204,12 @@ fn load(engine: &mut Engine) {
     );
 
     let rock2 = Object::new(
-        content.load("1a55dc06-6577-5cb5-9184-7a3b8d1e0c5a.bf"),
-        static_material(
-            content
-                .load_uuid::<bf::material::Material>(lookup("3DRock002_9K.mat"))
-                .wait_for_then_unwrap(),
-        )
-        .0,
+        static_mesh(
+            assets
+                .request_load(Uuid::from_str("1a55dc06-6577-5cb5-9184-7a3b8d1e0c5a").unwrap())
+                .wait(),
+        ),
+        static_material(assets.request_load(lookup("3DRock002_9K.mat")).wait()).0,
         Transform {
             scale: vec3(2.0, 2.0, 2.0),
             position: vec3(-3.0, 0.3, 0.0),
@@ -201,7 +217,8 @@ fn load(engine: &mut Engine) {
         },
     );
 
-    let materials = [
+    let mat_start = Instant::now();
+    let uuids = [
         "[2K]Bricks22.mat",
         "[2K]Concrete07.mat",
         "[2K]Ground27.mat",
@@ -248,16 +265,29 @@ fn load(engine: &mut Engine) {
         "WoodSiding007_2K-JPG.mat",
     ]
     .iter()
-    .map(|x| content.load_uuid(lookup(x)))
-    .map(|x| x.wait_for_then_unwrap())
-    .map(|x: Arc<bf::material::Material>| static_material(x).0)
-    .collect();
+    .map(|x| lookup(x));
 
+    let uuids = engine
+        .asset_storage
+        .request_load_batch(uuids)
+        .sleep_loop(Duration::from_millis(10))
+        .into_items();
+    println!(
+        "Material load took {} seconds!",
+        mat_start.elapsed().as_secs_f32()
+    );
+
+    let materials = uuids
+        .iter()
+        .map(|uuid| static_material(engine.asset_storage.get(uuid).unwrap()).0)
+        .collect();
+    let plane_mesh = static_mesh(assets.request_load(lookup("./plane.obj")).wait());
     let state = &mut engine.game_state;
+
     state.materials = materials;
 
     let plane = Object::new(
-        content.load("plane.bf"),
+        plane_mesh,
         state.materials.get(0).unwrap().clone(),
         Transform {
             scale: vec3(10.0, 1.0, 10.0),

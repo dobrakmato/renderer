@@ -1,4 +1,4 @@
-use crate::assets::Storage;
+use crate::assets::{Dummy, Storage};
 use bf::uuid::Uuid;
 use std::iter::FromIterator;
 use std::time::Duration;
@@ -32,7 +32,7 @@ impl<'a> BatchLoad<'a> {
         let batch = BatchLoad(storage, Vec::from_iter(items));
 
         for uuid in batch.1.iter() {
-            batch.0.request_load(*uuid);
+            batch.0.request_load::<Dummy>(*uuid);
         }
 
         batch

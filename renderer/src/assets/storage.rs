@@ -1,24 +1,18 @@
 use crate::assets::{asset_from_bytes_dynamic, Asset, AssetLoadError, BatchLoad};
 use crate::content::PathLike;
+use crate::futures::notification;
 use bf::uuid::Uuid;
 use log::{error, info};
 use std::any::Any;
 use std::collections::HashMap;
-use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::sync::{Arc, RwLock, Weak};
-use std::task::{Context, Poll};
 use std::thread::spawn;
 
 /// All possible states for assets in storage.
 enum AssetState {
-    /// This state means that the asset is currently not loaded.
-    /// The meaning of this state is same as if there was no entry
-    /// in the storage for this asset.
-    Unloaded,
     /// The asset has not started loading but is already present
     /// in the load queue.
     Queued,
@@ -41,15 +35,17 @@ enum AssetState {
     Tracked(Weak<dyn Any + Send + Sync + 'static>),
 }
 
+type NotificationRecv = crate::futures::Receiver;
+type NotificationSend = crate::futures::Sender;
+
 /// The storage is thread safe container for assets stored by their Uuid.
 ///
 /// It is implemented as a `HashMap` protected by `RwLock`. Clients of this
 /// struct should acquire the lock for the smallest time possible to avoid
 /// blocking other threads.
 pub struct Storage {
-    storage: RwLock<HashMap<Uuid, AssetState>>,
-    queue_send: crossbeam::Sender<Uuid>,
-    queue_recv: crossbeam::Receiver<Uuid>,
+    storage: RwLock<HashMap<Uuid, (AssetState, NotificationRecv)>>,
+    queue_send: crossbeam::Sender<(Uuid, NotificationSend)>,
     roots: Vec<PathBuf>,
 }
 
@@ -64,12 +60,11 @@ impl Storage {
         let storage = Arc::new(Self {
             storage: RwLock::new(HashMap::new()),
             queue_send: send,
-            queue_recv: recv,
             roots: vec!["D:\\_MATS\\OUT\\".to_path()],
         });
 
         for _ in 0..worker_count {
-            spawn_worker_thread(storage.queue_recv.clone(), storage.clone());
+            spawn_worker_thread(recv.clone(), storage.clone());
         }
 
         storage
@@ -104,11 +99,8 @@ impl Storage {
     pub fn is_ready(&self, uuid: &Uuid) -> bool {
         match self.storage.read().unwrap().get(uuid) {
             None => false,
-            Some(state) => match state {
-                AssetState::Unloaded
-                | AssetState::Queued
-                | AssetState::Loading
-                | AssetState::LoadError(_) => false,
+            Some((state, _)) => match state {
+                AssetState::Queued | AssetState::Loading | AssetState::LoadError(_) => false,
                 AssetState::Loaded(_) => true,
                 AssetState::Tracked(w) => w.strong_count() > 0,
             },
@@ -129,8 +121,7 @@ impl Storage {
         // only by reading the AssetState struct.
         match self.storage.read().unwrap().get(uuid) {
             None => return None,
-            Some(state) => match state {
-                AssetState::Unloaded => return None,
+            Some((state, _)) => match state {
                 AssetState::Queued => return None,
                 AssetState::Loading => return None,
                 AssetState::LoadError(e) => {
@@ -147,7 +138,7 @@ impl Storage {
         // and change the state of hashmap).
         match self.storage.write().unwrap().get_mut(uuid) {
             None => None,
-            Some(state) => match state.deref() {
+            Some((state, _)) => match state.deref() {
                 AssetState::Loaded(t) => {
                     // here we need to move out the arc and convert the state
                     // from Loaded(owned) to Tracked(weak reference).
@@ -165,27 +156,29 @@ impl Storage {
     /// the queue. It returns a receiver if the  
     ///
     /// Note: this function may block
-    pub fn request_load(&self, uuid: Uuid) -> bool {
+    pub fn request_load<T: Asset>(&self, uuid: Uuid) -> LoadFuture<T> {
         // we acquire a read lock to determine whether we need
         // to add the specified asset to queue.
-        let will_load = match self.storage.read().unwrap().get(&uuid) {
+        let (will_load, recv) = match self.storage.read().unwrap().get(&uuid) {
             // the asset uuid is not even present in the hashmap.
             // that means it was never loaded, we should definitely
             // append it to the load queue
-            None => true,
+            None => (true, None),
             // we have some entry in the hashmap and the action we
             // take now depends on the value in the hashmap
-            Some(state) => match state {
-                AssetState::Unloaded => true,
-                AssetState::Queued => false,
-                AssetState::Loading => false,
-                AssetState::LoadError(e) => {
-                    error!("Requested re-load of asset that previously failed to load! {:?} Error: {:?}", uuid.to_hyphenated().to_string(), e);
-                    true
-                }
-                AssetState::Loaded(_) => false,
-                AssetState::Tracked(w) => w.strong_count() > 0,
-            },
+            Some((state, recv)) => (
+                match state {
+                    AssetState::Queued => false,
+                    AssetState::Loading => false,
+                    AssetState::LoadError(e) => {
+                        error!("Requested re-load of asset that previously failed to load! {:?} Error: {:?}", uuid.to_hyphenated().to_string(), e);
+                        true
+                    }
+                    AssetState::Loaded(_) => false,
+                    AssetState::Tracked(w) => w.strong_count() > 0,
+                },
+                Some(recv.clone()),
+            ),
         };
 
         // now if we need to load the asset we acquire write lock and write to the hash
@@ -196,16 +189,27 @@ impl Storage {
                 uuid.to_hyphenated().to_string()
             );
 
+            // create notification back from worker thread to notify
+            // that the resource is ready
+            let (send, recv) = notification();
+
             self.storage
                 .write()
                 .unwrap()
-                .insert(uuid, AssetState::Queued);
+                .insert(uuid, (AssetState::Queued, recv.clone()));
             self.queue_send
-                .send(uuid)
+                .send((uuid, send))
                 .expect("cannot push to load queue");
+
+            return LoadFuture(recv, &self, uuid, PhantomData);
         }
 
-        will_load
+        LoadFuture(
+            recv.expect("recv was supposed to be Some but was None"),
+            &self,
+            uuid,
+            PhantomData,
+        )
     }
 
     pub fn request_load_batch<T: Iterator<Item = Uuid>>(&self, items: T) -> BatchLoad {
@@ -221,7 +225,7 @@ impl Storage {
     /// in hash-map.
     fn update_state(&self, uuid: &Uuid, state: AssetState) {
         match self.storage.write().unwrap().get_mut(&uuid) {
-            Some(t) => *t = state,
+            Some((t, _)) => *t = state,
             None => panic!(
                 "asset with uuid {:?} is not present in storage",
                 uuid.to_hyphenated().to_string()
@@ -230,9 +234,23 @@ impl Storage {
     }
 }
 
+pub struct LoadFuture<'a, T>(NotificationRecv, &'a Storage, Uuid, PhantomData<T>);
+
+impl<'a, T: Asset> LoadFuture<'a, T> {
+    pub fn wait(&self) -> Arc<T> {
+        self.0.wait();
+        self.1
+            .get(&self.2)
+            .expect("asset was loaded but not present in storage")
+    }
+}
+
 /// Spawns a worker thread bound to specified load queue and target
 /// storage to load assets to.
-fn spawn_worker_thread(queue: crossbeam::Receiver<Uuid>, storage: Arc<Storage>) {
+fn spawn_worker_thread(
+    queue: crossbeam::Receiver<(Uuid, NotificationSend)>,
+    storage: Arc<Storage>,
+) {
     // helper macro to skip processing current item in the loop
     // mark it as errored and move to next item in the queue
     macro_rules! give_up_with_error {
@@ -249,7 +267,7 @@ fn spawn_worker_thread(queue: crossbeam::Receiver<Uuid>, storage: Arc<Storage>) 
     }
 
     spawn(move || {
-        for uuid in queue.iter() {
+        for (uuid, send) in queue.iter() {
             info!("Starting to load {:?}...", uuid.to_hyphenated().to_string());
 
             // update state in storage to `Loading`
@@ -272,6 +290,8 @@ fn spawn_worker_thread(queue: crossbeam::Receiver<Uuid>, storage: Arc<Storage>) 
 
             // place result into storage as `Loaded`
             storage.update_state(&uuid, AssetState::Loaded(asset));
+            // notify potential threads that the asset is ready
+            send.notify_all();
             info!("Loaded asset {:?}!", uuid.to_hyphenated().to_string());
         }
     });

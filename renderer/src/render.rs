@@ -1,10 +1,10 @@
+use crate::assets::lookup;
+use crate::assets::Storage;
 use crate::camera::Camera;
-use crate::content::{Content, Future};
 use crate::hosek::make_hosek_wilkie_params;
-use crate::material::Material;
-use crate::mesh::fst::create_full_screen_triangle;
-use crate::mesh::{IndexType, Mesh};
 use crate::pod::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
+use crate::resources::material::Material;
+use crate::resources::mesh::{create_full_screen_triangle, create_mesh, Mesh};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
 use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3};
@@ -25,6 +25,7 @@ use vulkano::image::{
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::input_assembly::Index;
+use vulkano::pipeline::vertex::Vertex;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
@@ -167,7 +168,7 @@ pub struct RendererState {
 }
 
 impl RendererState {
-    pub fn new(vulkan: &VulkanState, content: &Content) -> Self {
+    pub fn new(vulkan: &VulkanState, assets: &Storage) -> Self {
         let surface = vulkan.surface.clone();
         let device = vulkan.device.clone();
         let graphical_queue = vulkan.graphical_queue.clone();
@@ -223,7 +224,7 @@ impl RendererState {
             graphical_queue.clone(),
             device.clone(),
             swapchain.clone(),
-            content,
+            assets,
         );
 
         let framebuffers = match swapchain_images
@@ -335,20 +336,20 @@ impl RendererState {
     }
 }
 
-pub struct Object<VDef, I: IndexType> {
+pub struct Object<VDef: Vertex, I: Index> {
     pub transform: Transform,
     mesh: Arc<Mesh<VDef, I>>,
     pub material: Arc<dyn Material>,
 }
 
-impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> Object<VDef, I> {
+impl<VDef: Vertex + Send + Sync + 'static, I: Index + Sync + Send + 'static> Object<VDef, I> {
     pub fn new(
-        mesh: Arc<Future<Mesh<VDef, I>>>,
+        mesh: Arc<Mesh<VDef, I>>,
         material: Arc<dyn Material>,
         transform: Transform,
     ) -> Self {
         Self {
-            mesh: mesh.wait_for_then_unwrap(),
+            mesh,
             transform,
             material,
         }
@@ -381,8 +382,8 @@ impl<VDef: Send + Sync + 'static, I: Index + IndexType + Sync + Send + 'static> 
         b.draw_indexed(
             path.buffers.geometry_pipeline.clone(),
             &DynamicState::none(),
-            vec![self.mesh.vertex_buffer.clone()],
-            self.mesh.index_buffer.clone(),
+            vec![self.mesh.vertex_buffer().clone()],
+            self.mesh.index_buffer().clone(),
             (
                 self.material.descriptor_set(),
                 ds_frame_matrix_data,
@@ -444,7 +445,7 @@ pub struct RenderPath {
     pub samplers: Samplers,
     pub white_texture: Arc<ImmutableImage<Format>>,
 
-    fst: Mesh<PositionOnlyVertex, u16>,
+    fst: Arc<Mesh<PositionOnlyVertex, u16>>,
     frame_matrix_data: CpuBufferPool<FrameMatrixData>,
     object_matrix_data: CpuBufferPool<ObjectMatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
@@ -624,7 +625,7 @@ impl RenderPath {
         queue: Arc<Queue>,
         device: Arc<Device>,
         swapchain: Arc<Swapchain<Window>>,
-        content: &Content,
+        assets: &Storage,
     ) -> Self {
         // first we generate some useful resources on the fly
         let (fst, _) = create_full_screen_triangle(queue.clone()).expect("cannot create fst");
@@ -709,7 +710,11 @@ impl RenderPath {
         );
 
         let samplers = Samplers::new(device.clone()).unwrap();
-        let sky_mesh = content.load("icosphere.bf").wait_for_then_unwrap();
+        let (sky_mesh, _) = create_mesh(
+            &assets.request_load(lookup("./icosphere.obj")).wait(),
+            queue,
+        )
+        .unwrap();
 
         Self {
             fst,
@@ -903,8 +908,8 @@ impl<'r, 's> Frame<'r, 's> {
         b.draw_indexed(
             path.buffers.lighting_pipeline.clone(),
             &no_dynamic_state,
-            vec![path.fst.vertex_buffer.clone()],
-            path.fst.index_buffer.clone(),
+            vec![path.fst.vertex_buffer().clone()],
+            path.fst.index_buffer().clone(),
             (
                 path.buffers.lighting_gbuffer_ds.clone(),
                 lighting_lights_ds,
@@ -925,8 +930,8 @@ impl<'r, 's> Frame<'r, 's> {
         b.draw_indexed(
             path.buffers.skybox_pipeline.clone(),
             &no_dynamic_state,
-            vec![path.sky_mesh.vertex_buffer.clone()],
-            path.sky_mesh.index_buffer.clone(),
+            vec![path.sky_mesh.vertex_buffer().clone()],
+            path.sky_mesh.index_buffer().clone(),
             (ds_frame_matrix_data_skybox, sky_hw_params),
             (state.camera.position, state.start.elapsed().as_secs_f32()),
         )
@@ -938,8 +943,8 @@ impl<'r, 's> Frame<'r, 's> {
         b.draw_indexed(
             path.buffers.tonemap_pipeline.clone(),
             &no_dynamic_state,
-            vec![path.fst.vertex_buffer.clone()],
-            path.fst.index_buffer.clone(),
+            vec![path.fst.vertex_buffer().clone()],
+            path.fst.index_buffer().clone(),
             path.buffers.tonemap_ds.clone(),
             (),
         )

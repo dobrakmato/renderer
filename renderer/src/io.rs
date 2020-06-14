@@ -1,17 +1,12 @@
 use crate::content::{Load, Result};
 use crate::image::ToVulkanFormat;
-use crate::mesh::{IndexType, Mesh};
-use crate::render::BasicVertex;
 use bf::load_bf_from_bytes;
-use log::error;
-use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, ImmutableBuffer};
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer};
 use vulkano::device::Queue;
 use vulkano::format::Format;
 use vulkano::image::{Dimensions, ImageLayout, ImageUsage, ImmutableImage};
-use vulkano::sync::GpuFuture;
 
 impl Load for ImmutableImage<Format> {
     fn load(bytes: &[u8], transfer_queue: Arc<Queue>) -> Result<Self> {
@@ -77,80 +72,3 @@ impl Load for ImmutableImage<Format> {
 }
 
 cache_storage_impl!(ImmutableImage<Format>);
-
-impl<I: IndexType + TriviallyTransmutable + Send + Sync + 'static> Load for Mesh<BasicVertex, I> {
-    fn load(bytes: &[u8], queue: Arc<Queue>) -> Result<Self> {
-        let geometry = load_bf_from_bytes(bytes)
-            .expect("cannot load file")
-            .try_to_mesh()
-            .unwrap();
-
-        // dummy Vecs to extend life-time of variables
-        let mut vertex_vec = Vec::new();
-        let mut index_vec = Vec::new();
-
-        /// This function either just returns the transmuted slice
-        /// or performs a copy if the data is misaligned.
-        fn possible_non_zero_copy<'a, T: TriviallyTransmutable>(
-            bytes: &'a [u8],
-            possible_owner: &'a mut std::vec::Vec<T>,
-        ) -> &'a [T] {
-            match safe_transmute::transmute_many_pedantic::<T>(bytes) {
-                Ok(safe) => safe,
-                Err(Error::Unaligned(e)) => {
-                    error!(
-                        "cannot zero-copy unaligned &[{:?}] data: {:?}",
-                        std::any::type_name::<T>(),
-                        e
-                    );
-                    *possible_owner = e.copy();
-                    possible_owner.as_slice()
-                }
-                Err(e) => panic!("Unexpected error: {}", e),
-            }
-        }
-
-        let vertices =
-            possible_non_zero_copy::<BasicVertex>(geometry.vertex_data.as_slice(), &mut vertex_vec);
-        let indices = possible_non_zero_copy::<I>(geometry.index_data.as_slice(), &mut index_vec);
-
-        fn buf<T: 'static + Clone + Send + Sync>(
-            data: &[T],
-            usage: BufferUsage,
-            queue: Arc<Queue>,
-        ) -> (Arc<ImmutableBuffer<[T]>>, impl GpuFuture) {
-            let (buffer, future) = ImmutableBuffer::from_iter(data.iter().cloned(), usage, queue)
-                .expect("cannot allocate memory for buffer");
-            (buffer, future)
-        }
-
-        let (vertex_buffer, f1) = buf(vertices, BufferUsage::vertex_buffer(), queue.clone());
-        let (index_buffer, f2) = buf(indices, BufferUsage::index_buffer(), queue);
-
-        (
-            Arc::new(Mesh {
-                vertex_buffer,
-                index_buffer,
-            }),
-            Some(Box::new(f1.join(f2))),
-        )
-    }
-}
-
-mod bf_material {
-    cache_storage_impl!(bf::material::Material);
-}
-
-impl Load for bf::material::Material {
-    fn load(bytes: &[u8], _: Arc<Queue>) -> Result<Self> {
-        (
-            Arc::new(
-                load_bf_from_bytes(bytes)
-                    .expect("cannot read bytes as bf::material::Material")
-                    .try_to_material()
-                    .expect("file is not bf::material::Material"),
-            ),
-            None,
-        )
-    }
-}

@@ -1,6 +1,6 @@
 use crate::content::Content;
-use crate::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
 use crate::pod::MaterialData;
+use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
 use bf::uuid::Uuid;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};
