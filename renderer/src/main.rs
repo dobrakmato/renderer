@@ -14,6 +14,7 @@ use winit::event_loop::EventLoop;
 #[cfg(debug_assertions)]
 use log::warn;
 
+mod assets;
 mod camera;
 #[macro_use]
 mod content;
