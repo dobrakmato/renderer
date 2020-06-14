@@ -2,9 +2,11 @@ use bf::{load_bf_from_bytes, Container};
 use std::any::Any;
 use std::sync::Arc;
 
+mod batch;
 mod lookup;
 mod storage;
 
+pub use batch::{BatchLoad, BatchLoadResults};
 pub use lookup::lookup;
 pub use storage::Storage;
 
@@ -14,6 +16,10 @@ pub type LoadResult<T> = std::result::Result<T, AssetLoadError>;
 /// Marker trait that specifies some struct as an "asset", meaning it
 /// can be deserialized from a slice of bytes.
 pub trait Asset: Any + Send + Sync + 'static {}
+
+impl Asset for bf::material::Material {}
+impl Asset for bf::mesh::Mesh {}
+impl Asset for bf::image::Image {}
 
 #[derive(Debug)]
 pub enum AssetLoadError {

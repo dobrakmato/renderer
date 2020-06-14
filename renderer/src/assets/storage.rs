@@ -1,11 +1,16 @@
-use crate::assets::{asset_from_bytes_dynamic, Asset, AssetLoadError};
+use crate::assets::{asset_from_bytes_dynamic, Asset, AssetLoadError, BatchLoad};
+use crate::content::PathLike;
 use bf::uuid::Uuid;
-use log::error;
+use log::{error, info};
 use std::any::Any;
 use std::collections::HashMap;
+use std::future::Future;
+use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock, Weak};
+use std::task::{Context, Poll};
 use std::thread::spawn;
 
 /// All possible states for assets in storage.
@@ -52,13 +57,15 @@ impl Storage {
     /// Constructs a new `Storage` and starts a specified amount of worker
     /// threads.
     pub fn new(worker_count: usize) -> Arc<Self> {
+        info!("Creating a Storage with {} worker threads.", worker_count);
+
         let (send, recv) = crossbeam::unbounded();
 
         let storage = Arc::new(Self {
             storage: RwLock::new(HashMap::new()),
             queue_send: send,
             queue_recv: recv,
-            roots: vec![],
+            roots: vec!["D:\\_MATS\\OUT\\".to_path()],
         });
 
         for _ in 0..worker_count {
@@ -74,8 +81,7 @@ impl Storage {
         let mut file_name = String::with_capacity(36 + 3);
 
         // SAFETY: We are appending ASCII characters only (UUID)
-        uuid.to_hyphenated()
-            .encode_lower(unsafe { file_name.as_bytes_mut() });
+        file_name.push_str(uuid.to_hyphenated().to_string().to_lowercase().as_str());
         file_name.push_str(".bf");
 
         let path_file_name = PathBuf::from(file_name);
@@ -88,6 +94,25 @@ impl Storage {
         }
 
         None
+    }
+
+    /// Function that returns whether the asset specified by UUID is loaded
+    /// and ready to be used at the time this function was called.
+    ///
+    /// **Warning**: you should use `get()` if you want to use the result as it can
+    /// become unavailable in the time between `is_ready()` and `get()` calls.
+    pub fn is_ready(&self, uuid: &Uuid) -> bool {
+        match self.storage.read().unwrap().get(uuid) {
+            None => false,
+            Some(state) => match state {
+                AssetState::Unloaded
+                | AssetState::Queued
+                | AssetState::Loading
+                | AssetState::LoadError(_) => false,
+                AssetState::Loaded(_) => true,
+                AssetState::Tracked(w) => w.strong_count() > 0,
+            },
+        }
     }
 
     /// Function that checks whether the asset specified by UUID is currently
@@ -106,11 +131,13 @@ impl Storage {
             None => return None,
             Some(state) => match state {
                 AssetState::Unloaded => return None,
+                AssetState::Queued => return None,
                 AssetState::Loading => return None,
                 AssetState::LoadError(e) => {
                     error!("Storage::get({:?}) operation failed because the underlying asset failed to load! {:?}", uuid.to_string(), e);
                     return None;
                 }
+                AssetState::Tracked(w) => return w.upgrade().map(|a| Arc::downcast(a).unwrap()),
                 _ => {}
             },
         };
@@ -128,7 +155,6 @@ impl Storage {
                     *state = AssetState::Tracked(Arc::downgrade(t));
                     Some(strong)
                 }
-                AssetState::Tracked(w) => w.upgrade(),
                 _ => None,
             }
             .map(|a| Arc::downcast(a).unwrap()),
@@ -136,8 +162,7 @@ impl Storage {
     }
 
     /// This function appends the asset specified by its Uuid on the end of
-    /// the queue. It returns a boolean indicating whether the request was
-    /// added to the queue or not.
+    /// the queue. It returns a receiver if the  
     ///
     /// Note: this function may block
     pub fn request_load(&self, uuid: Uuid) -> bool {
@@ -166,6 +191,11 @@ impl Storage {
         // now if we need to load the asset we acquire write lock and write to the hash
         // map that the asset is queued so it ends up only once in the queue.
         if will_load {
+            info!(
+                "Adding {:?} to load queue",
+                uuid.to_hyphenated().to_string()
+            );
+
             self.storage
                 .write()
                 .unwrap()
@@ -176,6 +206,10 @@ impl Storage {
         }
 
         will_load
+    }
+
+    pub fn request_load_batch<T: Iterator<Item = Uuid>>(&self, items: T) -> BatchLoad {
+        BatchLoad::new(&self, items)
     }
 
     /// Acquires a write lock on the hashmap and updates the state for specified
@@ -203,13 +237,21 @@ fn spawn_worker_thread(queue: crossbeam::Receiver<Uuid>, storage: Arc<Storage>) 
     // mark it as errored and move to next item in the queue
     macro_rules! give_up_with_error {
         ($uuid: expr, $err: expr) => {{
-            storage.update_state($uuid, AssetState::LoadError($err));
+            let _err = $err;
+            error!(
+                "Cannot load asset {:?} due to {:?}",
+                $uuid.to_hyphenated().to_string(),
+                &_err
+            );
+            storage.update_state($uuid, AssetState::LoadError(_err));
             continue;
         }};
     }
 
     spawn(move || {
         for uuid in queue.iter() {
+            info!("Starting to load {:?}...", uuid.to_hyphenated().to_string());
+
             // update state in storage to `Loading`
             storage.update_state(&uuid, AssetState::Loading);
 
@@ -229,7 +271,8 @@ fn spawn_worker_thread(queue: crossbeam::Receiver<Uuid>, storage: Arc<Storage>) 
             };
 
             // place result into storage as `Loaded`
-            storage.update_state(&uuid, AssetState::Loaded(asset))
+            storage.update_state(&uuid, AssetState::Loaded(asset));
+            info!("Loaded asset {:?}!", uuid.to_hyphenated().to_string());
         }
     });
 }
