@@ -16,7 +16,7 @@ pub enum Img2BfError {
     InvalidDimensions(u32, u32),
     InputImageError(ImageError),
     BlockCompressionError(ImageError),
-    SerializationError(bf::Error),
+    SerializationError(bf::LoadError),
     SaveIOError(std::io::Error),
     InvalidSwizzle(&'static str),
 }

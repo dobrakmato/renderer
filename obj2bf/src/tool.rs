@@ -23,7 +23,7 @@ pub enum Obj2BfError {
     ObjectNotFound(String),
     CannotNormalizeObj(ObjImportError),
     NoNonEmptyGeometriesFound,
-    SerializationError(bf::Error),
+    SerializationError(bf::LoadError),
     SaveIOError(std::io::Error),
 }
 
