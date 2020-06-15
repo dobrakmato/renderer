@@ -1,3 +1,5 @@
+//! This is a library for loading and storing BF files.
+
 use crate::image::Image;
 use crate::lz4::Compressed;
 use crate::material::Material;
@@ -11,6 +13,7 @@ pub mod lz4;
 pub mod material;
 pub mod mesh;
 
+/// Possible BF file types (Image, Mesh...).
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Container {
     Image(Image),
@@ -18,12 +21,14 @@ pub enum Container {
     Material(Material),
 }
 
+/// Different data storage modes (compressed, uncompressed).
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Data {
     Compressed(Compressed<Container>),
     Uncompressed(Container),
 }
 
+/// BF file with its header and payload.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct File {
     magic: u16,
@@ -45,16 +50,19 @@ macro_rules! try_to_dynamic {
 }
 
 impl File {
+    /// Returns the magic bytes as `u16` from beginning of this file.
     #[inline]
     pub fn magic(&self) -> u16 {
         self.magic
     }
 
+    /// Returns the version of BF codec this file was created in.
     #[inline]
     pub fn version(&self) -> u8 {
         self.version
     }
 
+    /// Returns whether this file is compressed or not.
     #[inline]
     pub fn is_compressed(&self) -> bool {
         match &self.data {
@@ -96,21 +104,32 @@ impl File {
         }
     }
 
+    /// Tries to unwrap container (data) of this file as `Mesh`.
+    ///
+    /// This function returns `Ok(Mesh)` if the file contains a `Mesh` and `Err(())` otherwise.
     pub fn try_to_mesh(self) -> Result<Mesh, ()> {
         try_to_dynamic!(self.into_container(), Mesh)
     }
 
+    /// Tries to unwrap container (data) of this file as `Image`.
+    ///
+    /// This function returns `Ok(Image)` if the file contains a `Image` and `Err(())` otherwise.
     pub fn try_to_image(self) -> Result<Image, ()> {
         try_to_dynamic!(self.into_container(), Image)
     }
 
+    /// Tries to unwrap container (data) of this file as `Material`.
+    ///
+    /// This function returns `Ok(Material)` if the file contains a `Material` and `Err(())` otherwise.
     pub fn try_to_material(self) -> Result<Material, ()> {
         try_to_dynamic!(self.into_container(), Material)
     }
 }
 
+/// Enumeration of all possible errors that can happen when loading a .bf file
+/// using the [`load_bf_from_bytes()`](fn.load_bf_from_bytes.html) function.
 #[derive(Debug)]
-pub enum Error {
+pub enum LoadError {
     /// File is too short to be valid .bf file.
     FileTooShort,
     /// File has invalid magic bytes.
@@ -122,16 +141,20 @@ pub enum Error {
 }
 
 /* Constant representing the two byte magic sequence 'BF' */
+
+/// Two bytes magic that is present at the start of every .bf file.
 pub const BF_MAGIC: u16 = 17986;
+
+/// Version of BF format this version is able to read.
 pub const BF_VERSION: u8 = 2;
 
-fn verify_bf_file_header(file: File) -> Result<File, Error> {
+fn verify_bf_file_header(file: File) -> Result<File, LoadError> {
     if file.magic != BF_MAGIC {
-        return Err(Error::InvalidMagic);
+        return Err(LoadError::InvalidMagic);
     }
 
     if file.version != BF_VERSION {
-        return Err(Error::UnsupportedVersion {
+        return Err(LoadError::UnsupportedVersion {
             library: BF_VERSION,
             file: file.version,
         });
@@ -145,25 +168,25 @@ fn verify_bf_file_header(file: File) -> Result<File, Error> {
 /// matches and version is supported. If these conditions are met
 /// and `bincode` deserialization succeeds this function returns
 /// File object. Error is returned otherwise.
-pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, Error> {
+pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, LoadError> {
     // the `bytes` array could be shorter than two bytes. we need
     // to verify that this is not the case before trying to verify
     // the magic.
     if bytes.len() < 2 {
-        return Err(Error::FileTooShort);
+        return Err(LoadError::FileTooShort);
     }
 
     // verify magic even before trying to deserialize. this can
     // prevent confusing errors when deserialization fails in the
     // middle of file of wrong format
     if u16::from_le_bytes([bytes[0], bytes[1]]) != BF_MAGIC {
-        return Err(Error::InvalidMagic);
+        return Err(LoadError::InvalidMagic);
     }
 
     config()
         .little_endian()
         .deserialize(bytes)
-        .map_err(Error::BincodeError)
+        .map_err(LoadError::BincodeError)
         .and_then(verify_bf_file_header)
 }
 
@@ -171,9 +194,9 @@ pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, Error> {
 /// `bincode` serialize function. The file object is not verified
 /// as it is in `load_bf_from_bytes` function. This allows to
 /// write potentially invalid Files.
-pub fn save_bf_to_bytes(file: &File) -> Result<Vec<u8>, Error> {
+pub fn save_bf_to_bytes(file: &File) -> Result<Vec<u8>, LoadError> {
     config()
         .little_endian()
         .serialize(file)
-        .map_err(Error::BincodeError)
+        .map_err(LoadError::BincodeError)
 }

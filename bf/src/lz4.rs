@@ -1,3 +1,6 @@
+//! Helper module for easy integration of compressed parts of
+//! struct into `serde`.
+
 use bincode::config;
 use lz4::block::{compress, decompress, CompressionMode};
 use serde::de::{DeserializeOwned, Error, Visitor};
@@ -5,7 +8,7 @@ use serde::export::Formatter;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::marker::PhantomData;
 
-/// Compression level enum.
+/// Compression level for `lz4` compression.
 ///
 /// We need this level as the enum `lz4` crate provides is not `Clone` nor `Copy`.
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Hash, Debug)]
@@ -46,6 +49,8 @@ impl<T> Compressed<T> {
         Self::new_with_compression_level(t, CompressionLevel::High(17))
     }
 
+    /// Creates a new `Compressed` wrapped with specified data and specified
+    /// compression level.
     pub fn new_with_compression_level(t: T, lvl: CompressionLevel) -> Self {
         Self(t, lvl)
     }

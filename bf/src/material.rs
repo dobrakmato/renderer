@@ -1,6 +1,10 @@
+//! Materials, their properties and blend mode.
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Represents a mode in which the material is blended with content
+/// that is already rendered.
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum BlendMode {

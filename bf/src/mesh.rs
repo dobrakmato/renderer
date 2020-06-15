@@ -1,5 +1,9 @@
+//! Indexed triangular meshes stored in specified vertex format.
+
 use serde::{Deserialize, Serialize};
 
+/// Represents the individual vertex attributes, their loading and
+/// padding inside a single vertex in the vertex buffer.
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum VertexFormat {
     // vec3(pos), vec3(nor), vec2(uv), vec3(tangent) + 1 byte padding
@@ -16,6 +20,8 @@ impl VertexFormat {
     }
 }
 
+/// Represents a type that is used as index in the index buffer.
+///
 /// Only supported index formats are `u16` and `u32` according to *Vulkan* specification.
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum IndexType {

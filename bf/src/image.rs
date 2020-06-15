@@ -1,5 +1,12 @@
+//! Single layer 2D raster with specified format and precomputed mipmaps.
+//!
+//! This module also provides a way to iterate over stored mip-maps in
+//! the `Image` struct. You can use `Image::mipmaps()` function to get
+//! `MipMaps` iterator over individual `MipMap` structs.
+
 use serde::{Deserialize, Serialize};
 
+/// All possible [`Image`](struct.Image.html) formats.
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Format {
     // BC1
