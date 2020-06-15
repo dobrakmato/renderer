@@ -1,5 +1,12 @@
+//! Performance timers & macros related to profiling.
+
 use std::time::{Duration, Instant};
 
+/// CPU time profiler with specified name.
+///
+/// The profiler collects following information:
+/// - number of invocations
+/// - total time
 #[derive(Debug)]
 pub struct CPUProfiler<'a> {
     runs: u64,
@@ -60,26 +67,31 @@ impl<'a> CPUProfiler<'a> {
         }
     }
 
+    /// Returns the name of this profiler.
     #[inline]
     pub fn name(&self) -> &'a str {
         self.name
     }
 
+    /// Returns how many times was `begin` function called.
     #[inline]
     pub fn runs(&self) -> u64 {
         self.runs
     }
 
+    /// Returns total time spent in all runs as a `Duration`.
     #[inline]
     pub fn total_time(&self) -> Duration {
         Duration::from_micros(self.total_time)
     }
 
+    /// Returns the last duration between `begin` and `end` functions called.
     #[inline]
     pub fn last_time(&self) -> Duration {
         Duration::from_micros(self.last_time)
     }
 
+    /// Computes the average time spent between `begin` and `end` function called.
     #[inline]
     pub fn avg_time(&self) -> Duration {
         if self.runs == 0 {
@@ -89,8 +101,8 @@ impl<'a> CPUProfiler<'a> {
     }
 }
 
-/// This macro generates a struct containing CPUProfiler objects with
-/// specified names. It also implements a `Default` trait for it so it
+/// This macro generates a struct containing [`CPUProfiler`](struct.CPUProfiler.html) objects with
+/// specified names. It also implements a `Default` trait for the generated struct so it
 /// can be easily initialized.
 ///
 /// You can prefix the name of generated struct with `pub` modifier to
@@ -101,16 +113,14 @@ impl<'a> CPUProfiler<'a> {
 ///
 /// The following invocation
 ///
-/// ```rust
-/// use core::impl_stats_struct;
-///
+/// ```
+/// # use core::impl_stats_struct;
 /// impl_stats_struct!(pub Statistics; item1, item2);
 /// ```
 /// expands to
 ///
-/// ```rust
-/// use core::perf::CPUProfiler;
-///
+/// ```
+/// # use core::perf::CPUProfiler;
 /// #[derive(Debug)]
 /// pub struct Statistics<'a> {
 ///     pub item1: CPUProfiler<'a>,
@@ -164,7 +174,12 @@ macro_rules! impl_stats_struct {
 /// The `start()` call is placed at macro invocation site while `end()`
 /// is automatically called with the help of `Drop` trait.
 ///
-///
+/// # Example
+/// ```ignore
+/// fn compute_determinant() {
+///     measure_scope!(determinant_profiler)
+/// }
+/// ```
 #[macro_export]
 macro_rules! measure_scope {
     ($profiler: expr) => {
