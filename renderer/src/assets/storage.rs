@@ -1,7 +1,9 @@
+//! Storage for assets, loading of asset, waiting for asset load and worker threads.
+
 use crate::assets::{asset_from_bytes_dynamic, Asset, AssetLoadError, BatchLoad};
-use crate::futures::notification;
 use bf::uuid::Uuid;
-use log::{error, info};
+use core::notification::notification;
+use log::{error, info, trace};
 use std::any::Any;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -10,17 +12,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 use std::thread::spawn;
 use vulkano::device::Queue;
-
-/// Trait representing type that can be transformed into IO path.
-pub trait PathLike {
-    fn to_path(&self) -> PathBuf;
-}
-
-impl<'a> PathLike for &'a str {
-    fn to_path(&self) -> PathBuf {
-        Path::new(self).to_path_buf()
-    }
-}
 
 /// All possible states for assets in storage.
 enum AssetState {
@@ -46,17 +37,20 @@ enum AssetState {
     Tracked(Weak<dyn Any + Send + Sync + 'static>),
 }
 
-type NotificationRecv = crate::futures::Receiver;
-type NotificationSend = crate::futures::Sender;
+/// Type used to receive load notifications from.
+type NotificationRecv = core::notification::Receiver;
 
-/// The storage is thread safe container for assets stored by their Uuid.
+/// Type used to send load notifications from a worker thread.
+type NotificationSend = core::notification::Sender;
+
+/// The storage is thread-safe container for assets stored by their UUID.
 ///
 /// It is implemented as a `HashMap` protected by `RwLock`. Clients of this
 /// struct should acquire the lock for the smallest time possible to avoid
 /// blocking other threads.
 pub struct Storage {
     storage: RwLock<HashMap<Uuid, (AssetState, NotificationRecv)>>,
-    queue_send: crossbeam::Sender<(Uuid, NotificationSend)>,
+    load_queue: crossbeam::Sender<(Uuid, NotificationSend)>,
     roots: Vec<PathBuf>,
     pub transfer_queue: Arc<Queue>,
 }
@@ -72,8 +66,8 @@ impl Storage {
         let storage = Arc::new(Self {
             transfer_queue,
             storage: RwLock::new(HashMap::new()),
-            queue_send: send,
-            roots: vec!["D:\\_MATS\\OUT\\".to_path()],
+            load_queue: send,
+            roots: vec![Path::new("D:\\_MATS\\OUT\\").into()],
         });
 
         for _ in 0..worker_count {
@@ -83,8 +77,11 @@ impl Storage {
         storage
     }
 
-    /// Tries to find the path for specified asset file in one of the roots
-    /// of the content.
+    /// Tries to find the asset file for asset specified by UUID in one of
+    /// the roots.
+    ///
+    /// If asset file is not found in any of the configured roots
+    /// this function returns `None`.
     pub fn find_asset(&self, uuid: &Uuid) -> Option<PathBuf> {
         let mut file_name = String::with_capacity(36 + 3);
 
@@ -108,7 +105,8 @@ impl Storage {
     /// and ready to be used at the time this function was called.
     ///
     /// **Warning**: you should use `get()` if you want to use the result as it can
-    /// become unavailable in the time between `is_ready()` and `get()` calls.
+    /// become unavailable in the time between `is_ready()` and `get()` calls. This
+    /// is however unlikely to happen.
     pub fn is_ready(&self, uuid: &Uuid) -> bool {
         match self.storage.read().unwrap().get(uuid) {
             None => false,
@@ -121,11 +119,11 @@ impl Storage {
     }
 
     /// Function that checks whether the asset specified by UUID is currently
-    /// loaded and present in memory. If the object is currently loaded
-    /// it returns `Some` with a new `Arc` reference to it. If the asset is
+    /// loaded and present in memory. If the asset is currently loaded
+    /// it returns `Some` with an `Arc` reference to the asset. If the asset is
     /// currently not loaded this function returns `None`.
     ///
-    /// Warning: this function may block.
+    /// **Warning**: this function may block.
     pub fn get<T>(&self, uuid: &Uuid) -> Option<Arc<T>>
     where
         T: Asset,
@@ -166,9 +164,15 @@ impl Storage {
     }
 
     /// This function appends the asset specified by its Uuid on the end of
-    /// the queue. It returns a receiver if the  
+    /// the queue.
     ///
-    /// Note: this function may block
+    /// If the specified asset is already present in the queue or is currently
+    /// being loaded this function has no effect.
+    ///
+    /// It returns a `LoadFuture` struct that can be used to block the thread
+    /// until the requested asset is successfully loaded.
+    ///
+    /// Note: this function may block.
     pub fn request_load<T: Asset>(&self, uuid: Uuid) -> LoadFuture<T> {
         // we acquire a read lock to determine whether we need
         // to add the specified asset to queue.
@@ -197,7 +201,7 @@ impl Storage {
         // now if we need to load the asset we acquire write lock and write to the hash
         // map that the asset is queued so it ends up only once in the queue.
         if will_load {
-            info!(
+            trace!(
                 "Adding {:?} to load queue",
                 uuid.to_hyphenated().to_string()
             );
@@ -210,7 +214,7 @@ impl Storage {
                 .write()
                 .unwrap()
                 .insert(uuid, (AssetState::Queued, recv.clone()));
-            self.queue_send
+            self.load_queue
                 .send((uuid, send))
                 .expect("cannot push to load queue");
 
@@ -225,18 +229,18 @@ impl Storage {
         )
     }
 
+    /// Creates a new batch load for specified items.
     pub fn request_load_batch<T: Iterator<Item = Uuid>>(&self, items: T) -> BatchLoad {
         BatchLoad::new(&self, items)
     }
 
-    /// Acquires a write lock on the hashmap and updates the state for specified
-    /// asset.
+    /// Acquires a write lock on the internal HashMap and updates
+    /// the state of specified asset.
     ///
     /// # Panics
-    ///
     /// This function panics in the state for specified asset is not present
-    /// in hash-map.
-    fn update_state(&self, uuid: &Uuid, state: AssetState) {
+    /// in HashMap.
+    fn update_asset_state(&self, uuid: &Uuid, state: AssetState) {
         match self.storage.write().unwrap().get_mut(&uuid) {
             Some((t, _)) => *t = state,
             None => panic!(
@@ -247,9 +251,12 @@ impl Storage {
     }
 }
 
+/// Future that can be blocked on until the asset is loaded.
 pub struct LoadFuture<'a, T>(NotificationRecv, &'a Storage, Uuid, PhantomData<T>);
 
 impl<'a, T: Asset> LoadFuture<'a, T> {
+    /// This function blocks the calling thread until the asset is
+    /// loaded and then returns an `Arc` reference to the loaded asset.
     pub fn wait(&self) -> Arc<T> {
         self.0.wait();
         self.1
@@ -274,17 +281,17 @@ fn spawn_worker_thread(
                 $uuid.to_hyphenated().to_string(),
                 &_err
             );
-            storage.update_state($uuid, AssetState::LoadError(_err));
+            storage.update_asset_state($uuid, AssetState::LoadError(_err));
             continue;
         }};
     }
 
     spawn(move || {
         for (uuid, send) in queue.iter() {
-            info!("Starting to load {:?}...", uuid.to_hyphenated().to_string());
+            trace!("Starting to load {:?}...", uuid.to_hyphenated().to_string());
 
             // update state in storage to `Loading`
-            storage.update_state(&uuid, AssetState::Loading);
+            storage.update_asset_state(&uuid, AssetState::Loading);
 
             // read bytes from disk
             let bytes = match storage.find_asset(&uuid) {
@@ -302,10 +309,10 @@ fn spawn_worker_thread(
             };
 
             // place result into storage as `Loaded`
-            storage.update_state(&uuid, AssetState::Loaded(asset));
+            storage.update_asset_state(&uuid, AssetState::Loaded(asset));
             // notify potential threads that the asset is ready
-            send.notify_all();
-            info!("Loaded asset {:?}!", uuid.to_hyphenated().to_string());
+            send.signal();
+            trace!("Loaded asset {:?}!", uuid.to_hyphenated().to_string());
         }
     });
 }

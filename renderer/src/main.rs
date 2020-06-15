@@ -7,18 +7,16 @@ use crate::resources::material::{FallbackMaps, StaticMaterial};
 use crate::resources::mesh::create_mesh;
 use bf::uuid::Uuid;
 use cgmath::{vec3, Deg, InnerSpace, Point3};
-use log::info;
+use log::{info, Level};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use winit::dpi::{LogicalSize, Size};
 use winit::event_loop::EventLoop;
 
 #[cfg(debug_assertions)]
 use log::warn;
 
-#[macro_use]
-mod futures;
 mod assets;
 mod camera;
 mod engine;
@@ -58,7 +56,7 @@ pub struct GameState {
 
 fn main() {
     // initialize logging at start of the application
-    simple_logger::init().unwrap();
+    simple_logger::init_with_level(Level::Debug).unwrap();
 
     #[cfg(debug_assertions)]
     warn!("this is a debug build. performance may hurt.");
@@ -118,20 +116,20 @@ fn load(engine: &mut Engine) {
             &assets,
             path.buffers.geometry_pipeline.clone(),
             path.samplers.aniso_repeat.clone(),
-            engine.renderer_state.graphical_queue.clone(),
+            assets.transfer_queue.clone(),
             fallback_maps.clone(),
         )
         .unwrap()
     };
 
     let static_mesh = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh::<BasicVertex, u16>(&mesh, engine.renderer_state.graphical_queue.clone())
+        create_mesh::<BasicVertex, u16>(&mesh, assets.transfer_queue.clone())
             .expect("cannot create mesh from bf::mesh::Mesh")
             .0
     };
 
     let static_mesh_u32 = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh::<BasicVertex, u32>(&mesh, engine.renderer_state.graphical_queue.clone())
+        create_mesh::<BasicVertex, u32>(&mesh, assets.transfer_queue.clone())
             .expect("cannot create mesh from bf::mesh::Mesh")
             .0
     };
@@ -214,7 +212,7 @@ fn load(engine: &mut Engine) {
     );
 
     let mat_start = Instant::now();
-    let uuids = [
+    let materials = [
         "[2K]Bricks22.mat",
         "[2K]Concrete07.mat",
         "[2K]Ground27.mat",
@@ -261,17 +259,10 @@ fn load(engine: &mut Engine) {
         "WoodSiding007_2K-JPG.mat",
     ]
     .iter()
-    .map(|x| lookup(x));
-
-    let uuids = engine
-        .asset_storage
-        .request_load_batch(uuids)
-        .sleep_loop(Duration::from_millis(10))
-        .into_items();
-    let materials = uuids
-        .iter()
-        .map(|uuid| static_material(engine.asset_storage.get(uuid).unwrap()).0)
-        .collect();
+    .map(|x| lookup(x))
+    .map(|x| assets.request_load::<bf::material::Material>(x).wait())
+    .map(|x| static_material(x).0)
+    .collect();
     println!(
         "Material load took {} seconds!",
         mat_start.elapsed().as_secs_f32()

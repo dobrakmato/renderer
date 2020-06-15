@@ -1,28 +1,39 @@
-use crate::assets::{Dummy, Storage};
+//! Loading multiple assets in one batch and tracking the load progress
+//! of the whole batch.
+
+use crate::assets::{Asset, Storage};
 use bf::uuid::Uuid;
 use std::iter::FromIterator;
 use std::time::Duration;
 
+/// Immediate status (results) of a `BatchLoad`.
 #[derive(Default, Copy, Clone, Debug)]
 pub struct BatchLoadResults {
+    /// Number of already loaded assets from the batch.
     pub loaded: usize,
+    /// Number of not yet loaded assets from the batch.
     pub unloaded: usize,
 }
 
 impl BatchLoadResults {
+    /// Returns whether the batch is complete - all assets are loaded.
     #[inline]
     pub fn is_complete(&self) -> bool {
         self.unloaded == 0
     }
 
+    /// Returns the percentage of loaded assets as `f64`.
     #[inline]
     pub fn percentage(&self) -> f64 {
         100.0 * self.loaded as f64 / (self.loaded + self.unloaded) as f64
     }
 }
 
-/// Represents a way to load multiple assets together and track
+/// A way to load multiple assets together and track
 /// the progress of their loading.
+///
+/// You should not create this struct manually but use a
+/// `request_load_batch` function of a `Storage`.
 pub struct BatchLoad<'a>(&'a Storage, Vec<Uuid>);
 
 impl<'a> BatchLoad<'a> {
@@ -67,7 +78,13 @@ impl<'a> BatchLoad<'a> {
         self
     }
 
+    /// Transform this struct into a `Vec<Uuid>` containing the UUIDs
+    /// of assets present in this batch.
     pub fn into_items(self) -> Vec<Uuid> {
         self.1
     }
 }
+
+#[doc(hidden)]
+struct Dummy;
+impl Asset for Dummy {}
