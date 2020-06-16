@@ -6,7 +6,7 @@ use crate::{GameState, RendererConfiguration};
 use cgmath::{InnerSpace, Rad, Vector3};
 use rand::Rng;
 use std::sync::Arc;
-use winit::event::{DeviceEvent, Event, VirtualKeyCode, WindowEvent};
+use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 
 /// main struct containing everything
@@ -28,43 +28,52 @@ impl Engine {
         let vulkan_state = VulkanState::new(conf, &event_loop);
         let asset_storage = Storage::new(8, vulkan_state.transfer_queue());
         let renderer_state = RendererState::new(&vulkan_state, &asset_storage);
+        let input_state = Input::new(vulkan_state.surface());
         Self {
             game_state: initial_state,
             renderer_state,
             vulkan_state,
             asset_storage,
-            input_state: Default::default(),
+            input_state,
             event_loop: Some(event_loop),
         }
     }
 
     pub fn update(&mut self) {
         /* game update for next frame */
-        let speed = if self.input_state.is_key_down(VirtualKeyCode::LShift) {
+        let speed = if self
+            .input_state
+            .keyboard
+            .is_key_down(VirtualKeyCode::LShift)
+        {
             0.005
         } else {
             0.00125
         };
-        if self.input_state.is_key_down(VirtualKeyCode::A) {
+        if self.input_state.keyboard.is_key_down(VirtualKeyCode::A) {
             self.game_state.camera.move_left(speed)
         }
-        if self.input_state.is_key_down(VirtualKeyCode::D) {
+        if self.input_state.keyboard.is_key_down(VirtualKeyCode::D) {
             self.game_state.camera.move_right(speed)
         }
-        if self.input_state.is_key_down(VirtualKeyCode::S) {
+        if self.input_state.keyboard.is_key_down(VirtualKeyCode::S) {
             self.game_state.camera.move_backward(speed)
         }
-        if self.input_state.is_key_down(VirtualKeyCode::W) {
+        if self.input_state.keyboard.is_key_down(VirtualKeyCode::W) {
             self.game_state.camera.move_forward(speed)
         }
-        if self.input_state.is_key_down(VirtualKeyCode::Space) {
+        if self.input_state.keyboard.is_key_down(VirtualKeyCode::Space) {
             self.game_state.camera.move_up(speed)
         }
-        if self.input_state.is_key_down(VirtualKeyCode::LControl) {
+        if self
+            .input_state
+            .keyboard
+            .is_key_down(VirtualKeyCode::LControl)
+        {
             self.game_state.camera.move_down(speed)
         }
 
-        if self.input_state.was_key_pressed(VirtualKeyCode::F) {
+        if self.input_state.keyboard.was_key_pressed(VirtualKeyCode::F) {
             let obj = self.game_state.objects_u16.get_mut(0).unwrap();
             obj.material = self.game_state.materials
                 [self.game_state.floor_mat % self.game_state.materials.len()]
@@ -72,7 +81,7 @@ impl Engine {
             self.game_state.floor_mat += 1;
         }
 
-        if self.input_state.was_key_pressed(VirtualKeyCode::L) {
+        if self.input_state.keyboard.was_key_pressed(VirtualKeyCode::L) {
             let mut rng = rand::thread_rng();
             self.game_state.directional_lights.push(DirectionalLight {
                 direction: Vector3::new(
@@ -90,7 +99,11 @@ impl Engine {
             })
         }
 
-        self.input_state.frame_finished();
+        let mouse_delta = self.input_state.mouse.delta();
+        self.game_state.camera.rotate(
+            Rad(mouse_delta.0 as f32 * 0.001),
+            Rad(mouse_delta.1 as f32 * 0.001),
+        )
     }
 
     pub fn run_forever(mut self) -> ! {
@@ -100,28 +113,18 @@ impl Engine {
             .run(move |ev, _, flow| match ev {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => *flow = ControlFlow::Exit,
+                    WindowEvent::Focused(focus) => self.input_state.set_enabled(focus),
                     WindowEvent::Resized(new_size) => {
                         self.game_state.camera.aspect_ratio =
                             new_size.width as f32 / new_size.height as f32
                     }
-                    WindowEvent::Focused(focus) => self.input_state.set_input_enabled(focus),
                     _ => {}
                 },
-                Event::DeviceEvent { event, .. } => {
-                    if let DeviceEvent::Key(k) = event {
-                        self.input_state.handle_event(k)
-                    }
-                    if let DeviceEvent::MouseMotion { delta } = event {
-                        if self.input_state.input_enabled {
-                            self.game_state
-                                .camera
-                                .rotate(Rad(delta.0 as f32 * 0.001), Rad(delta.1 as f32 * 0.001))
-                        }
-                    }
-                }
+                Event::DeviceEvent { event, .. } => self.input_state.handle_device_event(&event),
                 Event::RedrawEventsCleared => {
                     self.renderer_state.render_frame(&self.game_state);
                     self.update();
+                    self.input_state.frame_finished();
                 }
                 _ => {}
             });

@@ -151,6 +151,11 @@ impl VulkanState {
         }
     }
 
+    #[inline]
+    pub fn surface(&self) -> Arc<Surface<Window>> {
+        self.surface.clone()
+    }
+
     pub fn transfer_queue(&self) -> Arc<Queue> {
         self.transfer_queue.clone()
     }
