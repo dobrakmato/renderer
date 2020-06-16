@@ -3,7 +3,7 @@ use crate::input::Input;
 use crate::pod::DirectionalLight;
 use crate::render::{RendererState, VulkanState};
 use crate::{GameState, RendererConfiguration};
-use cgmath::{InnerSpace, Rad, Vector3};
+use cgmath::{InnerSpace, Vector3};
 use rand::Rng;
 use std::sync::Arc;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -14,7 +14,7 @@ pub struct Engine {
     pub game_state: GameState,
     pub vulkan_state: VulkanState,
     pub renderer_state: RendererState,
-    input_state: Input,
+    pub input_state: Input,
     pub asset_storage: Arc<Storage>,
     event_loop: Option<EventLoop<()>>,
 }
@@ -40,38 +40,7 @@ impl Engine {
     }
 
     pub fn update(&mut self) {
-        /* game update for next frame */
-        let speed = if self
-            .input_state
-            .keyboard
-            .is_key_down(VirtualKeyCode::LShift)
-        {
-            0.005
-        } else {
-            0.00125
-        };
-        if self.input_state.keyboard.is_key_down(VirtualKeyCode::A) {
-            self.game_state.camera.move_left(speed)
-        }
-        if self.input_state.keyboard.is_key_down(VirtualKeyCode::D) {
-            self.game_state.camera.move_right(speed)
-        }
-        if self.input_state.keyboard.is_key_down(VirtualKeyCode::S) {
-            self.game_state.camera.move_backward(speed)
-        }
-        if self.input_state.keyboard.is_key_down(VirtualKeyCode::W) {
-            self.game_state.camera.move_forward(speed)
-        }
-        if self.input_state.keyboard.is_key_down(VirtualKeyCode::Space) {
-            self.game_state.camera.move_up(speed)
-        }
-        if self
-            .input_state
-            .keyboard
-            .is_key_down(VirtualKeyCode::LControl)
-        {
-            self.game_state.camera.move_down(speed)
-        }
+        self.game_state.camera.update(&self.input_state);
 
         if self.input_state.keyboard.was_key_pressed(VirtualKeyCode::F) {
             let obj = self.game_state.objects_u16.get_mut(0).unwrap();
@@ -98,12 +67,6 @@ impl Engine {
                 ),
             })
         }
-
-        let mouse_delta = self.input_state.mouse.delta();
-        self.game_state.camera.rotate(
-            Rad(mouse_delta.0 as f32 * 0.001),
-            Rad(mouse_delta.1 as f32 * 0.001),
-        )
     }
 
     pub fn run_forever(mut self) -> ! {

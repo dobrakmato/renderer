@@ -336,8 +336,8 @@ impl RendererState {
             .map(|x| x.expect("cannot create framebuffer"))
             .collect();
 
-        std::mem::replace(&mut self.swapchain, new_swapchain);
-        std::mem::replace(&mut self.framebuffers, new_framebuffers);
+        self.swapchain = new_swapchain;
+        self.framebuffers = new_framebuffers;
     }
 }
 

@@ -1,4 +1,6 @@
+use crate::input::Input;
 use cgmath::{vec3, InnerSpace, Matrix4, PerspectiveFov, Point3, Rad, Transform, Vector3};
+use winit::event::VirtualKeyCode;
 
 pub trait Camera<T> {
     fn projection_matrix(&self) -> Matrix4<T>;
@@ -62,6 +64,39 @@ impl PerspectiveCamera {
         if angle.abs() > 0.999 {
             self.forward = old_forward;
         }
+    }
+
+    pub fn update(&mut self, input: &Input) {
+        let speed = if input.keyboard.is_key_down(VirtualKeyCode::LShift) {
+            0.005
+        } else {
+            0.00125
+        };
+
+        if input.keyboard.is_key_down(VirtualKeyCode::A) {
+            self.move_left(speed)
+        }
+        if input.keyboard.is_key_down(VirtualKeyCode::D) {
+            self.move_right(speed)
+        }
+        if input.keyboard.is_key_down(VirtualKeyCode::S) {
+            self.move_backward(speed)
+        }
+        if input.keyboard.is_key_down(VirtualKeyCode::W) {
+            self.move_forward(speed)
+        }
+        if input.keyboard.is_key_down(VirtualKeyCode::Space) {
+            self.move_up(speed)
+        }
+        if input.keyboard.is_key_down(VirtualKeyCode::LControl) {
+            self.move_down(speed)
+        }
+
+        let mouse_delta = input.mouse.delta();
+        self.rotate(
+            Rad(mouse_delta.0 as f32 * 0.001),
+            Rad(mouse_delta.1 as f32 * 0.001),
+        )
     }
 }
 
