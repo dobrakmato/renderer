@@ -14,11 +14,10 @@ should result in clearer design and less annoyance from borrow checker. Parts of
 - [x] support for multiple resource "roots"
 - [ ] loading from HTTP
 - [ ] caching of HTTP downloaded resources
-- [ ] loading of multiple resources at same time
-- [ ] pipelined loading
+- [x] loading of multiple resources at same time
 - [ ] resource hot-reloading for local files
-- [ ] stores metadata about "imported" files in json 
-- [ ] can detect changes between "builds" and perform incremental compilation
+- [x] stores metadata about "imported" files in json 
+- [x] can detect changes between "builds" and perform incremental compilation
 
 
 ### Deferred Rendering

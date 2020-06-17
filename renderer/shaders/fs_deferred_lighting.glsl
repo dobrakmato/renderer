@@ -48,7 +48,7 @@ vec3 light(vec3 N, vec3 L, vec3 V, vec3 color, float roughness, vec3 albedo, flo
     vec3 H = normalize(L + V);
     float alpha = roughness * roughness;
 
-    float NdotV = dot(N, V) + 1e-5;
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float NdotL = clamp(dot(N, L), 0.0, 1.0);
     float NdotH = clamp(dot(N, H), 0.0, 1.0);
     float VdotH = clamp(dot(V, H), 0.0, 1.0);
