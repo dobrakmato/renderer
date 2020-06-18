@@ -73,7 +73,7 @@ the model.
 
 // uses Aug 23 dataset
 
-use crate::pod::HosekWilkieParams;
+use crate::render::ubo::HosekWilkieParams;
 use cgmath::Vector3;
 
 pub static DATASET_RGB1: [f32; 1080] = [

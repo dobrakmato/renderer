@@ -1,5 +1,5 @@
 use crate::assets::Storage;
-use crate::pod::MaterialData;
+use crate::render::ubo::MaterialData;
 use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
 use bf::uuid::Uuid;

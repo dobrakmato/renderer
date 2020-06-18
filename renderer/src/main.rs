@@ -1,7 +1,7 @@
 use crate::assets::lookup;
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
-use crate::pod::DirectionalLight;
+use crate::render::ubo::DirectionalLight;
 use crate::render::{BasicVertex, Object, Transform};
 use crate::resources::material::{FallbackMaps, StaticMaterial};
 use crate::resources::mesh::create_mesh;
@@ -22,7 +22,6 @@ mod camera;
 mod engine;
 mod hosek;
 mod input;
-mod pod;
 mod render;
 mod resources;
 mod samplers;
@@ -86,7 +85,6 @@ fn main() {
                 direction: vec3(3.0, 1.0, 1.0).normalize(),
                 intensity: 2.5,
                 color: vec3(1.0, 1.0, 0.8),
-                _dummy0: 0.0,
             }],
             materials: vec![],
             floor_mat: 0,

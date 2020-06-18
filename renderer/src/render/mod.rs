@@ -2,12 +2,12 @@ use crate::assets::lookup;
 use crate::assets::Storage;
 use crate::camera::Camera;
 use crate::hosek::make_hosek_wilkie_params;
-use crate::pod::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
+use crate::render::ubo::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
 use crate::resources::material::Material;
 use crate::resources::mesh::{create_full_screen_triangle, create_mesh, Mesh};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
-use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3};
+use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3, Zero};
 use safe_transmute::TriviallyTransmutable;
 use smallvec::SmallVec;
 use std::sync::Arc;
@@ -46,6 +46,8 @@ pub const OBJECT_DATA_UBO_DESCRIPTOR_SET: usize = 2;
 pub const SUBPASS_UBO_DESCRIPTOR_SET: usize = 1;
 pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
 pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
+
+pub mod ubo;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct BasicVertex {
@@ -903,7 +905,11 @@ impl<'r, 's> Frame<'r, 's> {
         b.next_subpass(false).unwrap();
 
         // 2. SUBPASS - Lighting
-        let mut lights = [Default::default(); 1024];
+        let mut lights = [DirectionalLight {
+            direction: Vector3::zero(),
+            intensity: 0.0,
+            color: Vector3::zero(),
+        }; 1024];
         for (idx, light) in state.directional_lights.iter().enumerate() {
             lights[idx] = *light;
         }

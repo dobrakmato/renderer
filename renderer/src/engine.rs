@@ -1,6 +1,6 @@
 use crate::assets::Storage;
 use crate::input::Input;
-use crate::pod::DirectionalLight;
+use crate::render::ubo::DirectionalLight;
 use crate::render::{RendererState, VulkanState};
 use crate::{GameState, RendererConfiguration};
 use cgmath::{InnerSpace, Vector3};
@@ -65,7 +65,6 @@ impl Engine {
                     rng.gen_range(0.3, 1.0),
                     rng.gen_range(0.3, 1.0),
                 ),
-                _dummy0: 0.0,
             })
         }
     }

@@ -1,4 +1,4 @@
-use crate::pod::MaterialData;
+use crate::render::ubo::MaterialData;
 use bf::uuid::Uuid;
 use std::sync::{Arc, Mutex};
 use vulkano::buffer::{BufferUsage, CpuBufferPool};

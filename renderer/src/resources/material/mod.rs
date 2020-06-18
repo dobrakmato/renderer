@@ -1,4 +1,4 @@
-use crate::pod::MaterialData;
+use crate::render::ubo::MaterialData;
 use std::sync::Arc;
 use vulkano::format::Format;
 use vulkano::image::ImmutableImage;
