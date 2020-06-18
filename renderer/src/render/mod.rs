@@ -1,13 +1,17 @@
+//! Objects & procedures related to rendering.
+
 use crate::assets::lookup;
 use crate::assets::Storage;
 use crate::camera::Camera;
 use crate::hosek::make_hosek_wilkie_params;
+use crate::render::transform::Transform;
 use crate::render::ubo::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
+use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
 use crate::resources::material::Material;
 use crate::resources::mesh::{create_full_screen_triangle, create_mesh, IndexedMesh};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
-use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3, Zero};
+use cgmath::{vec3, SquareMatrix, Vector3, Zero};
 use smallvec::SmallVec;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuBufferPool};
@@ -46,37 +50,9 @@ pub const SUBPASS_UBO_DESCRIPTOR_SET: usize = 1;
 pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
 pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
 
+pub mod transform;
 pub mod ubo;
-mod vertex;
-
-pub use vertex::{NormalMappedVertex, PositionOnlyVertex};
-
-#[derive(Copy, Clone)]
-pub struct Transform {
-    pub position: Vector3<f32>,
-    pub rotation: Quaternion<f32>,
-    pub scale: Vector3<f32>,
-}
-
-impl Default for Transform {
-    fn default() -> Self {
-        Self {
-            position: vec3(0.0, 0.0, 0.0),
-            rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
-            scale: vec3(1.0, 1.0, 1.0),
-        }
-    }
-}
-
-impl Into<Matrix4<f32>> for Transform {
-    fn into(self) -> Matrix4<f32> {
-        let scale = Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z);
-        let rotation = Matrix4::from(self.rotation);
-        let translate = Matrix4::from_translation(self.position);
-
-        translate * scale * rotation
-    }
-}
+pub mod vertex;
 
 // global vulkan object not related to one render path
 pub struct VulkanState {

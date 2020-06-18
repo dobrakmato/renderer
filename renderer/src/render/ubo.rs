@@ -1,4 +1,4 @@
-//! Structs for data passed to shaders via Uniform Buffer Objects and other mechanisms.
+//! Structs for data passed to shaders via *Uniform Buffer Objects* and other mechanisms.
 
 use cgmath::{Matrix4, Vector3};
 use core::assert_alignment;

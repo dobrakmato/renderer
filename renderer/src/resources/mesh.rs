@@ -1,6 +1,6 @@
 //! Meshes and functions used to created meshes.
 
-use crate::render::PositionOnlyVertex;
+use crate::render::vertex::PositionOnlyVertex;
 use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};

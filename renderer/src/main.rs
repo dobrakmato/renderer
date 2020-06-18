@@ -2,7 +2,8 @@ use crate::assets::lookup;
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
 use crate::render::ubo::DirectionalLight;
-use crate::render::{NormalMappedVertex, Object, Transform};
+use crate::render::vertex::NormalMappedVertex;
+use crate::render::Object;
 use crate::resources::material::{FallbackMaps, StaticMaterial};
 use crate::resources::mesh::create_mesh;
 use bf::uuid::Uuid;
@@ -14,6 +15,7 @@ use std::time::Instant;
 use winit::dpi::{LogicalSize, Size};
 use winit::event_loop::EventLoop;
 
+use crate::render::transform::Transform;
 #[cfg(debug_assertions)]
 use log::warn;
 
