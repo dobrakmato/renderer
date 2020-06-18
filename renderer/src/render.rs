@@ -40,6 +40,13 @@ use winit::dpi::Size;
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
 
+// consts to descriptor set binding indices
+pub const FRAME_DATA_UBO_DESCRIPTOR_SET: usize = 0;
+pub const OBJECT_DATA_UBO_DESCRIPTOR_SET: usize = 2;
+pub const SUBPASS_UBO_DESCRIPTOR_SET: usize = 1;
+pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
+pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
+
 #[derive(Default, Debug, Clone, Copy)]
 pub struct BasicVertex {
     pub position: [f32; 3],
@@ -375,7 +382,7 @@ impl<VDef: Vertex + Send + Sync + 'static, I: Index + Sync + Send + 'static> Obj
         let ds_object_matrix_data = PersistentDescriptorSet::start(
             path.buffers
                 .geometry_pipeline
-                .descriptor_set_layout(1)
+                .descriptor_set_layout(OBJECT_DATA_UBO_DESCRIPTOR_SET)
                 .unwrap()
                 .clone(),
         )
@@ -390,8 +397,8 @@ impl<VDef: Vertex + Send + Sync + 'static, I: Index + Sync + Send + 'static> Obj
             vec![self.mesh.vertex_buffer().clone()],
             self.mesh.index_buffer().clone(),
             (
-                self.material.descriptor_set(),
                 ds_frame_matrix_data,
+                self.material.descriptor_set(),
                 ds_object_matrix_data,
             ),
             (),
@@ -585,7 +592,10 @@ impl RenderPathBuffers {
         // todo: decide whether we need this for using subpassLoad in shaders
         let tonemap_ds = Arc::new(
             PersistentDescriptorSet::start(
-                tonemap_pipeline.descriptor_set_layout(0).unwrap().clone(),
+                tonemap_pipeline
+                    .descriptor_set_layout(SUBPASS_UBO_DESCRIPTOR_SET)
+                    .unwrap()
+                    .clone(),
             )
             .add_image(hdr_buffer.clone())
             .unwrap()
@@ -594,7 +604,10 @@ impl RenderPathBuffers {
         );
         let lighting_gbuffer_ds = Arc::new(
             PersistentDescriptorSet::start(
-                lighting_pipeline.descriptor_set_layout(0).unwrap().clone(),
+                lighting_pipeline
+                    .descriptor_set_layout(SUBPASS_UBO_DESCRIPTOR_SET)
+                    .unwrap()
+                    .clone(),
             )
             .add_image(geometry_buffer.buffer1.clone())
             .unwrap()
@@ -755,14 +768,11 @@ impl RenderPath {
     }
 
     pub fn recreate_buffers(&mut self, dimensions: [u32; 2]) {
-        std::mem::replace(
-            &mut self.buffers,
-            RenderPathBuffers::new(
-                self.render_pass.clone(),
-                self.render_pass.device().clone(),
-                dimensions,
-            ),
-        );
+        self.buffers = RenderPathBuffers::new(
+            self.render_pass.clone(),
+            self.render_pass.device().clone(),
+            dimensions,
+        )
     }
 }
 
@@ -802,7 +812,7 @@ impl<'r, 's> Frame<'r, 's> {
             PersistentDescriptorSet::start(
                 path.buffers
                     .geometry_pipeline
-                    .descriptor_set_layout(2)
+                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
                     .unwrap()
                     .clone(),
             )
@@ -814,7 +824,7 @@ impl<'r, 's> Frame<'r, 's> {
         let ds_frame_matrix_data_lighting = PersistentDescriptorSet::start(
             path.buffers
                 .lighting_pipeline
-                .descriptor_set_layout(2)
+                .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
                 .unwrap()
                 .clone(),
         )
@@ -825,7 +835,7 @@ impl<'r, 's> Frame<'r, 's> {
         let ds_frame_matrix_data_skybox = PersistentDescriptorSet::start(
             path.buffers
                 .skybox_pipeline
-                .descriptor_set_layout(0)
+                .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
                 .unwrap()
                 .clone(),
         )
@@ -848,7 +858,7 @@ impl<'r, 's> Frame<'r, 's> {
         let sky_hw_params = PersistentDescriptorSet::start(
             path.buffers
                 .skybox_pipeline
-                .descriptor_set_layout(1)
+                .descriptor_set_layout(SKY_DATA_UBO_DESCRIPTOR_SET)
                 .unwrap()
                 .clone(),
         )
@@ -901,7 +911,7 @@ impl<'r, 's> Frame<'r, 's> {
             PersistentDescriptorSet::start(
                 path.buffers
                     .lighting_pipeline
-                    .descriptor_set_layout(1)
+                    .descriptor_set_layout(LIGHTS_UBO_DESCRIPTOR_SET)
                     .unwrap()
                     .clone(),
             )
@@ -916,9 +926,9 @@ impl<'r, 's> Frame<'r, 's> {
             vec![path.fst.vertex_buffer().clone()],
             path.fst.index_buffer().clone(),
             (
+                ds_frame_matrix_data_lighting,
                 path.buffers.lighting_gbuffer_ds.clone(),
                 lighting_lights_ds,
-                ds_frame_matrix_data_lighting,
             ),
             crate::shaders::fs_deferred_lighting::ty::PushConstants {
                 camera_pos: state.camera.position.into(),
@@ -950,7 +960,10 @@ impl<'r, 's> Frame<'r, 's> {
             &no_dynamic_state,
             vec![path.fst.vertex_buffer().clone()],
             path.fst.index_buffer().clone(),
-            path.buffers.tonemap_ds.clone(),
+            (
+                path.buffers.tonemap_ds.clone(), // todo: vulkano needs array of two descriptor sets as the max(descriptor_set_index) is 1
+                path.buffers.tonemap_ds.clone(),
+            ),
             (),
         )
         .expect("cannot do tonemap pass");

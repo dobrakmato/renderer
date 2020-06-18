@@ -11,7 +11,7 @@ pub use r#static::StaticMaterial;
 use vulkano::descriptor::DescriptorSet;
 
 /// Index of descriptor set that is used for material data.
-pub const MATERIAL_UBO_DESCRIPTOR_SET: usize = 0;
+pub const MATERIAL_UBO_DESCRIPTOR_SET: usize = 1;
 
 /// Trait that represents an object that can be used as a material
 /// in rendering process.

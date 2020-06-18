@@ -8,13 +8,13 @@ layout(location = 1) out vec4 albedo_occlusion;
 layout(location = 2) out vec4 roughness_metallic;
 
 // material textures
-layout(set = 0, binding = 0) uniform sampler2D albedo_map;
-layout(set = 0, binding = 1) uniform sampler2D normal_map;
-layout(set = 0, binding = 2) uniform sampler2D displacement_map;
-layout(set = 0, binding = 3) uniform sampler2D roughness_map;
-layout(set = 0, binding = 4) uniform sampler2D occlusion_map;
-layout(set = 0, binding = 5) uniform sampler2D metallic_map;
-layout(set = 0, binding = 6) uniform MaterialData {
+layout(set = 1, binding = 0) uniform sampler2D albedo_map;
+layout(set = 1, binding = 1) uniform sampler2D normal_map;
+layout(set = 1, binding = 2) uniform sampler2D displacement_map;
+layout(set = 1, binding = 3) uniform sampler2D roughness_map;
+layout(set = 1, binding = 4) uniform sampler2D occlusion_map;
+layout(set = 1, binding = 5) uniform sampler2D metallic_map;
+layout(set = 1, binding = 6) uniform MaterialData {
     vec3 albedo_color;
     float alpha_cutoff;
     float roughness;

@@ -1,9 +1,9 @@
 #version 450
 
-layout(set = 0, binding = 0, input_attachment_index = 0) uniform subpassInput normal_l_model;
-layout(set = 0, binding = 1, input_attachment_index = 1) uniform subpassInput albedo_occlusion;
-layout(set = 0, binding = 2, input_attachment_index = 2) uniform subpassInput roughness_metallic;
-layout(set = 0, binding = 3, input_attachment_index = 3) uniform subpassInput depth;
+layout(set = 1, binding = 0, input_attachment_index = 0) uniform subpassInput normal_l_model;
+layout(set = 1, binding = 1, input_attachment_index = 1) uniform subpassInput albedo_occlusion;
+layout(set = 1, binding = 2, input_attachment_index = 2) uniform subpassInput roughness_metallic;
+layout(set = 1, binding = 3, input_attachment_index = 3) uniform subpassInput depth;
 
 layout(location = 0) out vec4 hdr;
 
@@ -15,11 +15,11 @@ struct DirectionalLight {
     vec3 color;
 };
 
-layout(set = 1, binding = 0) uniform Lights {
+layout(set = 2, binding = 0) uniform Lights {
     DirectionalLight lights[MAX_LIGHTS];
 } lights_ubo;
 
-layout(set = 2, binding = 0) uniform FrameMatrixData {
+layout(set = 0, binding = 0) uniform FrameMatrixData {
     mat4 view;
     mat4 projection;
     mat4 invProjection;
