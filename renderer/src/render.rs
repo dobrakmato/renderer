@@ -593,7 +593,7 @@ impl RenderPathBuffers {
         let tonemap_ds = Arc::new(
             PersistentDescriptorSet::start(
                 tonemap_pipeline
-                    .descriptor_set_layout(SUBPASS_UBO_DESCRIPTOR_SET)
+                    .descriptor_set_layout(0) // workaround: vulkano does not work with sparse indices
                     .unwrap()
                     .clone(),
             )
@@ -960,10 +960,7 @@ impl<'r, 's> Frame<'r, 's> {
             &no_dynamic_state,
             vec![path.fst.vertex_buffer().clone()],
             path.fst.index_buffer().clone(),
-            (
-                path.buffers.tonemap_ds.clone(), // todo: vulkano needs array of two descriptor sets as the max(descriptor_set_index) is 1
-                path.buffers.tonemap_ds.clone(),
-            ),
+            path.buffers.tonemap_ds.clone(),
             (),
         )
         .expect("cannot do tonemap pass");
