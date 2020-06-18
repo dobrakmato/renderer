@@ -1,3 +1,5 @@
+//! Meshes and functions used to created meshes.
+
 use crate::render::PositionOnlyVertex;
 use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
@@ -8,18 +10,20 @@ use vulkano::pipeline::input_assembly::Index;
 use vulkano::pipeline::vertex::Vertex;
 use vulkano::sync::GpuFuture;
 
-/// Renderable triangular geometry with specified vertex format
+/// Renderable indexed triangular geometry with specified vertex format
 /// and index type.
-pub struct Mesh<V, I>
+pub struct IndexedMesh<V, I>
 where
     V: Vertex,
     I: Index,
 {
+    /// Vertex buffer.
     vertex_buffer: Arc<ImmutableBuffer<[V]>>,
+    /// Index buffer.
     index_buffer: Arc<ImmutableBuffer<[I]>>,
 }
 
-impl<V, I> Mesh<V, I>
+impl<V, I> IndexedMesh<V, I>
 where
     V: Vertex,
     I: Index,
@@ -35,25 +39,33 @@ where
         })
     }
 
+    /// Returns the `Arc` reference to vertex buffer of this mesh.
     #[inline]
     pub fn vertex_buffer(&self) -> &Arc<ImmutableBuffer<[V]>> {
         &self.vertex_buffer
     }
 
+    /// Returns the `Arc` reference to index buffer of this mesh.
     #[inline]
     pub fn index_buffer(&self) -> &Arc<ImmutableBuffer<[I]>> {
         &self.index_buffer
     }
 }
 
+/// Possible errors that can happen when creating a buffer.
 #[derive(Debug)]
 pub enum CreateBufferError {
+    /// Generic parameters representing a single element in the created buffer
+    /// is of incorrect type.
     IncorrectElementType,
+    /// The buffer couldn't be allocated.
     CannotAllocateBuffer(DeviceMemoryAllocError),
 }
 
-/// Helper function to create a GPU buffer from array elements of type T encoded
+/// Helper function to create a GPU buffer from array elements of type `T` encoded
 /// as array of bytes.
+///
+/// This function is internally used by [`create_mesh`](fn.create_mesh.html) fucntion.
 fn create_buffer<T>(
     bytes: &[u8],
     queue: Arc<Queue>,
@@ -94,11 +106,12 @@ where
 }
 
 /// This function creates a `Mesh` struct from provided `bf::mesh::Mesh` asset
-/// without any conversion.
+/// without any conversion. This function returns the mesh and `GpuFuture` that
+/// represents the time when both buffers (and thus the mesh) are ready to use.
 pub fn create_mesh<V, I>(
     from: &bf::mesh::Mesh,
     queue: Arc<Queue>,
-) -> Result<(Arc<Mesh<V, I>>, impl GpuFuture), CreateBufferError>
+) -> Result<(Arc<IndexedMesh<V, I>>, impl GpuFuture), CreateBufferError>
 where
     V: Vertex + TriviallyTransmutable + Send + Sync + 'static,
     I: Index + TriviallyTransmutable + Send + Sync + 'static,
@@ -124,15 +137,15 @@ where
         BufferUsage::index_buffer(),
     )?;
 
-    Ok((Mesh::new(vertex, index), f1.join(f2)))
+    Ok((IndexedMesh::new(vertex, index), f1.join(f2)))
 }
 
-/// Generates a new Mesh instance that is a full-screen triangle that can be used
-/// to perform full-screen passes. This f unction returns the mesh and future that
-/// represents when both buffers (and thus the mesh) are ready to use.
+/// Generates a new `Mesh` instance that is a full-screen triangle that can be used
+/// to perform full-screen passes. This function returns the mesh and `GpuFuture` that
+/// represents the time when both buffers (and thus the mesh) are ready to use.
 pub fn create_full_screen_triangle(
     queue: Arc<Queue>,
-) -> Result<(Arc<Mesh<PositionOnlyVertex, u16>>, impl GpuFuture), DeviceMemoryAllocError> {
+) -> Result<(Arc<IndexedMesh<PositionOnlyVertex, u16>>, impl GpuFuture), DeviceMemoryAllocError> {
     const VERTEX_DATA_FST: [PositionOnlyVertex; 3] = [
         PositionOnlyVertex {
             position: [-1.0, -1.0, 0.0],
@@ -158,7 +171,7 @@ pub fn create_full_screen_triangle(
     )?;
 
     Ok((
-        Mesh::new(vertex_buffer, index_buffer),
+        IndexedMesh::new(vertex_buffer, index_buffer),
         vbo_future.join(ibo_future),
     ))
 }

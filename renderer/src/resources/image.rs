@@ -1,3 +1,5 @@
+//! Images and code related to image creation.
+
 use std::sync::Arc;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::CpuAccessibleBuffer;
@@ -29,6 +31,7 @@ fn to_vulkan_format(format: bf::image::Format) -> Format {
     }
 }
 
+/// Errors that may happen when creating an image.
 #[derive(Debug)]
 pub enum CreateImageError {
     CannotCreateImage(ImageCreationError),
@@ -36,7 +39,8 @@ pub enum CreateImageError {
 }
 
 /// This function creates an `ImmutableImage` struct from provided `bf::image::Image` asset
-/// without any conversion.
+/// without any conversion. This function returns the image and `GpuFuture` that
+/// represents the time when both buffers (and thus the mesh) are ready to use.
 pub fn create_image(
     image: &bf::image::Image,
     queue: Arc<Queue>,

@@ -1,3 +1,5 @@
+//! Dynamic material that can change its properties in each frame.
+
 use crate::render::ubo::MaterialData;
 use bf::uuid::Uuid;
 use std::sync::{Arc, Mutex};
@@ -16,17 +18,26 @@ use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
 
+/// Errors that may happen when creating a dynamic material.
 #[derive(Debug)]
 pub enum DynamicMaterialError {
+    /// Uniform Buffer couldn't be created because of allocation error.
     CannotCreateUniformBuffer(DeviceMemoryAllocError),
+    /// Descriptor set has invalid number.
     InvalidDescriptorSetNumber,
+    /// Persistent descriptor set could be created.
     CannotCreateDescriptorSet(PersistentDescriptorSetError),
+    /// Persistent descriptor set could be built.
     CannotBuildDescriptorSet(PersistentDescriptorSetBuildError),
 }
 
 /// Dynamic materials can change their properties and textures
 /// at run-time. Static materials should be used when
 /// possible as they might be faster and more performant then dynamic.
+///
+/// You can change properties of this material at any time. However
+/// the changes will be reflected in the next frame as `DescriptorSet`
+/// for dynamic materials is rebuild on each frame.
 pub struct DynamicMaterial {
     uniform_buffer_pool: CpuBufferPool<MaterialData>,
     descriptor_set_pool: Mutex<FixedSizeDescriptorSetsPool>,
@@ -97,6 +108,8 @@ impl DynamicMaterial {
 }
 
 impl Material for DynamicMaterial {
+    /// This function panics when the descriptor set for this
+    /// dynamic material cloud not be created.
     fn descriptor_set(&self) -> Arc<dyn DescriptorSet + Send + Sync> {
         fn internal(
             mat: &DynamicMaterial,

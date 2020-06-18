@@ -4,11 +4,10 @@ use crate::camera::Camera;
 use crate::hosek::make_hosek_wilkie_params;
 use crate::render::ubo::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
 use crate::resources::material::Material;
-use crate::resources::mesh::{create_full_screen_triangle, create_mesh, Mesh};
+use crate::resources::mesh::{create_full_screen_triangle, create_mesh, IndexedMesh};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
 use cgmath::{vec3, Matrix4, Quaternion, SquareMatrix, Vector3, Zero};
-use safe_transmute::TriviallyTransmutable;
 use smallvec::SmallVec;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuBufferPool};
@@ -48,26 +47,9 @@ pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
 pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
 
 pub mod ubo;
+mod vertex;
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct BasicVertex {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
-    pub uv: [f32; 2],
-    pub tangent: [f32; 4],
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct PositionOnlyVertex {
-    pub position: [f32; 3],
-}
-
-unsafe impl TriviallyTransmutable for BasicVertex {}
-
-unsafe impl TriviallyTransmutable for PositionOnlyVertex {}
-
-vulkano::impl_vertex!(BasicVertex, position, normal, uv, tangent);
-vulkano::impl_vertex!(PositionOnlyVertex, position);
+pub use vertex::{NormalMappedVertex, PositionOnlyVertex};
 
 #[derive(Copy, Clone)]
 pub struct Transform {
@@ -352,13 +334,13 @@ impl RendererState {
 
 pub struct Object<VDef: Vertex, I: Index> {
     pub transform: Transform,
-    mesh: Arc<Mesh<VDef, I>>,
+    mesh: Arc<IndexedMesh<VDef, I>>,
     pub material: Arc<dyn Material>,
 }
 
 impl<VDef: Vertex + Send + Sync + 'static, I: Index + Sync + Send + 'static> Object<VDef, I> {
     pub fn new(
-        mesh: Arc<Mesh<VDef, I>>,
+        mesh: Arc<IndexedMesh<VDef, I>>,
         material: Arc<dyn Material>,
         transform: Transform,
     ) -> Self {
@@ -459,11 +441,11 @@ pub struct RenderPath {
     pub samplers: Samplers,
     pub white_texture: Arc<ImmutableImage<Format>>,
 
-    fst: Arc<Mesh<PositionOnlyVertex, u16>>,
+    fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     frame_matrix_data: CpuBufferPool<FrameMatrixData>,
     object_matrix_data: CpuBufferPool<ObjectMatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
-    sky_mesh: Arc<Mesh<BasicVertex, u16>>,
+    sky_mesh: Arc<IndexedMesh<NormalMappedVertex, u16>>,
 }
 
 // long-lived global buffers and data dependant on the render resolution
@@ -507,7 +489,7 @@ impl RenderPathBuffers {
         // create basic pipeline for drawing
         let geometry_pipeline = Arc::new(
             GraphicsPipeline::start()
-                .vertex_input_single_buffer::<BasicVertex>()
+                .vertex_input_single_buffer::<NormalMappedVertex>()
                 .vertex_shader(vs.main_entry_point(), ())
                 .fragment_shader(fs.main_entry_point(), ())
                 .triangle_list()
@@ -534,7 +516,7 @@ impl RenderPathBuffers {
 
         let skybox_pipeline = Arc::new(
             GraphicsPipeline::start()
-                .vertex_input_single_buffer::<BasicVertex>()
+                .vertex_input_single_buffer::<NormalMappedVertex>()
                 .vertex_shader(sky_vs.main_entry_point(), ())
                 .fragment_shader(sky_fs.main_entry_point(), ())
                 .triangle_list()

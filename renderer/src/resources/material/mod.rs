@@ -1,3 +1,5 @@
+//! Static & dynamic materials.
+
 use crate::render::ubo::MaterialData;
 use std::sync::Arc;
 use vulkano::format::Format;
@@ -32,16 +34,25 @@ impl Into<MaterialData> for bf::material::Material {
     }
 }
 
-/// Struct containing the default fallback maps (images) that will be
-/// used when sampling a material that dont have some maps.
+/// Struct containing the default fallback maps (images) that should be
+/// used when shading a material that doesn't have some maps.
+///
+/// This struct has several methods. Each of them works the same way.
+/// The function accepts an `Option` of `Arc<ImmutableImage>`.
+/// - If the option is `Some`, this function returns cloned `Arc` of the passed in reference.
+/// - If the option is `None`, this function returns cloned `Arc` of fallback texture.
 pub struct FallbackMaps {
+    /// Fallback texture that is white (255, 255, 255).
     pub fallback_white: Arc<ImmutableImage<Format>>,
+    /// Fallback texture that is black (0, 0, 0).
     pub fallback_black: Arc<ImmutableImage<Format>>,
+    /// Fallback texture that is flat tangent space normal map (128, 128, 255).
     pub fallback_normal: Arc<ImmutableImage<Format>>,
 }
 
 macro_rules! fallback_fn {
     ($name: ident, $field: ident) => {
+        /// See [`FallbackMaps`](struct.FallbackMaps.html) docs for more information on usage.
         #[inline]
         pub fn $name(
             &self,

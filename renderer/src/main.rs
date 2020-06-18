@@ -2,7 +2,7 @@ use crate::assets::lookup;
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
 use crate::render::ubo::DirectionalLight;
-use crate::render::{BasicVertex, Object, Transform};
+use crate::render::{NormalMappedVertex, Object, Transform};
 use crate::resources::material::{FallbackMaps, StaticMaterial};
 use crate::resources::mesh::create_mesh;
 use bf::uuid::Uuid;
@@ -46,8 +46,8 @@ impl Into<Size> for RendererConfiguration {
 pub struct GameState {
     start: Instant,
     camera: PerspectiveCamera,
-    objects_u16: Vec<Object<BasicVertex, u16>>,
-    objects_u32: Vec<Object<BasicVertex, u32>>,
+    objects_u16: Vec<Object<NormalMappedVertex, u16>>,
+    objects_u32: Vec<Object<NormalMappedVertex, u32>>,
     directional_lights: Vec<DirectionalLight>,
     materials: Vec<Arc<StaticMaterial>>,
     floor_mat: usize,
@@ -122,13 +122,13 @@ fn load(engine: &mut Engine) {
     };
 
     let static_mesh = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh::<BasicVertex, u16>(&mesh, assets.transfer_queue.clone())
+        create_mesh::<NormalMappedVertex, u16>(&mesh, assets.transfer_queue.clone())
             .expect("cannot create mesh from bf::mesh::Mesh")
             .0
     };
 
     let static_mesh_u32 = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh::<BasicVertex, u32>(&mesh, assets.transfer_queue.clone())
+        create_mesh::<NormalMappedVertex, u32>(&mesh, assets.transfer_queue.clone())
             .expect("cannot create mesh from bf::mesh::Mesh")
             .0
     };

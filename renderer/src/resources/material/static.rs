@@ -1,3 +1,5 @@
+//! Static material whose properties are determined at creation time.
+
 use crate::assets::Storage;
 use crate::render::ubo::MaterialData;
 use crate::resources::image::create_image;
@@ -15,11 +17,16 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
 use vulkano::sync::GpuFuture;
 
+/// Errors that may happen when creating a dynamic material.
 #[derive(Debug)]
 pub enum StaticMaterialError {
+    /// Uniform Buffer couldn't be created because of allocation error.
     CannotCreateUniformBuffer(DeviceMemoryAllocError),
+    /// Descriptor set has invalid number.
     InvalidDescriptorSetNumber,
+    /// Persistent descriptor set could be created.
     CannotCreateDescriptorSet(PersistentDescriptorSetError),
+    /// Persistent descriptor set could be built.
     CannotBuildDescriptorSet(PersistentDescriptorSetBuildError),
 }
 
