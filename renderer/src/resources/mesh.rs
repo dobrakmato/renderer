@@ -1,6 +1,7 @@
 //! Meshes and functions used to created meshes.
 
 use crate::render::vertex::PositionOnlyVertex;
+use bf::mesh::IndexType;
 use safe_transmute::{Error, TriviallyTransmutable};
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};
@@ -174,4 +175,52 @@ pub fn create_full_screen_triangle(
         IndexedMesh::new(vertex_buffer, index_buffer),
         vbo_future.join(ibo_future),
     ))
+}
+
+/// Renderable indexed triangular geometry with specified vertex format
+/// and **dynamic runtime chosen** index format.
+///
+/// You need to always match on variant before using the inner `IndexeMesh`.
+pub enum DynamicIndexedMesh<V: Vertex> {
+    U16(IndexedMesh<V, u16>),
+    U32(IndexedMesh<V, u32>),
+}
+
+/// Result of [`create_mesh_dynamic`](fn.create_mesh_dynamic.html) function invocation.
+pub type DynamicIndexedMeshResult<V> =
+    Result<(Arc<DynamicIndexedMesh<V>>, Box<dyn GpuFuture>), CreateBufferError>;
+
+/// Same as [`create_mesh`](fn.create_mesh.html) except the index type is chosen at
+/// runtime.
+///
+/// This function creates a `DynamicMesh` enum from provided `bf::mesh::Mesh` asset
+/// without any conversion. It automatically select the appropriate index type based
+/// on the information in `mesh` parameters.
+///
+/// This function returns the mesh and `GpuFuture` that represents the time when both
+/// buffers (and thus the mesh) are ready to use.
+pub fn create_mesh_dynamic<V: Vertex + TriviallyTransmutable>(
+    mesh: &bf::mesh::Mesh,
+    queue: Arc<Queue>,
+) -> DynamicIndexedMeshResult<V> {
+    macro_rules! impl_for_types {
+        ($($typ:ident),+) => {
+            match mesh.index_type {
+                $(IndexType::$typ => match create_mesh(&mesh, queue) {
+                    Ok((t, f)) => return Ok((
+                        Arc::new(DynamicIndexedMesh::$typ(match Arc::try_unwrap(t) {
+                            Ok(t) => t,
+                            Err(_) => unreachable!(),
+                        })),
+                        f.boxed(),
+                    )),
+                    Err(e) => {
+                        return Err(e)
+                    }
+                }),+
+            }
+        };
+    }
+
+    impl_for_types!(U16, U32);
 }

@@ -1,11 +1,12 @@
 use crate::assets::lookup;
 use crate::camera::PerspectiveCamera;
 use crate::engine::Engine;
+use crate::render::object::Object;
+use crate::render::transform::Transform;
 use crate::render::ubo::DirectionalLight;
 use crate::render::vertex::NormalMappedVertex;
-use crate::render::Object;
 use crate::resources::material::{FallbackMaps, StaticMaterial};
-use crate::resources::mesh::create_mesh;
+use crate::resources::mesh::create_mesh_dynamic;
 use bf::uuid::Uuid;
 use cgmath::{vec3, Deg, InnerSpace, Point3};
 use log::{info, Level};
@@ -15,7 +16,6 @@ use std::time::Instant;
 use winit::dpi::{LogicalSize, Size};
 use winit::event_loop::EventLoop;
 
-use crate::render::transform::Transform;
 #[cfg(debug_assertions)]
 use log::warn;
 
@@ -48,8 +48,7 @@ impl Into<Size> for RendererConfiguration {
 pub struct GameState {
     start: Instant,
     camera: PerspectiveCamera,
-    objects_u16: Vec<Object<NormalMappedVertex, u16>>,
-    objects_u32: Vec<Object<NormalMappedVertex, u32>>,
+    objects: Vec<Object<NormalMappedVertex>>,
     directional_lights: Vec<DirectionalLight>,
     materials: Vec<Arc<StaticMaterial>>,
     floor_mat: usize,
@@ -81,8 +80,7 @@ fn main() {
                 near: 0.05,
                 far: 100.0,
             },
-            objects_u16: vec![],
-            objects_u32: vec![],
+            objects: vec![],
             directional_lights: vec![DirectionalLight {
                 direction: vec3(3.0, 1.0, 1.0).normalize(),
                 intensity: 2.5,
@@ -102,6 +100,7 @@ fn main() {
 fn load(engine: &mut Engine) {
     info!("loading geometry and image data...");
     let start = Instant::now();
+    let device = &engine.vulkan_state.device();
     let assets = &engine.asset_storage;
     let path = &engine.renderer_state.render_path;
 
@@ -124,13 +123,7 @@ fn load(engine: &mut Engine) {
     };
 
     let static_mesh = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh::<NormalMappedVertex, u16>(&mesh, assets.transfer_queue.clone())
-            .expect("cannot create mesh from bf::mesh::Mesh")
-            .0
-    };
-
-    let static_mesh_u32 = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh::<NormalMappedVertex, u32>(&mesh, assets.transfer_queue.clone())
+        create_mesh_dynamic::<NormalMappedVertex>(&mesh, assets.transfer_queue.clone())
             .expect("cannot create mesh from bf::mesh::Mesh")
             .0
     };
@@ -142,6 +135,8 @@ fn load(engine: &mut Engine) {
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DApple002_2K-JPG.mat")).wait()).0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(6.0, 6.0, 6.0),
             position: vec3(0.0, 0.3, 0.0),
@@ -150,7 +145,7 @@ fn load(engine: &mut Engine) {
     );
 
     let woman = Object::new(
-        static_mesh_u32(
+        static_mesh(
             assets
                 .request_load(lookup(
                     ".\\autumn_casualwoman_01/autumn_casualwoman_01_lowpoly_3dsmax.obj",
@@ -163,6 +158,8 @@ fn load(engine: &mut Engine) {
                 .wait(),
         )
         .0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(0.1, 0.1, 0.1),
             position: vec3(7.0, 0.3, 0.0),
@@ -177,6 +174,8 @@ fn load(engine: &mut Engine) {
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DBread001_LowPoly.mat")).wait()).0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(5.0, 5.0, 5.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -191,6 +190,8 @@ fn load(engine: &mut Engine) {
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DRock001_2K.mat")).wait()).0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(1.0, 1.0, 1.0),
             position: vec3(3.0, 0.3, 0.0),
@@ -205,6 +206,8 @@ fn load(engine: &mut Engine) {
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DRock002_9K.mat")).wait()).0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(2.0, 2.0, 2.0),
             position: vec3(-3.0, 0.3, 0.0),
@@ -276,6 +279,8 @@ fn load(engine: &mut Engine) {
     let plane = Object::new(
         plane_mesh,
         state.materials.get(0).unwrap().clone(),
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(10.0, 1.0, 10.0),
             ..Transform::default()
@@ -283,6 +288,5 @@ fn load(engine: &mut Engine) {
     );
     info!("data loaded after {}s!", start.elapsed().as_secs_f32());
 
-    state.objects_u16 = vec![plane, apple, bread1, rock1, rock2];
-    state.objects_u32 = vec![woman];
+    state.objects = vec![plane, apple, bread1, rock1, rock2, woman];
 }

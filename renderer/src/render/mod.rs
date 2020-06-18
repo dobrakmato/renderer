@@ -4,10 +4,8 @@ use crate::assets::lookup;
 use crate::assets::Storage;
 use crate::camera::Camera;
 use crate::hosek::make_hosek_wilkie_params;
-use crate::render::transform::Transform;
 use crate::render::ubo::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
-use crate::resources::material::Material;
 use crate::resources::mesh::{create_full_screen_triangle, create_mesh, IndexedMesh};
 use crate::samplers::Samplers;
 use crate::{GameState, RendererConfiguration};
@@ -27,8 +25,6 @@ use vulkano::image::{
 };
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
-use vulkano::pipeline::input_assembly::Index;
-use vulkano::pipeline::vertex::Vertex;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
@@ -50,6 +46,7 @@ pub const SUBPASS_UBO_DESCRIPTOR_SET: usize = 1;
 pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
 pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
 
+pub mod object;
 pub mod transform;
 pub mod ubo;
 pub mod vertex;
@@ -121,6 +118,11 @@ impl VulkanState {
     #[inline]
     pub fn surface(&self) -> Arc<Surface<Window>> {
         self.surface.clone()
+    }
+
+    #[inline]
+    pub fn device(&self) -> Arc<Device> {
+        self.device.clone()
     }
 
     pub fn transfer_queue(&self) -> Arc<Queue> {
@@ -308,65 +310,6 @@ impl RendererState {
     }
 }
 
-pub struct Object<VDef: Vertex, I: Index> {
-    pub transform: Transform,
-    mesh: Arc<IndexedMesh<VDef, I>>,
-    pub material: Arc<dyn Material>,
-}
-
-impl<VDef: Vertex + Send + Sync + 'static, I: Index + Sync + Send + 'static> Object<VDef, I> {
-    pub fn new(
-        mesh: Arc<IndexedMesh<VDef, I>>,
-        material: Arc<dyn Material>,
-        transform: Transform,
-    ) -> Self {
-        Self {
-            mesh,
-            transform,
-            material,
-        }
-    }
-
-    pub fn draw_indexed(
-        &self,
-        ds_frame_matrix_data: Arc<dyn DescriptorSet + Send + Sync + 'static>,
-        object_matrix_data_pool: &CpuBufferPool<ObjectMatrixData>,
-        path: &RenderPath,
-        b: &mut AutoCommandBufferBuilder,
-    ) {
-        let ubo = object_matrix_data_pool
-            .next(ObjectMatrixData {
-                model: self.transform.into(),
-            })
-            .expect("cannot create next sub-buffer");
-        let ds_object_matrix_data = PersistentDescriptorSet::start(
-            path.buffers
-                .geometry_pipeline
-                .descriptor_set_layout(OBJECT_DATA_UBO_DESCRIPTOR_SET)
-                .unwrap()
-                .clone(),
-        )
-        .add_buffer(ubo)
-        .expect("cannot add ubo to pds set=1")
-        .build()
-        .expect("cannot build pds set=1");
-
-        b.draw_indexed(
-            path.buffers.geometry_pipeline.clone(),
-            &DynamicState::none(),
-            vec![self.mesh.vertex_buffer().clone()],
-            self.mesh.index_buffer().clone(),
-            (
-                ds_frame_matrix_data,
-                self.material.descriptor_set(),
-                ds_object_matrix_data,
-            ),
-            (),
-        )
-        .unwrap();
-    }
-}
-
 struct GBuffer {
     buffer1: Arc<AttachmentImage>,
     buffer2: Arc<AttachmentImage>,
@@ -419,7 +362,6 @@ pub struct RenderPath {
 
     fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     frame_matrix_data: CpuBufferPool<FrameMatrixData>,
-    object_matrix_data: CpuBufferPool<ObjectMatrixData>,
     hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
     sky_mesh: Arc<IndexedMesh<NormalMappedVertex, u16>>,
 }
@@ -703,7 +645,6 @@ impl RenderPath {
             ),
             render_pass: render_pass as Arc<_>,
             frame_matrix_data: CpuBufferPool::uniform_buffer(device.clone()),
-            object_matrix_data: CpuBufferPool::uniform_buffer(device.clone()),
             hosek_wilkie_sky_pool: CpuBufferPool::uniform_buffer(device.clone()),
             sky_mesh,
             samplers,
@@ -844,19 +785,10 @@ impl<'r, 's> Frame<'r, 's> {
         .unwrap();
 
         // 1. SUBPASS - Geometry
-        for x in state.objects_u16.iter() {
+        for x in state.objects.iter() {
             x.draw_indexed(
+                &no_dynamic_state,
                 ds_frame_matrix_data_geometry.clone(),
-                &path.object_matrix_data,
-                path,
-                &mut b,
-            )
-        }
-        for x in state.objects_u32.iter() {
-            x.draw_indexed(
-                ds_frame_matrix_data_geometry.clone(),
-                &path.object_matrix_data,
-                path,
                 &mut b,
             )
         }

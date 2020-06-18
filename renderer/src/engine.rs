@@ -43,7 +43,7 @@ impl Engine {
         self.game_state.camera.update(&self.input_state);
 
         if self.input_state.keyboard.was_key_pressed(VirtualKeyCode::F) {
-            let obj = self.game_state.objects_u16.get_mut(0).unwrap();
+            let obj = self.game_state.objects.get_mut(0).unwrap();
             obj.material = self.game_state.materials
                 [self.game_state.floor_mat % self.game_state.materials.len()]
             .clone();
