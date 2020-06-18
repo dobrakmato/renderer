@@ -86,6 +86,7 @@ fn main() {
                 direction: vec3(3.0, 1.0, 1.0).normalize(),
                 intensity: 2.5,
                 color: vec3(1.0, 1.0, 0.8),
+                _dummy0: 0.0,
             }],
             materials: vec![],
             floor_mat: 0,

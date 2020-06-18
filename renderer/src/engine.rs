@@ -65,6 +65,7 @@ impl Engine {
                     rng.gen_range(0.3, 1.0),
                     rng.gen_range(0.3, 1.0),
                 ),
+                _dummy0: 0.0,
             })
         }
     }
