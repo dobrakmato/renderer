@@ -8,7 +8,7 @@ use crate::render::vertex::NormalMappedVertex;
 use crate::resources::material::{FallbackMaps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
 use bf::uuid::Uuid;
-use cgmath::{vec3, Deg, InnerSpace, Point3};
+use cgmath::{vec3, Deg, InnerSpace, Point3, Vector3};
 use log::{info, Level};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -22,7 +22,6 @@ use log::warn;
 mod assets;
 mod camera;
 mod engine;
-mod hosek;
 mod input;
 mod render;
 mod resources;
@@ -102,7 +101,7 @@ fn load(engine: &mut Engine) {
     let start = Instant::now();
     let device = &engine.vulkan_state.device();
     let assets = &engine.asset_storage;
-    let path = &engine.renderer_state.render_path;
+    let path = &mut engine.renderer_state.render_path;
 
     let fallback_maps = Arc::new(FallbackMaps {
         fallback_white: path.white_texture.clone(),
@@ -272,6 +271,12 @@ fn load(engine: &mut Engine) {
         mat_start.elapsed().as_secs_f32()
     );
     let plane_mesh = static_mesh(assets.request_load(lookup("./plane.obj")).wait());
+
+    // setup sky
+    path.sky.sun_dir = engine.game_state.directional_lights[0].direction;
+    path.sky.turbidity = 8.0;
+    path.sky.ground_albedo = Vector3::new(0.0, 0.0, 0.0);
+
     let state = &mut engine.game_state;
 
     state.materials = materials;

@@ -24,6 +24,7 @@ layout(set = 0, binding = 0) uniform FrameMatrixData {
     mat4 projection;
     mat4 invProjection;
     mat4 invView;
+    vec3 cameraPosition;
 } frame_matrix_data;
 
 layout(push_constant) uniform PushConstants {

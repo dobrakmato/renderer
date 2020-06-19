@@ -31,6 +31,8 @@ pub struct FrameMatrixData {
     pub inv_projection: Matrix4<f32>,
     /// Inverse of projection matrix.
     pub inv_view: Matrix4<f32>,
+    /// Camera position in world-space.
+    pub camera_position: Vector3<f32>,
 }
 
 /// UBO struct representing an uniform buffer that contains data

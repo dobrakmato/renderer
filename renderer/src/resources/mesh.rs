@@ -58,7 +58,7 @@ where
 pub enum CreateBufferError {
     /// Generic parameters representing a single element in the created buffer
     /// is of incorrect type.
-    IncorrectElementType,
+    IncorrectElementType(&'static str),
     /// The buffer couldn't be allocated.
     CannotAllocateBuffer(DeviceMemoryAllocError),
 }
@@ -119,12 +119,16 @@ where
 {
     // verify that the method was invoked with correct index type
     if from.index_type.size_of_one_index() != std::mem::size_of::<I>() {
-        return Err(CreateBufferError::IncorrectElementType);
+        return Err(CreateBufferError::IncorrectElementType(
+            "Index type is incorrect",
+        ));
     }
 
     // verify that the method was invoked with correct index type
     if from.vertex_format.size_of_one_vertex() != std::mem::size_of::<V>() {
-        return Err(CreateBufferError::IncorrectElementType);
+        return Err(CreateBufferError::IncorrectElementType(
+            "Vertex type is incorrect",
+        ));
     }
 
     let (vertex, f1) = create_buffer(

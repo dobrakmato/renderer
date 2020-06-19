@@ -8,6 +8,7 @@ layout(set = 0, binding = 0) uniform FrameMatrixData {
     mat4 projection;
     mat4 invProjection;
     mat4 invView;
+    vec3 cameraPosition;
 } frame_matrix_data;
 
 layout(set = 1, binding = 0) uniform HosekWilkieParams {
@@ -23,11 +24,6 @@ layout(set = 1, binding = 0) uniform HosekWilkieParams {
     vec3 Z;
     vec3 sun_direction;
 } params;
-
-layout(push_constant) uniform PushConstants {
-    vec3 camera_position;
-    float time;
-} push_constants;
 
 vec3 hosek_wilkie(float cos_theta, float cos_gamma, float gamma) {
     vec3 A = params.A;
@@ -57,7 +53,7 @@ vec3 hosek_wilkie2(vec3 sun_dir, vec3 view_dir) {
 }
 
 void main() {
-    vec3 view_dir = position - push_constants.camera_position;
+    vec3 view_dir = position - frame_matrix_data.cameraPosition;
 
     vec3 result = hosek_wilkie2(params.sun_direction, normalize(view_dir)) * 0.05;
     f_color = vec4(result, 1.0);

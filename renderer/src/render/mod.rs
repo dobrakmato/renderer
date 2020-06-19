@@ -3,15 +3,13 @@
 use crate::assets::lookup;
 use crate::assets::Storage;
 use crate::camera::Camera;
-use crate::hosek::make_hosek_wilkie_params;
-use crate::render::ubo::{DirectionalLight, FrameMatrixData, HosekWilkieParams};
+use crate::render::hosek::Sky;
+use crate::render::ubo::{DirectionalLight, FrameMatrixData};
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
-use crate::render::vulkan::VulkanState;
 use crate::resources::mesh::{create_full_screen_triangle, create_mesh, IndexedMesh};
 use crate::samplers::Samplers;
 use crate::GameState;
-use cgmath::{vec3, SquareMatrix, Vector3, Zero};
-use smallvec::SmallVec;
+use cgmath::{EuclideanSpace, SquareMatrix, Vector3, Zero};
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuBufferPool};
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
@@ -28,13 +26,7 @@ use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
-use vulkano::swapchain;
-use vulkano::swapchain::{
-    ColorSpace, FullscreenExclusive, PresentMode, SurfaceTransform, Swapchain,
-    SwapchainCreationError,
-};
-use vulkano::sync::GpuFuture;
-use winit::dpi::Size;
+use vulkano::swapchain::Swapchain;
 use winit::window::Window;
 
 // consts to descriptor set binding indices
@@ -42,193 +34,15 @@ pub const FRAME_DATA_UBO_DESCRIPTOR_SET: usize = 0;
 pub const OBJECT_DATA_UBO_DESCRIPTOR_SET: usize = 2;
 pub const SUBPASS_UBO_DESCRIPTOR_SET: usize = 1;
 pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
-pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
 
+pub mod hosek;
 pub mod object;
+pub mod pools;
+pub mod renderer;
 pub mod transform;
 pub mod ubo;
 pub mod vertex;
 pub mod vulkan;
-
-// render path, vulkan instance, vulkan device, framebuffers, swapchain
-pub struct RendererState {
-    pub render_path: RenderPath,
-    device: Arc<Device>,
-    pub graphical_queue: Arc<Queue>,
-    /* swapchain related stuff */
-    swapchain: Arc<Swapchain<Window>>,
-    framebuffers: SmallVec<[Arc<dyn FramebufferAbstract + Send + Sync>; 4]>,
-    previous_frame_end: Option<Box<dyn GpuFuture>>,
-}
-
-impl RendererState {
-    pub fn new(vulkan: &VulkanState, assets: &Storage) -> Self {
-        let surface = vulkan.surface();
-        let device = vulkan.device();
-        let graphical_queue = vulkan.graphical_queue();
-
-        let caps = surface
-            .capabilities(device.physical_device())
-            .expect("cannot get surface capabilities");
-
-        let dimensions = caps.current_extent.unwrap_or(caps.max_image_extent);
-        let alpha = caps.supported_composite_alpha.iter().next().unwrap();
-
-        // to render color correctly and compute in linear color space we must
-        // request the vulkan explicitly. here we choose a first swapchain format
-        // that has sRGB non-linear color space.
-        let format = caps
-            .supported_formats
-            .iter()
-            .find(|(f, _)| *f == Format::B8G8R8A8Srgb)
-            .map(|(f, _)| *f)
-            .expect("cannot find srgb non-linear color space format!");
-
-        // we prefer mailbox as it give less latency but fall back to
-        // fifo as it should be supported on all configurations
-        let present_mode = if caps.present_modes.mailbox {
-            PresentMode::Mailbox
-        } else {
-            PresentMode::Fifo
-        };
-
-        let (swapchain, swapchain_images) = Swapchain::new(
-            device.clone(),
-            surface.clone(),
-            caps.min_image_count,
-            format,
-            dimensions,
-            1,
-            ImageUsage {
-                color_attachment: true,
-                transfer_destination: true,
-                ..ImageUsage::none()
-            },
-            &graphical_queue,
-            SurfaceTransform::Identity,
-            alpha,
-            present_mode,
-            FullscreenExclusive::Default,
-            true,
-            ColorSpace::SrgbNonLinear,
-        )
-        .expect("cannot create swapchain");
-
-        let render_path = RenderPath::new(
-            graphical_queue.clone(),
-            device.clone(),
-            swapchain.clone(),
-            assets,
-        );
-
-        let framebuffers = match swapchain_images
-            .iter()
-            .map(|it| render_path.create_framebuffer(it.clone()))
-            .collect()
-        {
-            Ok(t) => t,
-            Err(e) => panic!("cannot create framebuffers: {}", e),
-        };
-
-        RendererState {
-            previous_frame_end: Some(Box::new(vulkano::sync::now(device.clone())) as Box<_>),
-            render_path,
-            swapchain,
-            framebuffers,
-            device,
-            graphical_queue,
-        }
-    }
-
-    pub fn set_window_size<S: Into<Size>>(&self, size: S) {
-        self.swapchain.surface().window().set_inner_size(size)
-    }
-
-    pub fn render_frame(&mut self, game_state: &GameState) {
-        // clean-up all resources from the previous frame
-        self.previous_frame_end.as_mut().unwrap().cleanup_finished();
-
-        // acquire next image. if the suboptimal is true we try to recreate the
-        // swapchain after this frame rendering is done
-        let (idx, suboptimal, fut) =
-            match swapchain::acquire_next_image(self.swapchain.clone(), None) {
-                Ok(r) => r,
-                Err(_) => {
-                    self.recreate_swapchain();
-                    return;
-                }
-            };
-
-        let mut frame = Frame {
-            render_path: &mut self.render_path,
-            game_state,
-            framebuffer: self.framebuffers[idx].clone(),
-            builder: Some(
-                AutoCommandBufferBuilder::primary_one_time_submit(
-                    self.device.clone(),
-                    self.graphical_queue.family(),
-                )
-                .unwrap(),
-            ),
-        };
-
-        // let frame create and records it's command buffer(s).
-        let primary_cb = frame.build();
-
-        // wait for image to be available and then present drawn the image
-        // to screen.
-        let future = self
-            .previous_frame_end
-            .take()
-            .unwrap()
-            .join(fut)
-            .then_execute(self.graphical_queue.clone(), primary_cb)
-            .unwrap()
-            .then_swapchain_present(self.graphical_queue.clone(), self.swapchain.clone(), idx)
-            .then_signal_fence_and_flush();
-
-        // depending on the completion state of the submitted command buffer either
-        // return to continue to next frame, or report and error
-        match future {
-            Ok(future) => {
-                self.previous_frame_end = Some(Box::new(future) as Box<_>);
-            }
-            Err(e) => {
-                // device unplugged or window resized
-                eprintln!("{:?}", e);
-                self.previous_frame_end =
-                    Some(Box::new(vulkano::sync::now(self.device.clone())) as Box<_>);
-            }
-        }
-
-        if suboptimal {
-            self.recreate_swapchain();
-        }
-    }
-
-    fn recreate_swapchain(&mut self) {
-        let dimensions: [u32; 2] = self.swapchain.surface().window().inner_size().into();
-        let (new_swapchain, new_images) = match self.swapchain.recreate_with_dimensions(dimensions)
-        {
-            Ok(r) => r,
-            // This error tends to happen when the user is manually resizing the window.
-            // Simply restarting the loop is the easiest way to fix this issue.
-            Err(SwapchainCreationError::UnsupportedDimensions) => return,
-            Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
-        };
-
-        self.render_path.recreate_buffers(dimensions);
-
-        let new_framebuffers = new_images
-            .iter()
-            .map(|x| self.render_path.create_framebuffer(x.clone()))
-            .map(|x| x.expect("cannot create framebuffer"))
-            .collect();
-
-        self.swapchain = new_swapchain;
-        self.framebuffers = new_framebuffers;
-    }
-}
 
 struct GBuffer {
     buffer1: Arc<AttachmentImage>,
@@ -282,8 +96,7 @@ pub struct RenderPath {
 
     fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     frame_matrix_data: CpuBufferPool<FrameMatrixData>,
-    hosek_wilkie_sky_pool: CpuBufferPool<HosekWilkieParams>,
-    sky_mesh: Arc<IndexedMesh<NormalMappedVertex, u16>>,
+    pub sky: Sky,
 }
 
 // long-lived global buffers and data dependant on the render resolution
@@ -556,17 +369,16 @@ impl RenderPath {
         )
         .unwrap();
 
+        let buffers =
+            RenderPathBuffers::new(render_pass.clone(), device.clone(), swapchain.dimensions());
+        let sky = Sky::new(sky_mesh, device.clone(), buffers.skybox_pipeline.clone());
+
         Self {
             fst,
-            buffers: RenderPathBuffers::new(
-                render_pass.clone(),
-                device.clone(),
-                swapchain.dimensions(),
-            ),
+            buffers,
             render_pass: render_pass as Arc<_>,
             frame_matrix_data: CpuBufferPool::uniform_buffer(device.clone()),
-            hosek_wilkie_sky_pool: CpuBufferPool::uniform_buffer(device.clone()),
-            sky_mesh,
+            sky,
             samplers,
             white_texture,
         }
@@ -620,6 +432,7 @@ impl<'r, 's> Frame<'r, 's> {
         let frame_matrix_data = Arc::new(
             path.frame_matrix_data
                 .next(FrameMatrixData {
+                    camera_position: self.game_state.camera.position.to_vec(),
                     inv_view: view.invert().unwrap(),
                     inv_projection: projection.invert().unwrap(),
                     view,
@@ -653,40 +466,19 @@ impl<'r, 's> Frame<'r, 's> {
         .expect("cannot add ubo to pds set=1")
         .build()
         .expect("cannot build pds set=1");
-        let ds_frame_matrix_data_skybox = PersistentDescriptorSet::start(
-            path.buffers
-                .skybox_pipeline
-                .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
-                .unwrap()
-                .clone(),
-        )
-        .add_buffer(frame_matrix_data)
-        .expect("cannot add ubo to pds set=1")
-        .build()
-        .expect("cannot build pds set=1");
-
-        /* create HosekWilkieParams (sky params) for this frame. */
-        let params = make_hosek_wilkie_params(
-            state
-                .directional_lights
-                .get(0)
-                .expect("need at least one directional light")
-                .direction,
-            2.0,
-            vec3(0.0, 0.0, 0.0),
+        let ds_frame_matrix_data_skybox = Arc::new(
+            PersistentDescriptorSet::start(
+                path.buffers
+                    .skybox_pipeline
+                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
+                    .unwrap()
+                    .clone(),
+            )
+            .add_buffer(frame_matrix_data)
+            .expect("cannot add ubo to pds set=1")
+            .build()
+            .expect("cannot build pds set=1"),
         );
-        let ubo_sky_hw = path.hosek_wilkie_sky_pool.next(params).unwrap();
-        let sky_hw_params = PersistentDescriptorSet::start(
-            path.buffers
-                .skybox_pipeline
-                .descriptor_set_layout(SKY_DATA_UBO_DESCRIPTOR_SET)
-                .unwrap()
-                .clone(),
-        )
-        .add_buffer(ubo_sky_hw)
-        .expect("cannot add ubo to pds set=1")
-        .build()
-        .expect("cannot build pds set=1");
 
         let mut b = self.builder.take().unwrap();
 
@@ -758,17 +550,12 @@ impl<'r, 's> Frame<'r, 's> {
         .unwrap();
 
         // 3. SUBPASS - Skybox
-        b.draw_indexed(
-            path.buffers.skybox_pipeline.clone(),
+        path.sky.draw(
             &no_dynamic_state,
-            vec![path.sky_mesh.vertex_buffer().clone()],
-            path.sky_mesh.index_buffer().clone(),
-            (ds_frame_matrix_data_skybox, sky_hw_params),
-            (state.camera.position, state.start.elapsed().as_secs_f32()),
-        )
-        .expect("cannot do skybox pass")
-        .next_subpass(false)
-        .unwrap();
+            ds_frame_matrix_data_skybox.clone(),
+            &mut b,
+        );
+        b.next_subpass(false).unwrap();
 
         // 4. SUBPASS - Tonemap
         b.draw_indexed(
