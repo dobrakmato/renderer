@@ -81,6 +81,8 @@ impl<V: Vertex> Object<V> {
             .object_matrix_data()
             .expect("cannot create ObjectMatrixData for this frame");
 
+        // here we need to dispatch the draw_indexed method based on
+        // index type from DynamicIndexedMesh.
         macro_rules! impl_dynamic_dispatch {
             ($($typ:ident),+) => {
                 match self.mesh.as_ref() {
@@ -103,7 +105,6 @@ impl<V: Vertex> Object<V> {
             };
         }
 
-        // dynamic dispatch based on dynamic mesh's index type
         impl_dynamic_dispatch!(U16, U32);
     }
 }

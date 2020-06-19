@@ -4,11 +4,12 @@ use crate::assets::lookup;
 use crate::assets::Storage;
 use crate::camera::Camera;
 use crate::hosek::make_hosek_wilkie_params;
-use crate::render::ubo::{DirectionalLight, FrameMatrixData, HosekWilkieParams, ObjectMatrixData};
+use crate::render::ubo::{DirectionalLight, FrameMatrixData, HosekWilkieParams};
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
+use crate::render::vulkan::VulkanState;
 use crate::resources::mesh::{create_full_screen_triangle, create_mesh, IndexedMesh};
 use crate::samplers::Samplers;
-use crate::{GameState, RendererConfiguration};
+use crate::GameState;
 use cgmath::{vec3, SquareMatrix, Vector3, Zero};
 use smallvec::SmallVec;
 use std::sync::Arc;
@@ -16,28 +17,25 @@ use vulkano::buffer::{BufferUsage, CpuBufferPool};
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
-use vulkano::device::{Device, DeviceExtensions, Queue};
+use vulkano::device::{Device, Queue};
 use vulkano::format::{ClearValue, Format};
 use vulkano::framebuffer::{Framebuffer, FramebufferCreationError, Subpass};
 use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract};
 use vulkano::image::{
     AttachmentImage, Dimensions, ImageCreationError, ImageUsage, ImmutableImage, SwapchainImage,
 };
-use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
+use vulkano::swapchain;
 use vulkano::swapchain::{
-    ColorSpace, FullscreenExclusive, PresentMode, Surface, SurfaceTransform, Swapchain,
+    ColorSpace, FullscreenExclusive, PresentMode, SurfaceTransform, Swapchain,
     SwapchainCreationError,
 };
 use vulkano::sync::GpuFuture;
-use vulkano::{app_info_from_cargo_toml, swapchain};
-use vulkano_win::VkSurfaceBuild;
 use winit::dpi::Size;
-use winit::event_loop::EventLoop;
-use winit::window::{Window, WindowBuilder};
+use winit::window::Window;
 
 // consts to descriptor set binding indices
 pub const FRAME_DATA_UBO_DESCRIPTOR_SET: usize = 0;
@@ -50,85 +48,7 @@ pub mod object;
 pub mod transform;
 pub mod ubo;
 pub mod vertex;
-
-// global vulkan object not related to one render path
-pub struct VulkanState {
-    device: Arc<Device>,
-    surface: Arc<Surface<Window>>,
-    graphical_queue: Arc<Queue>,
-    transfer_queue: Arc<Queue>,
-}
-
-impl VulkanState {
-    pub fn new(conf: RendererConfiguration, event_loop: &EventLoop<()>) -> Self {
-        // we create vulkan instance object with extensions
-        // required to create a windows which we will render to.
-        let instance = Instance::new(
-            Some(&app_info_from_cargo_toml!()),
-            &vulkano_win::required_extensions(),
-            Some("VK_LAYER_KHRONOS_validation"),
-        )
-        .expect("cannot create vulkan instance");
-
-        let surface = WindowBuilder::new()
-            .with_title("renderer")
-            .with_inner_size(conf)
-            .with_resizable(true)
-            .build_vk_surface(event_loop, instance.clone())
-            .expect("cannot create window");
-
-        surface.window().set_cursor_grab(true).unwrap();
-        surface.window().set_cursor_visible(false);
-
-        let physical = PhysicalDevice::enumerate(&instance)
-            .nth(conf.gpu)
-            .expect("cannot find requested gpu");
-
-        let graphical_queue_family = physical
-            .queue_families()
-            .find(|&q| q.supports_graphics() && surface.is_supported(q).unwrap())
-            .expect("couldn't find a graphical queue family that's supported by surface");
-
-        let transfer_queue_family = physical
-            .queue_families()
-            .find(|&q| q.explicitly_supports_transfers())
-            .expect("cannot find explicit transfer queue");
-
-        let (device, mut queues) = Device::new(
-            physical,
-            physical.supported_features(),
-            &DeviceExtensions::supported_by_device(physical),
-            [(graphical_queue_family, 0.5), (transfer_queue_family, 0.5)]
-                .iter()
-                .cloned(),
-        )
-        .expect("cannot create virtual device");
-
-        let graphical_queue = queues.next().expect("no queue was created");
-        let transfer_queue = queues.next().expect("no transfer queue was created");
-
-        Self {
-            device,
-            surface,
-            graphical_queue,
-            transfer_queue,
-        }
-    }
-
-    #[inline]
-    pub fn surface(&self) -> Arc<Surface<Window>> {
-        self.surface.clone()
-    }
-
-    #[inline]
-    pub fn device(&self) -> Arc<Device> {
-        self.device.clone()
-    }
-
-    pub fn transfer_queue(&self) -> Arc<Queue> {
-        self.transfer_queue.clone()
-    }
-}
+pub mod vulkan;
 
 // render path, vulkan instance, vulkan device, framebuffers, swapchain
 pub struct RendererState {
@@ -143,9 +63,9 @@ pub struct RendererState {
 
 impl RendererState {
     pub fn new(vulkan: &VulkanState, assets: &Storage) -> Self {
-        let surface = vulkan.surface.clone();
-        let device = vulkan.device.clone();
-        let graphical_queue = vulkan.graphical_queue.clone();
+        let surface = vulkan.surface();
+        let device = vulkan.device();
+        let graphical_queue = vulkan.graphical_queue();
 
         let caps = surface
             .capabilities(device.physical_device())
