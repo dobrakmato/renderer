@@ -4,6 +4,7 @@ use crate::assets::Storage;
 use crate::render::vulkan::VulkanState;
 use crate::render::{Frame, RenderPath};
 use crate::GameState;
+use log::warn;
 use smallvec::SmallVec;
 use std::sync::Arc;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
@@ -118,8 +119,10 @@ impl RendererState {
         let (idx, suboptimal, fut) =
             match swapchain::acquire_next_image(self.swapchain.clone(), None) {
                 Ok(r) => r,
-                Err(_) => {
-                    self.recreate_swapchain();
+                Err(e) => {
+                    let dimensions = self.swapchain.surface().window().inner_size().into();
+                    warn!("Cannot acquire next image {:?}. Recreating swapchain...", e);
+                    self.recreate_swapchain(dimensions);
                     return;
                 }
             };
@@ -167,12 +170,13 @@ impl RendererState {
         }
 
         if suboptimal {
-            self.recreate_swapchain();
+            warn!("Swapchain image is suboptimal! Recreating swapchain.");
+            let dimensions = self.swapchain.surface().window().inner_size().into();
+            self.recreate_swapchain(dimensions);
         }
     }
 
-    fn recreate_swapchain(&mut self) {
-        let dimensions: [u32; 2] = self.swapchain.surface().window().inner_size().into();
+    pub fn recreate_swapchain(&mut self, dimensions: [u32; 2]) {
         let (new_swapchain, new_images) = match self.swapchain.recreate_with_dimensions(dimensions)
         {
             Ok(r) => r,

@@ -121,12 +121,6 @@ impl RenderPathBuffers {
         device: Arc<Device>,
         dimensions: [u32; 2],
     ) -> Self {
-        let viewport = Viewport {
-            origin: [0.0, 0.0],
-            dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-            depth_range: 0.0..1.0,
-        };
-
         // we create required shaders for all graphical pipelines we use in this
         // render pass from precompiled (embedded) spri-v binary data from soruces.
         let vs = crate::shaders::vs_deferred_geometry::Shader::load(device.clone()).unwrap();
@@ -144,7 +138,7 @@ impl RenderPathBuffers {
                 .vertex_shader(vs.main_entry_point(), ())
                 .fragment_shader(fs.main_entry_point(), ())
                 .triangle_list()
-                .viewports(Some(viewport.clone()))
+                .viewports_dynamic_scissors_irrelevant(1)
                 .depth_stencil(DepthStencil::simple_depth_test())
                 .cull_mode_back()
                 .front_face_clockwise()
@@ -159,7 +153,7 @@ impl RenderPathBuffers {
                 .vertex_shader(tm_vs.main_entry_point(), ())
                 .fragment_shader(dl_fs.main_entry_point(), ())
                 .triangle_list()
-                .viewports(Some(viewport.clone()))
+                .viewports_dynamic_scissors_irrelevant(1)
                 .render_pass(Subpass::from(render_pass.clone(), 1).unwrap())
                 .build(device.clone())
                 .expect("cannot build tonemap graphics pipeline"),
@@ -171,7 +165,7 @@ impl RenderPathBuffers {
                 .vertex_shader(sky_vs.main_entry_point(), ())
                 .fragment_shader(sky_fs.main_entry_point(), ())
                 .triangle_list()
-                .viewports(Some(viewport.clone()))
+                .viewports_dynamic_scissors_irrelevant(1)
                 .depth_stencil(DepthStencil {
                     depth_compare: Compare::LessOrEqual,
                     depth_write: false,
@@ -190,7 +184,7 @@ impl RenderPathBuffers {
                 .vertex_shader(tm_vs.main_entry_point(), ())
                 .fragment_shader(tm_fs.main_entry_point(), ())
                 .triangle_list()
-                .viewports(Some(viewport.clone()))
+                .viewports_dynamic_scissors_irrelevant(1)
                 .render_pass(Subpass::from(render_pass.clone(), 3).unwrap())
                 .build(device.clone())
                 .expect("cannot build tonemap graphics pipeline"),
@@ -418,13 +412,20 @@ pub struct Frame<'r, 's> {
 
 impl<'r, 's> Frame<'r, 's> {
     pub fn build(&mut self) -> AutoCommandBuffer {
-        let no_dynamic_state = DynamicState::none();
-        let path = &mut self.render_path;
-        let state = self.game_state;
         let dims = [
             self.framebuffer.dimensions()[0] as f32,
             self.framebuffer.dimensions()[1] as f32,
         ];
+        let dynamic_state = DynamicState {
+            viewports: Some(vec![Viewport {
+                origin: [0.0, 0.0],
+                dimensions: [dims[0] as f32, dims[1] as f32],
+                depth_range: 0.0..1.0,
+            }]),
+            ..DynamicState::none()
+        };
+        let path = &mut self.render_path;
+        let state = self.game_state;
 
         /* create FrameMatrixData (set=2) for this frame. */
         let view = self.game_state.camera.view_matrix();
@@ -499,7 +500,7 @@ impl<'r, 's> Frame<'r, 's> {
         // 1. SUBPASS - Geometry
         for x in state.objects.iter() {
             x.draw_indexed(
-                &no_dynamic_state,
+                &dynamic_state,
                 ds_frame_matrix_data_geometry.clone(),
                 &mut b,
             )
@@ -530,7 +531,7 @@ impl<'r, 's> Frame<'r, 's> {
         );
         b.draw_indexed(
             path.buffers.lighting_pipeline.clone(),
-            &no_dynamic_state,
+            &dynamic_state,
             vec![path.fst.vertex_buffer().clone()],
             path.fst.index_buffer().clone(),
             (
@@ -550,17 +551,14 @@ impl<'r, 's> Frame<'r, 's> {
         .unwrap();
 
         // 3. SUBPASS - Skybox
-        path.sky.draw(
-            &no_dynamic_state,
-            ds_frame_matrix_data_skybox.clone(),
-            &mut b,
-        );
+        path.sky
+            .draw(&dynamic_state, ds_frame_matrix_data_skybox.clone(), &mut b);
         b.next_subpass(false).unwrap();
 
         // 4. SUBPASS - Tonemap
         b.draw_indexed(
             path.buffers.tonemap_pipeline.clone(),
-            &no_dynamic_state,
+            &dynamic_state,
             vec![path.fst.vertex_buffer().clone()],
             path.fst.index_buffer().clone(),
             path.buffers.tonemap_ds.clone(),
