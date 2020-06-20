@@ -105,8 +105,8 @@ fn load(engine: &mut Engine) {
 
     let fallback_maps = Arc::new(FallbackMaps {
         fallback_white: path.white_texture.clone(),
-        fallback_black: path.white_texture.clone(),
-        fallback_normal: path.white_texture.clone(),
+        fallback_black: path.black_texture.clone(),
+        fallback_normal: path.normal_texture.clone(),
     });
 
     let static_material = |mat: Arc<bf::material::Material>| {

@@ -6,6 +6,7 @@ use crate::camera::Camera;
 use crate::render::hosek::Sky;
 use crate::render::ubo::{DirectionalLight, FrameMatrixData};
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
+use crate::resources::image::create_single_pixel_image;
 use crate::resources::mesh::{create_full_screen_triangle, create_mesh, IndexedMesh};
 use crate::samplers::Samplers;
 use crate::GameState;
@@ -20,7 +21,7 @@ use vulkano::format::{ClearValue, Format};
 use vulkano::framebuffer::{Framebuffer, FramebufferCreationError, Subpass};
 use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract};
 use vulkano::image::{
-    AttachmentImage, Dimensions, ImageCreationError, ImageUsage, ImmutableImage, SwapchainImage,
+    AttachmentImage, ImageCreationError, ImageUsage, ImmutableImage, SwapchainImage,
 };
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::viewport::Viewport;
@@ -93,6 +94,8 @@ pub struct RenderPath {
     pub buffers: RenderPathBuffers,
     pub samplers: Samplers,
     pub white_texture: Arc<ImmutableImage<Format>>,
+    pub black_texture: Arc<ImmutableImage<Format>>,
+    pub normal_texture: Arc<ImmutableImage<Format>>,
 
     fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     frame_matrix_data: CpuBufferPool<FrameMatrixData>,
@@ -276,16 +279,10 @@ impl RenderPath {
     ) -> Self {
         // first we generate some useful resources on the fly
         let (fst, _) = create_full_screen_triangle(queue.clone()).expect("cannot create fst");
-        let (white_texture, _) = ImmutableImage::from_iter(
-            [255u8; 4].iter().cloned(),
-            Dimensions::Dim2d {
-                width: 1,
-                height: 1,
-            },
-            Format::R8G8B8A8Unorm,
-            queue.clone(),
-        )
-        .expect("cannot create white texture");
+        let (white_texture, _) = create_single_pixel_image(queue.clone(), [255; 4]).unwrap();
+        let (black_texture, _) = create_single_pixel_image(queue.clone(), [0; 4]).unwrap();
+        let (normal_texture, _) =
+            create_single_pixel_image(queue.clone(), [128, 128, 255, 255]).unwrap();
 
         // this example render path uses one render pass which renders all geometry and then
         // the skybox with one directional light without any shadows.
@@ -375,6 +372,8 @@ impl RenderPath {
             sky,
             samplers,
             white_texture,
+            black_texture,
+            normal_texture,
         }
     }
 

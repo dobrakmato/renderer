@@ -40,7 +40,7 @@ pub enum CreateImageError {
 
 /// This function creates an `ImmutableImage` struct from provided `bf::image::Image` asset
 /// without any conversion. This function returns the image and `GpuFuture` that
-/// represents the time when both buffers (and thus the mesh) are ready to use.
+/// represents the time when the image is ready to use.
 pub fn create_image(
     image: &bf::image::Image,
     queue: Arc<Queue>,
@@ -99,4 +99,23 @@ pub fn create_image(
     };
 
     Ok((immutable, future))
+}
+
+/// Creates an *Image* that has specified color and is of size 1x1 pixels.
+/// This function returns the image and `GpuFuture` that represents the time
+/// when the image is ready to use.
+pub fn create_single_pixel_image(
+    queue: Arc<Queue>,
+    color: [u8; 4],
+) -> Result<(Arc<ImmutableImage<Format>>, impl GpuFuture), CreateImageError> {
+    ImmutableImage::from_iter(
+        color.iter().cloned(),
+        Dimensions::Dim2d {
+            width: 1,
+            height: 1,
+        },
+        Format::R8G8B8A8Unorm,
+        queue,
+    )
+    .map_err(CreateImageError::CannotCreateImage)
 }

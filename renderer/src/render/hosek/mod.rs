@@ -16,6 +16,7 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 
 mod dataset;
 
+/// Descriptor set index used for sky data.
 pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
 
 /// Uniform buffer poll for sky data.
