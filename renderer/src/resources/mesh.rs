@@ -3,6 +3,8 @@
 use crate::render::vertex::PositionOnlyVertex;
 use bf::mesh::IndexType;
 use safe_transmute::{Error, TriviallyTransmutable};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};
 use vulkano::device::Queue;
@@ -153,13 +155,13 @@ pub fn create_full_screen_triangle(
 ) -> Result<(Arc<IndexedMesh<PositionOnlyVertex, u16>>, impl GpuFuture), DeviceMemoryAllocError> {
     const VERTEX_DATA_FST: [PositionOnlyVertex; 3] = [
         PositionOnlyVertex {
-            position: [-1.0, -1.0, 0.0],
+            position: [-1.0, -1.0, 0.0, 0.0],
         },
         PositionOnlyVertex {
-            position: [3.0, -1.0, 0.0],
+            position: [3.0, -1.0, 0.0, 0.0],
         },
         PositionOnlyVertex {
-            position: [-1.0, 3.0, 0.0],
+            position: [-1.0, 3.0, 0.0, 0.0],
         },
     ];
     const INDEX_DATA_FST: [u16; 3] = [0, 1, 2];
@@ -174,6 +176,133 @@ pub fn create_full_screen_triangle(
         BufferUsage::index_buffer(),
         queue,
     )?;
+
+    Ok((
+        IndexedMesh::new(vertex_buffer, index_buffer),
+        vbo_future.join(ibo_future),
+    ))
+}
+
+/// Generates a new `Mesh` instance that is a icosphere. First the icosahedron is
+/// generated, then more faces are added depending on the level of refinement.
+///
+/// Refinement level zero will cause this function to generate icosahedron. Each
+/// level will cause to subdivide triangle into 4 triangles.
+///
+/// This function returns the mesh and `GpuFuture` that represents the time when
+/// both buffers (and thus the mesh) are ready to use.
+///
+/// ![Icosahderon](https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Zeroth_stellation_of_icosahedron.png/240px-Zeroth_stellation_of_icosahedron.png)
+pub fn create_icosphere(
+    queue: Arc<Queue>,
+    refine_levels: u32,
+) -> Result<(Arc<IndexedMesh<PositionOnlyVertex, u16>>, impl GpuFuture), DeviceMemoryAllocError> {
+    // macro to create and normalize `PositionOnlyVertex` in less code
+    macro_rules! v {
+        ($($points:expr),+) => {
+            {
+                let length = ($($points * $points+)+ 0.0).sqrt();
+                let normalized = [$($points / length),+, 0.0];
+                PositionOnlyVertex { position: normalized }
+            }
+        };
+    }
+
+    let phi = (1.0 + (5.0_f32.sqrt())) / 2.0;
+    let mut vertex_data = vec![
+        v!(-1.0, phi, 0.0),
+        v!(1.0, phi, 0.0),
+        v!(-1.0, -phi, 0.0),
+        v!(1.0, -phi, 0.0),
+        v!(0.0, -1.0, phi),
+        v!(0.0, 1.0, phi),
+        v!(0.0, -1.0, -phi),
+        v!(0.0, 1.0, -phi),
+        v!(phi, 0.0, -1.0),
+        v!(phi, 0.0, 1.0),
+        v!(-phi, 0.0, -1.0),
+        v!(-phi, 0.0, 1.0),
+    ];
+    let mut index_data = vec![
+        0u16, 11, 5, //
+        0, 5, 1, //
+        0, 1, 7, //
+        0, 7, 10, //
+        0, 10, 11, //
+        1, 5, 9, //
+        5, 11, 4, //
+        11, 10, 2, //
+        10, 7, 6, //
+        7, 1, 8, //
+        3, 9, 4, //
+        3, 4, 2, //
+        3, 2, 6, //
+        3, 6, 8, //
+        3, 8, 9, //
+        4, 9, 5, //
+        2, 4, 11, //
+        6, 2, 10, //
+        8, 6, 7, //
+        9, 8, 1, //
+    ];
+
+    // refinements with cache to merge same vertices
+    let mut cache: HashMap<u32, u16> = HashMap::new();
+    let mut middle_point = |p1: u16, p2: u16| {
+        let small = p1.min(p2) as u32;
+        let big = p1.max(p2) as u32;
+        let key = (small << 16) + big;
+
+        match cache.entry(key) {
+            Entry::Occupied(t) => *t.get(),
+            Entry::Vacant(t) => {
+                let v1 = vertex_data[p1 as usize].position;
+                let v2 = vertex_data[p2 as usize].position;
+
+                // compute middle point
+                let mx = (v1[0] + v2[0]) / 2.0;
+                let my = (v1[1] + v2[1]) / 2.0;
+                let mz = (v1[2] + v2[2]) / 2.0;
+
+                let index = vertex_data.len();
+                vertex_data.push(v!(mx, my, mz));
+                assert!(index < std::u16::MAX as usize);
+                *t.insert(index as u16)
+            }
+        }
+    };
+
+    for _ in 0..refine_levels {
+        let mut new_index_data = vec![];
+
+        for triangle in index_data.chunks(3) {
+            let v1 = triangle[0];
+            let v2 = triangle[1];
+            let v3 = triangle[2];
+
+            let a = middle_point(v1, v2);
+            let b = middle_point(v2, v3);
+            let c = middle_point(v3, v1);
+
+            // replace this face with 4 faces
+            new_index_data.extend_from_slice(&[
+                v1, a, c, //
+                v2, b, a, //
+                v3, c, b, //
+                a, b, c,
+            ])
+        }
+
+        index_data = new_index_data;
+    }
+
+    let (vertex_buffer, vbo_future) = ImmutableBuffer::from_iter(
+        vertex_data.into_iter(),
+        BufferUsage::vertex_buffer(),
+        queue.clone(),
+    )?;
+    let (index_buffer, ibo_future) =
+        ImmutableBuffer::from_iter(index_data.into_iter(), BufferUsage::index_buffer(), queue)?;
 
     Ok((
         IndexedMesh::new(vertex_buffer, index_buffer),
