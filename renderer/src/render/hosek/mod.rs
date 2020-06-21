@@ -7,7 +7,7 @@ use crate::render::hosek::shaders::{get_or_load_fragment_shader, get_or_load_ver
 use crate::render::pools::{UniformBufferPool, UniformBufferPoolError};
 use crate::render::ubo::{FrameMatrixData, HosekWilkieParams};
 use crate::render::vertex::PositionOnlyVertex;
-use crate::render::{FrameMatrixPool, FRAME_DATA_UBO_DESCRIPTOR_SET};
+use crate::render::{descriptor_set_layout, FrameMatrixPool, FRAME_DATA_UBO_DESCRIPTOR_SET};
 use crate::resources::mesh::{create_icosphere, IndexedMesh};
 use cgmath::Vector3;
 use std::sync::Arc;
@@ -73,15 +73,8 @@ impl HosekSky {
                 .expect("cannot create aky pipeline"),
         );
 
-        let layout_frame_data = pipeline
-            .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
-            .unwrap()
-            .clone();
-
-        let layout_sky_data = pipeline
-            .descriptor_set_layout(SKY_DATA_UBO_DESCRIPTOR_SET)
-            .unwrap()
-            .clone();
+        let layout_frame_data = descriptor_set_layout(&pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET);
+        let layout_sky_data = descriptor_set_layout(&pipeline, SKY_DATA_UBO_DESCRIPTOR_SET);
 
         Self {
             pool: SkyDataPool::new(device.clone(), layout_sky_data),

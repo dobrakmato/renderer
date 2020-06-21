@@ -8,6 +8,8 @@ use crate::GameState;
 use cgmath::{EuclideanSpace, SquareMatrix, Vector3, Zero};
 use std::sync::Arc;
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
+use vulkano::descriptor::descriptor_set::UnsafeDescriptorSetLayout;
+use vulkano::descriptor::PipelineLayoutAbstract;
 use vulkano::device::{Device, Queue};
 use vulkano::format::ClearValue;
 use vulkano::framebuffer::FramebufferAbstract;
@@ -40,6 +42,23 @@ pub trait RenderPath {
     fn create_framebuffer(&self, final_image: Arc<SwapchainImage<Window>>);
     /// Recreates internal state & buffers to support the new resolution.
     fn recreate_buffers(&self, new_dimensions: [u32; 2]);
+}
+
+/// Helper function to retrieve `UnsafeDescriptorSetLayout` from pipeline
+/// by specifying the index of the layout.
+///
+/// # Panics
+///
+/// This function panics if `index` is invalid set index for provided pipeline.
+///
+pub fn descriptor_set_layout<T>(pipeline: &T, index: usize) -> Arc<UnsafeDescriptorSetLayout>
+where
+    T: PipelineLayoutAbstract,
+{
+    pipeline
+        .descriptor_set_layout(index)
+        .expect("cannot get descriptor set layout")
+        .clone()
 }
 
 pub struct Frame<'r, 's> {

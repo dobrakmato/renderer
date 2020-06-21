@@ -3,7 +3,7 @@
 use crate::render::pools::{UniformBufferPool, UniformBufferPoolError};
 use crate::render::transform::Transform;
 use crate::render::ubo::ObjectMatrixData;
-use crate::render::OBJECT_DATA_UBO_DESCRIPTOR_SET;
+use crate::render::{descriptor_set_layout, OBJECT_DATA_UBO_DESCRIPTOR_SET};
 use crate::resources::material::Material;
 use crate::resources::mesh::DynamicIndexedMesh;
 use std::sync::Arc;
@@ -44,10 +44,7 @@ impl<V: Vertex> Object<V> {
         Self {
             pool: ObjectDataPool::new(
                 device,
-                pipeline
-                    .descriptor_set_layout(OBJECT_DATA_UBO_DESCRIPTOR_SET)
-                    .expect("cannot find descriptor set for ObjectData")
-                    .clone(),
+                descriptor_set_layout(&pipeline, OBJECT_DATA_UBO_DESCRIPTOR_SET),
             ),
             transform,
             pipeline,

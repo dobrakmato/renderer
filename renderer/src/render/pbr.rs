@@ -3,8 +3,8 @@ use crate::render::pools::UniformBufferPool;
 use crate::render::ubo::DirectionalLight;
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
 use crate::render::{
-    FrameMatrixPool, FRAME_DATA_UBO_DESCRIPTOR_SET, LIGHTS_UBO_DESCRIPTOR_SET,
-    SUBPASS_UBO_DESCRIPTOR_SET,
+    descriptor_set_layout, FrameMatrixPool, FRAME_DATA_UBO_DESCRIPTOR_SET,
+    LIGHTS_UBO_DESCRIPTOR_SET, SUBPASS_UBO_DESCRIPTOR_SET,
 };
 use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
 use crate::samplers::Samplers;
@@ -24,9 +24,11 @@ use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::swapchain::Swapchain;
 use winit::window::Window;
 
+/// Uniform buffer poll for light data.
 pub type LightDataPool = UniformBufferPool<[DirectionalLight; 1024]>;
 
-// long-lived global (vulkan) objects related to one render path (buffers, pipelines)
+/// Long-lived objects & buffers that **do not** change when resolution
+/// changes.
 pub struct PBRDeffered {
     pub render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
     pub samplers: Samplers,
@@ -36,7 +38,7 @@ pub struct PBRDeffered {
     pub sky: HosekSky,
 }
 
-// long-lived global buffers and data dependant on the render resolution
+/// Long-lived objects & buffers that **do** change when resolution changes.
 pub struct Buffers {
     pub hdr_buffer: Arc<AttachmentImage>,
     pub gbuffer1: Arc<AttachmentImage>,
@@ -139,24 +141,17 @@ impl Buffers {
         // create persistent descriptor sets that contains bindings to
         // buffers used in subpasses
         let tonemap_descriptor_set = Arc::new(
-            PersistentDescriptorSet::start(
-                tonemap_pipeline
-                    .descriptor_set_layout(0) // workaround: vulkano does not work with sparse indices
-                    .unwrap()
-                    .clone(),
-            )
-            .add_image(hdr_buffer.clone())
-            .unwrap()
-            .build()
-            .unwrap(),
+            PersistentDescriptorSet::start(descriptor_set_layout(&tonemap_pipeline, 0))
+                .add_image(hdr_buffer.clone())
+                .unwrap()
+                .build()
+                .unwrap(),
         );
         let lighting_gbuffer_ds = Arc::new(
-            PersistentDescriptorSet::start(
-                lighting_pipeline
-                    .descriptor_set_layout(SUBPASS_UBO_DESCRIPTOR_SET)
-                    .unwrap()
-                    .clone(),
-            )
+            PersistentDescriptorSet::start(descriptor_set_layout(
+                &lighting_pipeline,
+                SUBPASS_UBO_DESCRIPTOR_SET,
+            ))
             .add_image(gbuffer1.clone())
             .unwrap()
             .add_image(gbuffer2.clone())
@@ -172,17 +167,11 @@ impl Buffers {
         Self {
             geometry_frame_matrix_pool: FrameMatrixPool::new(
                 device.clone(),
-                geometry_pipeline
-                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
-                    .unwrap()
-                    .clone(),
+                descriptor_set_layout(&geometry_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
             ),
             lights_frame_matrix_pool: FrameMatrixPool::new(
                 device,
-                lighting_pipeline
-                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
-                    .unwrap()
-                    .clone(),
+                descriptor_set_layout(&lighting_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
             ),
             geometry_pipeline: geometry_pipeline as Arc<_>,
             tonemap_pipeline: tonemap_pipeline as Arc<_>,
@@ -273,7 +262,6 @@ impl PBRDeffered {
         );
 
         let samplers = Samplers::new(device.clone()).unwrap();
-
         let buffers = Buffers::new(render_pass.clone(), device.clone(), swapchain.dimensions());
         let sky = HosekSky::new(queue, render_pass.clone(), device.clone());
 
