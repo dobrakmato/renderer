@@ -28,7 +28,6 @@ layout(set = 0, binding = 0) uniform FrameMatrixData {
 } frame_matrix_data;
 
 layout(push_constant) uniform PushConstants {
-    vec3 camera_pos;
     vec2 resolution;
     uint light_count;
 } push_constants;
@@ -100,7 +99,7 @@ void main() {
     vec3 position = PositionFromDepth(depth);
 
     vec3 N = normalize(normal);
-    vec3 V = normalize(push_constants.camera_pos.xyz - position);
+    vec3 V = normalize(frame_matrix_data.cameraPosition.xyz - position);
 
     vec3 result = vec3(0.0);
     for (uint i = 0; i < push_constants.light_count; i++) {

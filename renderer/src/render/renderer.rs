@@ -22,15 +22,6 @@ use vulkano::swapchain::{
 use vulkano::sync::{GpuFuture, SharingMode};
 use winit::window::Window;
 
-/// Series of operations related to lighting and shading.
-trait RenderPath {
-    fn new(graphical_queue: Arc<Queue>, device: Arc<Device>) -> Box<Self>;
-    /// Creates a *Framebuffer* with given `final_image` as final render target.
-    fn create_framebuffer(&self, final_image: Arc<SwapchainImage<Window>>);
-    /// Recreates internal state & buffers to support the new resolution.
-    fn recreate_buffers(&self, new_dimensions: [u32; 2]);
-}
-
 /// All possible errors that can happen while creating [`RendererState`](struct.RendererState.html).
 #[derive(Debug)]
 pub enum RendererStateError {

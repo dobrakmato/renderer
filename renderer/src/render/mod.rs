@@ -8,11 +8,12 @@ use crate::GameState;
 use cgmath::{EuclideanSpace, SquareMatrix, Vector3, Zero};
 use std::sync::Arc;
 use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
-use vulkano::descriptor::PipelineLayoutAbstract;
+use vulkano::device::{Device, Queue};
 use vulkano::format::ClearValue;
 use vulkano::framebuffer::FramebufferAbstract;
+use vulkano::image::SwapchainImage;
 use vulkano::pipeline::viewport::Viewport;
+use winit::window::Window;
 
 // consts to descriptor set binding indices
 pub const FRAME_DATA_UBO_DESCRIPTOR_SET: usize = 0;
@@ -31,6 +32,15 @@ pub mod vertex;
 pub mod vulkan;
 
 pub type FrameMatrixPool = UniformBufferPool<FrameMatrixData>;
+
+/// Series of operations related to lighting and shading.
+pub trait RenderPath {
+    fn new(graphical_queue: Arc<Queue>, device: Arc<Device>) -> Box<Self>;
+    /// Creates a *Framebuffer* with given `final_image` as final render target.
+    fn create_framebuffer(&self, final_image: Arc<SwapchainImage<Window>>);
+    /// Recreates internal state & buffers to support the new resolution.
+    fn recreate_buffers(&self, new_dimensions: [u32; 2]);
+}
 
 pub struct Frame<'r, 's> {
     render_path: &'r mut PBRDeffered,
@@ -109,19 +119,7 @@ impl<'r, 's> Frame<'r, 's> {
         for (idx, light) in state.directional_lights.iter().enumerate() {
             lights[idx] = *light;
         }
-        let lighting_lights_ds = Arc::new(
-            PersistentDescriptorSet::start(
-                path.buffers
-                    .lighting_pipeline
-                    .descriptor_set_layout(LIGHTS_UBO_DESCRIPTOR_SET)
-                    .unwrap()
-                    .clone(),
-            )
-            .add_buffer(path.buffers.lights_buffer_pool.next(lights).unwrap())
-            .unwrap()
-            .build()
-            .unwrap(),
-        );
+        let lighting_lights_ds = path.lights_buffer_pool.next(lights).unwrap();
         b.draw_indexed(
             path.buffers.lighting_pipeline.clone(),
             &dynamic_state,
@@ -133,10 +131,8 @@ impl<'r, 's> Frame<'r, 's> {
                 lighting_lights_ds,
             ),
             crate::shaders::fs_deferred_lighting::ty::PushConstants {
-                camera_pos: state.camera.position.into(),
                 resolution: dims,
                 light_count: state.directional_lights.len() as u32,
-                _dummy0: [0u8; 4],
             },
         )
         .expect("cannot do lighting pass")
