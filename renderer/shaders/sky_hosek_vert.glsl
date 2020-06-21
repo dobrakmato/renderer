@@ -1,6 +1,6 @@
 #version 450
 
-layout(location = 0) in vec3 position;
+layout(location = 0) in vec4 position;
 
 layout(location = 0) out vec3 position0;
 
@@ -15,7 +15,7 @@ layout(set = 0, binding = 0) uniform FrameMatrixData {
 const float SCALE = 200;
 
 void main() {
-    gl_Position = frame_matrix_data.projection * frame_matrix_data.view * vec4(position * SCALE, 1.0);
+    gl_Position = frame_matrix_data.projection * frame_matrix_data.view * vec4(position.xyz * SCALE, 1.0);
     gl_Position.z = gl_Position.w - 0.00001;
-    position0 = (vec4(position * SCALE, 1.0)).xyz;
+    position0 = (vec4(position.xyz * SCALE, 1.0)).xyz;
 }

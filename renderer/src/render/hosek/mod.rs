@@ -3,18 +3,24 @@
 //! [Hosek-Wilkie]: https://cgg.mff.cuni.cz/projects/SkylightModelling/
 
 use crate::render::hosek::dataset::{DATASETS_RGB, DATASETS_RGB_RAD};
+use crate::render::hosek::shaders::{get_or_load_fragment_shader, get_or_load_vertex_shader};
 use crate::render::pools::{UniformBufferPool, UniformBufferPoolError};
-use crate::render::ubo::HosekWilkieParams;
-use crate::render::vertex::NormalMappedVertex;
-use crate::resources::mesh::IndexedMesh;
+use crate::render::ubo::{FrameMatrixData, HosekWilkieParams};
+use crate::render::vertex::PositionOnlyVertex;
+use crate::render::{FrameMatrixPool, FRAME_DATA_UBO_DESCRIPTOR_SET};
+use crate::resources::mesh::{create_icosphere, IndexedMesh};
 use cgmath::Vector3;
 use std::sync::Arc;
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
-use vulkano::descriptor::DescriptorSet;
-use vulkano::device::Device;
+use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
+use vulkano::device::{Device, Queue};
+use vulkano::framebuffer::{RenderPassAbstract, Subpass};
+use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
+use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 
 mod dataset;
+mod shaders;
 
 /// Descriptor set index used for sky data.
 pub const SKY_DATA_UBO_DESCRIPTOR_SET: usize = 1;
@@ -24,30 +30,62 @@ pub type SkyDataPool = UniformBufferPool<HosekWilkieParams>;
 
 /// Sky object that can be renderer and contains parameters for
 /// underlying Hosek-Wilkie sky model.
-pub struct Sky {
+pub struct HosekSky {
     pool: SkyDataPool,
-    mesh: Arc<IndexedMesh<NormalMappedVertex, u16>>,
+    mesh: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+    frame_matrix_data_pool: FrameMatrixPool,
     pub sun_dir: Vector3<f32>,
     pub turbidity: f32,
     pub ground_albedo: Vector3<f32>,
 }
 
-impl Sky {
+impl HosekSky {
     /// Creates a new `Sky` with specified parameters. Provided pipeline should be the one
     /// that will be used to render the sky.
     pub fn new(
-        mesh: Arc<IndexedMesh<NormalMappedVertex, u16>>,
+        queue: Arc<Queue>,
+        render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
         device: Arc<Device>,
-        pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     ) -> Self {
-        let layout = pipeline
+        // todo: decide with to do with `expect` and with future
+        let (mesh, _) = create_icosphere(queue, 0).expect("cannot generate icosphere for Sky");
+
+        let sky_vs = get_or_load_vertex_shader(device.clone());
+        let sky_fs = get_or_load_fragment_shader(device.clone());
+
+        let pipeline = Arc::new(
+            GraphicsPipeline::start()
+                .vertex_input_single_buffer::<PositionOnlyVertex>()
+                .vertex_shader(sky_vs.main_entry_point(), ())
+                .fragment_shader(sky_fs.main_entry_point(), ())
+                .triangle_list()
+                .viewports_dynamic_scissors_irrelevant(1)
+                .depth_stencil(DepthStencil {
+                    depth_compare: Compare::LessOrEqual,
+                    depth_write: false,
+                    depth_bounds_test: DepthBounds::Disabled,
+                    stencil_front: Default::default(),
+                    stencil_back: Default::default(),
+                })
+                .render_pass(Subpass::from(render_pass.clone(), 2).unwrap())
+                .build(device.clone())
+                .expect("cannot create aky pipeline"),
+        );
+
+        let layout_frame_data = pipeline
+            .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
+            .unwrap()
+            .clone();
+
+        let layout_sky_data = pipeline
             .descriptor_set_layout(SKY_DATA_UBO_DESCRIPTOR_SET)
             .unwrap()
             .clone();
 
         Self {
-            pool: SkyDataPool::new(device, layout),
+            pool: SkyDataPool::new(device.clone(), layout_sky_data),
+            frame_matrix_data_pool: FrameMatrixPool::new(device, layout_frame_data),
             mesh,
             pipeline,
             sun_dir: Vector3::new(0.0, 1.0, 0.0),
@@ -68,12 +106,17 @@ impl Sky {
     pub fn draw(
         &self,
         dynamic_state: &DynamicState,
-        frame_matrix_data: Arc<dyn DescriptorSet + Send + Sync>,
+        frame_matrix_data: FrameMatrixData,
         cmd: &mut AutoCommandBufferBuilder,
     ) {
         let sky_data = self
             .sky_params_data()
             .expect("cannot create HosekWilkieParams for this frame");
+
+        let frame_matrix_data = self
+            .frame_matrix_data_pool
+            .next(frame_matrix_data)
+            .expect("cannot create FrameMatrixData for this frame");
 
         cmd.draw_indexed(
             self.pipeline.clone(),

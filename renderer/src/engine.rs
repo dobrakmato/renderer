@@ -28,7 +28,8 @@ impl Engine {
     ) -> Self {
         let vulkan_state = VulkanState::new(conf, &event_loop).expect("cannot create VulkanState");
         let asset_storage = Storage::new(8, vulkan_state.transfer_queue());
-        let renderer_state = RendererState::new(&vulkan_state, &asset_storage);
+        let renderer_state =
+            RendererState::new(&vulkan_state).expect("cannot create RendererState");
         let input_state = Input::new(vulkan_state.surface());
         Self {
             game_state: initial_state,

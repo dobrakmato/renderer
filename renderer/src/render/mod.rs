@@ -1,13 +1,12 @@
 //! Objects & procedures related to rendering.
 
-use crate::assets::lookup;
-use crate::assets::Storage;
 use crate::camera::Camera;
-use crate::render::hosek::Sky;
+use crate::render::hosek::HosekSky;
+use crate::render::pools::UniformBufferPool;
 use crate::render::ubo::{DirectionalLight, FrameMatrixData};
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
 use crate::resources::image::create_single_pixel_image;
-use crate::resources::mesh::{create_full_screen_triangle, create_mesh, IndexedMesh};
+use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
 use crate::samplers::Samplers;
 use crate::GameState;
 use cgmath::{EuclideanSpace, SquareMatrix, Vector3, Zero};
@@ -23,7 +22,7 @@ use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract};
 use vulkano::image::{
     AttachmentImage, ImageCreationError, ImageUsage, ImmutableImage, SwapchainImage,
 };
-use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
+use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
@@ -88,8 +87,10 @@ impl GBuffer {
     }
 }
 
+pub type FrameMatrixPool = UniformBufferPool<FrameMatrixData>;
+
 // long-lived global (vulkan) objects related to one render path (buffers, pipelines)
-pub struct RenderPath {
+pub struct PBRDeffered {
     render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
     pub buffers: RenderPathBuffers,
     pub samplers: Samplers,
@@ -98,8 +99,7 @@ pub struct RenderPath {
     pub normal_texture: Arc<ImmutableImage<Format>>,
 
     fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
-    frame_matrix_data: CpuBufferPool<FrameMatrixData>,
-    pub sky: Sky,
+    pub sky: HosekSky,
 }
 
 // long-lived global buffers and data dependant on the render resolution
@@ -110,12 +110,13 @@ pub struct RenderPathBuffers {
     // pipelines are dependant on the resolution
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     lighting_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
-    skybox_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     tonemap_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     // constant descriptor sets
     tonemap_ds: Arc<dyn DescriptorSet + Send + Sync>,
     lighting_gbuffer_ds: Arc<dyn DescriptorSet + Send + Sync>,
     lights_buffer_pool: CpuBufferPool<[DirectionalLight; 1024]>,
+    geometry_frame_matrix_pool: FrameMatrixPool,
+    lights_frame_matrix_pool: FrameMatrixPool,
 }
 
 impl RenderPathBuffers {
@@ -128,8 +129,6 @@ impl RenderPathBuffers {
         // render pass from precompiled (embedded) spri-v binary data from soruces.
         let vs = crate::shaders::vs_deferred_geometry::Shader::load(device.clone()).unwrap();
         let fs = crate::shaders::fs_deferred_geometry::Shader::load(device.clone()).unwrap();
-        let sky_vs = crate::shaders::sky_vert::Shader::load(device.clone()).unwrap();
-        let sky_fs = crate::shaders::sky_frag::Shader::load(device.clone()).unwrap();
         let tm_vs = crate::shaders::vs_passtrough::Shader::load(device.clone()).unwrap();
         let tm_fs = crate::shaders::fs_tonemap::Shader::load(device.clone()).unwrap();
         let dl_fs = crate::shaders::fs_deferred_lighting::Shader::load(device.clone()).unwrap();
@@ -160,25 +159,6 @@ impl RenderPathBuffers {
                 .render_pass(Subpass::from(render_pass.clone(), 1).unwrap())
                 .build(device.clone())
                 .expect("cannot build tonemap graphics pipeline"),
-        );
-
-        let skybox_pipeline = Arc::new(
-            GraphicsPipeline::start()
-                .vertex_input_single_buffer::<NormalMappedVertex>()
-                .vertex_shader(sky_vs.main_entry_point(), ())
-                .fragment_shader(sky_fs.main_entry_point(), ())
-                .triangle_list()
-                .viewports_dynamic_scissors_irrelevant(1)
-                .depth_stencil(DepthStencil {
-                    depth_compare: Compare::LessOrEqual,
-                    depth_write: false,
-                    depth_bounds_test: DepthBounds::Disabled,
-                    stencil_front: Default::default(),
-                    stencil_back: Default::default(),
-                })
-                .render_pass(Subpass::from(render_pass.clone(), 2).unwrap())
-                .build(device.clone())
-                .expect("cannot create aky pipeline"),
         );
 
         let tonemap_pipeline = Arc::new(
@@ -256,8 +236,21 @@ impl RenderPathBuffers {
         let lights_buffer_pool = CpuBufferPool::new(device.clone(), BufferUsage::uniform_buffer());
 
         Self {
+            geometry_frame_matrix_pool: FrameMatrixPool::new(
+                device.clone(),
+                geometry_pipeline
+                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
+                    .unwrap()
+                    .clone(),
+            ),
+            lights_frame_matrix_pool: FrameMatrixPool::new(
+                device,
+                lighting_pipeline
+                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
+                    .unwrap()
+                    .clone(),
+            ),
             geometry_pipeline: geometry_pipeline as Arc<_>,
-            skybox_pipeline: skybox_pipeline as Arc<_>,
             tonemap_pipeline: tonemap_pipeline as Arc<_>,
             tonemap_ds: tonemap_ds as Arc<_>,
             lighting_pipeline: lighting_pipeline as Arc<_>,
@@ -270,13 +263,8 @@ impl RenderPathBuffers {
     }
 }
 
-impl RenderPath {
-    pub fn new(
-        queue: Arc<Queue>,
-        device: Arc<Device>,
-        swapchain: Arc<Swapchain<Window>>,
-        assets: &Storage,
-    ) -> Self {
+impl PBRDeffered {
+    pub fn new(queue: Arc<Queue>, device: Arc<Device>, swapchain: Arc<Swapchain<Window>>) -> Self {
         // first we generate some useful resources on the fly
         let (fst, _) = create_full_screen_triangle(queue.clone()).expect("cannot create fst");
         let (white_texture, _) = create_single_pixel_image(queue.clone(), [255; 4]).unwrap();
@@ -354,21 +342,15 @@ impl RenderPath {
         );
 
         let samplers = Samplers::new(device.clone()).unwrap();
-        let (sky_mesh, _) = create_mesh(
-            &assets.request_load(lookup("./icosphere.obj")).wait(),
-            queue,
-        )
-        .unwrap();
 
         let buffers =
             RenderPathBuffers::new(render_pass.clone(), device.clone(), swapchain.dimensions());
-        let sky = Sky::new(sky_mesh, device.clone(), buffers.skybox_pipeline.clone());
+        let sky = HosekSky::new(queue, render_pass.clone(), device.clone());
 
         Self {
             fst,
             buffers,
             render_pass: render_pass as Arc<_>,
-            frame_matrix_data: CpuBufferPool::uniform_buffer(device.clone()),
             sky,
             samplers,
             white_texture,
@@ -403,7 +385,7 @@ impl RenderPath {
 }
 
 pub struct Frame<'r, 's> {
-    render_path: &'r mut RenderPath,
+    render_path: &'r mut PBRDeffered,
     game_state: &'s GameState,
     framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
     builder: Option<AutoCommandBufferBuilder>,
@@ -429,56 +411,24 @@ impl<'r, 's> Frame<'r, 's> {
         /* create FrameMatrixData (set=2) for this frame. */
         let view = self.game_state.camera.view_matrix();
         let projection = self.game_state.camera.projection_matrix();
-        let frame_matrix_data = Arc::new(
-            path.frame_matrix_data
-                .next(FrameMatrixData {
-                    camera_position: self.game_state.camera.position.to_vec(),
-                    inv_view: view.invert().unwrap(),
-                    inv_projection: projection.invert().unwrap(),
-                    view,
-                    projection,
-                })
+        let fmd = FrameMatrixData {
+            camera_position: self.game_state.camera.position.to_vec(),
+            inv_view: view.invert().unwrap(),
+            inv_projection: projection.invert().unwrap(),
+            view,
+            projection,
+        };
+        let geometry_frame_matrix_data = Arc::new(
+            path.buffers
+                .geometry_frame_matrix_pool
+                .next(fmd)
                 .expect("cannot take next buffer"),
         );
-
-        // todo: remove duplicates
-        let ds_frame_matrix_data_geometry = Arc::new(
-            PersistentDescriptorSet::start(
-                path.buffers
-                    .geometry_pipeline
-                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
-                    .unwrap()
-                    .clone(),
-            )
-            .add_buffer(frame_matrix_data.clone())
-            .expect("cannot add ubo to pds set=1")
-            .build()
-            .expect("cannot build pds set=1"),
-        );
-        let ds_frame_matrix_data_lighting = PersistentDescriptorSet::start(
-            path.buffers
-                .lighting_pipeline
-                .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
-                .unwrap()
-                .clone(),
-        )
-        .add_buffer(frame_matrix_data.clone())
-        .expect("cannot add ubo to pds set=1")
-        .build()
-        .expect("cannot build pds set=1");
-        let ds_frame_matrix_data_skybox = Arc::new(
-            PersistentDescriptorSet::start(
-                path.buffers
-                    .skybox_pipeline
-                    .descriptor_set_layout(FRAME_DATA_UBO_DESCRIPTOR_SET)
-                    .unwrap()
-                    .clone(),
-            )
-            .add_buffer(frame_matrix_data)
-            .expect("cannot add ubo to pds set=1")
-            .build()
-            .expect("cannot build pds set=1"),
-        );
+        let lights_frame_matrix_data = path
+            .buffers
+            .lights_frame_matrix_pool
+            .next(fmd)
+            .expect("cannot take next buffer");
 
         let mut b = self.builder.take().unwrap();
 
@@ -498,11 +448,7 @@ impl<'r, 's> Frame<'r, 's> {
 
         // 1. SUBPASS - Geometry
         for x in state.objects.iter() {
-            x.draw_indexed(
-                &dynamic_state,
-                ds_frame_matrix_data_geometry.clone(),
-                &mut b,
-            )
+            x.draw_indexed(&dynamic_state, geometry_frame_matrix_data.clone(), &mut b)
         }
         b.next_subpass(false).unwrap();
 
@@ -534,7 +480,7 @@ impl<'r, 's> Frame<'r, 's> {
             vec![path.fst.vertex_buffer().clone()],
             path.fst.index_buffer().clone(),
             (
-                ds_frame_matrix_data_lighting,
+                lights_frame_matrix_data,
                 path.buffers.lighting_gbuffer_ds.clone(),
                 lighting_lights_ds,
             ),
@@ -550,8 +496,7 @@ impl<'r, 's> Frame<'r, 's> {
         .unwrap();
 
         // 3. SUBPASS - Skybox
-        path.sky
-            .draw(&dynamic_state, ds_frame_matrix_data_skybox.clone(), &mut b);
+        path.sky.draw(&dynamic_state, fmd, &mut b);
         b.next_subpass(false).unwrap();
 
         // 4. SUBPASS - Tonemap
