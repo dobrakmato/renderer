@@ -5,7 +5,7 @@ use crate::render::object::Object;
 use crate::render::transform::Transform;
 use crate::render::ubo::DirectionalLight;
 use crate::render::vertex::NormalMappedVertex;
-use crate::resources::material::{FallbackMaps, StaticMaterial};
+use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
 use bf::uuid::Uuid;
 use cgmath::{vec3, Deg, InnerSpace, Point3, Vector3};
@@ -103,11 +103,7 @@ fn load(engine: &mut Engine) {
     let assets = &engine.asset_storage;
     let path = &mut engine.renderer_state.render_path;
 
-    let fallback_maps = Arc::new(FallbackMaps {
-        fallback_white: path.white_texture.clone(),
-        fallback_black: path.black_texture.clone(),
-        fallback_normal: path.normal_texture.clone(),
-    });
+    let (fallback_maps, _) = create_default_fallback_maps(engine.vulkan_state.transfer_queue());
 
     let static_material = |mat: Arc<bf::material::Material>| {
         StaticMaterial::from_material(

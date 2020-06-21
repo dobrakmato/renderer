@@ -8,9 +8,12 @@ use vulkano::image::ImmutableImage;
 mod dynamic;
 mod r#static;
 
+use crate::resources::image::create_single_pixel_image;
 pub use dynamic::DynamicMaterial;
 pub use r#static::StaticMaterial;
 use vulkano::descriptor::DescriptorSet;
+use vulkano::device::Queue;
+use vulkano::sync::GpuFuture;
 
 /// Index of descriptor set that is used for material data.
 pub const MATERIAL_UBO_DESCRIPTOR_SET: usize = 1;
@@ -70,4 +73,22 @@ impl FallbackMaps {
     fallback_fn!(white, fallback_white);
     fallback_fn!(black, fallback_black);
     fallback_fn!(normal, fallback_normal);
+}
+
+/// Creates a [`FallbackMaps`](struct.FallbackMaps.html) struct with default
+/// maps. Returns the struct and future that represents the moment maps are
+/// ready to be used.
+pub fn create_default_fallback_maps(queue: Arc<Queue>) -> (Arc<FallbackMaps>, impl GpuFuture) {
+    let (white, f1) = create_single_pixel_image(queue.clone(), [255; 4]).unwrap();
+    let (black, f2) = create_single_pixel_image(queue.clone(), [0; 4]).unwrap();
+    let (normal, f3) = create_single_pixel_image(queue, [128, 128, 255, 255]).unwrap();
+
+    (
+        Arc::new(FallbackMaps {
+            fallback_white: white,
+            fallback_black: black,
+            fallback_normal: normal,
+        }),
+        f1.join(f2).join(f3),
+    )
 }

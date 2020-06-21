@@ -1,7 +1,8 @@
 //! *Swapchain* creation & render-loop.
 
+use crate::render::pbr::PBRDeffered;
 use crate::render::vulkan::VulkanState;
-use crate::render::{Frame, PBRDeffered};
+use crate::render::Frame;
 use crate::GameState;
 use log::debug;
 use log::error;
@@ -260,5 +261,5 @@ impl RendererState {
 /// Creates a **now** GpuFuture wrapped in `Box` and `Option`.
 #[inline]
 fn now(device: Arc<Device>) -> Option<Box<dyn GpuFuture>> {
-    Some(vulkano::sync::now(device.clone()).boxed())
+    Some(vulkano::sync::now(device).boxed())
 }
