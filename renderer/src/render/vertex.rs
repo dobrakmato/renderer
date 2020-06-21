@@ -6,12 +6,12 @@ use safe_transmute::TriviallyTransmutable;
 ///
 /// Layout of this vertex is following:
 ///
-/// | f32_0      | f32_1      | f32_2      |
-/// |------------|------------|------------|
-/// | position.x | position.y | position.z |
+/// | f32_0      | f32_1      | f32_2      | f32_3     |
+/// |------------|------------|------------|-----------|
+/// | position.x | position.y | position.z |*(padding)*|
 #[derive(Default, Debug, Clone, Copy)]
 pub struct PositionOnlyVertex {
-    pub position: [f32; 3],
+    pub position: [f32; 4],
 }
 
 /// Vertex that consists of *position*, *normal* and one *uv coordinate*.
