@@ -1,7 +1,7 @@
 use bf::image::{Format, Image};
 use bf::material::Material;
 use bf::mesh::Mesh;
-use bf::{load_bf_from_bytes, Container, Data};
+use bf::{load_bf_from_bytes, Container};
 use image::dxt::{DXTVariant, DxtDecoder};
 use image::{DynamicImage, ImageBuffer, ImageDecoder, ImageFormat};
 use std::path::PathBuf;
@@ -25,15 +25,15 @@ fn main() {
     let bytes = std::fs::read(opt.input).unwrap();
     let file = load_bf_from_bytes(bytes.as_slice()).unwrap();
 
-    println!("magic={} (ok)", file.magic());
-    println!("version={}", file.version());
-    println!("compressed={}", file.is_compressed());
+    println!("magic={:.4} (ok)", file.magic());
+    println!("version={:.4}", file.version());
+    println!("compressed={:.4}", file.is_compressed());
 
     let container = file.into_container();
 
     match container {
         Container::Image(i) => handle_image(i, opt.dump, opt.unpack_normal_map),
-        Container::Mesh(g) => handle_mesh(g),
+        Container::Mesh(g) => handle_mesh(g, opt.dump),
         Container::Material(m) => handle_material(m),
     }
 }
@@ -41,12 +41,12 @@ fn main() {
 fn handle_image(image: Image, dump: bool, unpack: bool) {
     println!("image");
     println!("format={:?}", image.format);
-    println!("mipmaps={}", image.mipmap_count());
+    println!("mipmaps={:.4}", image.mipmap_count());
 
     for (idx, mipmap) in image.mipmaps().enumerate() {
         let size = mipmap.width * mipmap.height * image.format.bits_per_pixel() as usize / 8;
         println!(
-            "mipmap level={} width={} height={} size={}",
+            "mipmap level={:.4} width={:.4} height={:.4} size={:.4}",
             idx, mipmap.width, mipmap.height, size
         );
 
@@ -75,7 +75,7 @@ fn handle_image(image: Image, dump: bool, unpack: bool) {
                 1 => DynamicImage::ImageLuma8(ImageBuffer::from_raw(width, height, raw).unwrap()),
                 3 => DynamicImage::ImageRgb8(ImageBuffer::from_raw(width, height, raw).unwrap()),
                 4 => DynamicImage::ImageRgba8(ImageBuffer::from_raw(width, height, raw).unwrap()),
-                _ => panic!("cannot dump with {} channels", image.format.channels()),
+                _ => panic!("cannot dump with {:.4} channels", image.format.channels()),
             };
 
             // unpack dxt5nm
@@ -108,25 +108,66 @@ fn handle_image(image: Image, dump: bool, unpack: bool) {
                 img
             };
 
-            img.save_with_format(format!("dump_mipmap{}.png", idx), ImageFormat::Png)
+            img.save_with_format(format!("dump_mipmap{:.4}.png", idx), ImageFormat::Png)
                 .expect("cannot save dumped file");
         }
     }
 }
 
-fn handle_mesh(geo: Mesh) {
+fn handle_mesh(geo: Mes, dump: bool) {
     println!("mesh");
 
     println!("vertex_data_format={:?}", geo.vertex_format);
     println!("index_type={:?}", geo.index_type);
     println!(
-        "vertices={}",
+        "vertices={:.4}",
         geo.vertex_data.len() / geo.vertex_format.size_of_one_vertex()
     );
     println!(
-        "indices={}",
+        "indices={:.4}",
         geo.index_data.len() / geo.index_type.size_of_one_index()
     );
+
+    if dump {
+        for vertex in geo
+            .vertex_data
+            .as_slice()
+            .chunks(geo.vertex_format.size_of_one_vertex())
+        {
+            let mut i = vertex.iter();
+            macro_rules! f {
+                () => {
+                    f32::from_le_bytes([
+                        *i.next().unwrap(),
+                        *i.next().unwrap(),
+                        *i.next().unwrap(),
+                        *i.next().unwrap(),
+                    ])
+                };
+            }
+
+            let pos_x = f!();
+            let pos_y = f!();
+            let pos_z = f!();
+
+            let nor_x = f!();
+            let nor_y = f!();
+            let nor_z = f!();
+
+            let uv_x = f!();
+            let uv_y = f!();
+
+            let tan_x = f!();
+            let tan_y = f!();
+            let tan_z = f!();
+            let padding = f!();
+
+            println!(
+                "({:.4}; {:.4}; {:.4})\t\t\t({:.4}; {:.4}; {:.4})\t\t\t({:.4}; {:.4})\t\t\t({:.4}; {:.4}; {:.4})\t\t{:.4}",
+                pos_x, pos_y, pos_z, nor_x, nor_y, nor_z, uv_x, uv_y, tan_x, tan_y, tan_z, padding
+            )
+        }
+    }
 }
 
 fn handle_material(material: Material) {
