@@ -114,7 +114,7 @@ fn handle_image(image: Image, dump: bool, unpack: bool) {
     }
 }
 
-fn handle_mesh(geo: Mes, dump: bool) {
+fn handle_mesh(geo: Mesh, dump: bool) {
     println!("mesh");
 
     println!("vertex_data_format={:?}", geo.vertex_format);
@@ -129,10 +129,11 @@ fn handle_mesh(geo: Mes, dump: bool) {
     );
 
     if dump {
-        for vertex in geo
+        for (idx, vertex) in geo
             .vertex_data
             .as_slice()
             .chunks(geo.vertex_format.size_of_one_vertex())
+            .enumerate()
         {
             let mut i = vertex.iter();
             macro_rules! f {
@@ -163,9 +164,9 @@ fn handle_mesh(geo: Mes, dump: bool) {
             let padding = f!();
 
             println!(
-                "({:.4}; {:.4}; {:.4})\t\t\t({:.4}; {:.4}; {:.4})\t\t\t({:.4}; {:.4})\t\t\t({:.4}; {:.4}; {:.4})\t\t{:.4}",
-                pos_x, pos_y, pos_z, nor_x, nor_y, nor_z, uv_x, uv_y, tan_x, tan_y, tan_z, padding
-            )
+                "{} ({:.4}; {:.4}; {:.4})\t\t\t({:.4}; {:.4}; {:.4})\t\t\t({:.4}; {:.4})\t\t\t({:.4}; {:.4}; {:.4})\t\t{:.4}",
+                idx, pos_x, pos_y, pos_z, nor_x, nor_y, nor_z, uv_x, uv_y, tan_x, tan_y, tan_z, padding
+            );
         }
     }
 }
