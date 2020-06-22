@@ -161,7 +161,7 @@ impl Geometry {
                     .expect("cannot write f32");
                 buf.write_f32::<LittleEndian>(tan.y as f32)
                     .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(tan.y as f32)
+                buf.write_f32::<LittleEndian>(tan.z as f32)
                     .expect("cannot write f32");
                 buf.write_f32::<LittleEndian>(0.0) // padding
                     .expect("cannot write f32");
