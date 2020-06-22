@@ -6,6 +6,7 @@ use lz4::block::{compress, decompress, CompressionMode};
 use serde::de::{DeserializeOwned, Error, Visitor};
 use serde::export::Formatter;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 /// Compression level for `lz4` compression.
@@ -36,8 +37,25 @@ impl Into<Option<CompressionMode>> for CompressionLevel {
 ///
 /// Note: no parameters in the `T` type can be borrowed because
 /// this decompression process involves allocation.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Compressed<T>(T, CompressionLevel);
+
+impl<T: Eq> PartialEq for Compressed<T> {
+    fn eq(&self, other: &Self) -> bool {
+        other.0.eq(&self.0)
+    }
+}
+
+impl<T: Eq> Eq for Compressed<T> {}
+
+impl<T: Hash> Hash for Compressed<T> {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.0.hash(state)
+    }
+}
 
 impl<T> Compressed<T> {
     /// Creates a new `Compressed` wrapped with specified data and default
@@ -128,6 +146,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use quickcheck_macros::quickcheck;
+
     use crate::lz4::Compressed;
     use bincode::{deserialize, serialize};
     use serde::{Deserialize, Serialize};
@@ -204,5 +224,37 @@ mod tests {
         let deserialized: Data = deserialize(serialized.as_slice()).unwrap();
 
         assert_eq!(value.extra_data.0, deserialized.extra_data.0);
+    }
+
+    #[quickcheck]
+    fn test_random(n1: u32, n2: u8, data_inner: Vec<u8>) -> bool {
+        #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+        struct Data {
+            number: u32,
+            number2: u8,
+            extra_data: Compressed<ByteData>,
+        }
+        #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+        struct ByteData {
+            n1: u32,
+            n2: u8,
+            #[serde(with = "serde_bytes")]
+            data: Vec<u8>,
+        }
+
+        let value = Data {
+            number: n1,
+            number2: n2,
+            extra_data: Compressed::new(ByteData {
+                n1,
+                n2,
+                data: data_inner,
+            }),
+        };
+
+        let serialized = serialize(&value).unwrap();
+        let deserialized: Data = deserialize(serialized.as_slice()).unwrap();
+
+        value == deserialized
     }
 }
