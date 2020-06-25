@@ -3,6 +3,7 @@ use bf::mesh::{IndexType, VertexFormat};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+mod format;
 mod geo;
 mod math;
 mod tool;
@@ -54,6 +55,8 @@ fn parse_index_type(src: &str) -> Result<IndexType, &'static str> {
 fn parse_vertex_format(src: &str) -> Result<VertexFormat, &'static str> {
     match src.to_lowercase().as_str() {
         "pnut" => Ok(VertexFormat::PositionNormalUvTangent),
+        "pnu" => Ok(VertexFormat::PositionNormalUv),
+        "p" => Ok(VertexFormat::Position),
         _ => Err("unknown format"),
     }
 }

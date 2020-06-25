@@ -1,3 +1,4 @@
+use crate::format::VertexFormatExt;
 use crate::math::Vec3;
 use bf::mesh::{IndexType, VertexFormat};
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -116,9 +117,6 @@ impl Geometry {
     /// bytes with format (layout, padding) specified by `VertexDataFormat`
     /// parameter.
     pub fn generate_vertex_data(&self, format: VertexFormat) -> Vec<u8> {
-        // the only supported format
-        assert_eq!(format, VertexFormat::PositionNormalUvTangent);
-
         let capacity = (self.positions.len() * std::mem::size_of::<f32>() * 3)
             + (self.normals.len() * std::mem::size_of::<f32>() * 3)
             + (self.tex_coords.len() * std::mem::size_of::<f32>() * 2)
@@ -138,33 +136,44 @@ impl Geometry {
             .zip(uv_iter)
             .zip(tan_iter)
             .for_each(|(((pos, nor), uv), tan)| {
-                buf.write_f32::<LittleEndian>(pos.x as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(pos.y as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(pos.z as f32)
-                    .expect("cannot write f32");
+                if format.has_position() {
+                    buf.write_f32::<LittleEndian>(pos.x as f32)
+                        .expect("cannot write f32");
+                    buf.write_f32::<LittleEndian>(pos.y as f32)
+                        .expect("cannot write f32");
+                    buf.write_f32::<LittleEndian>(pos.z as f32)
+                        .expect("cannot write f32");
+                }
 
-                buf.write_f32::<LittleEndian>(nor.x as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(nor.y as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(nor.z as f32)
-                    .expect("cannot write f32");
+                if format.has_normals() {
+                    buf.write_f32::<LittleEndian>(nor.x as f32)
+                        .expect("cannot write f32");
+                    buf.write_f32::<LittleEndian>(nor.y as f32)
+                        .expect("cannot write f32");
+                    buf.write_f32::<LittleEndian>(nor.z as f32)
+                        .expect("cannot write f32");
+                }
 
-                buf.write_f32::<LittleEndian>(uv.x as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(uv.y as f32)
-                    .expect("cannot write f32");
+                if format.has_uvs() {
+                    buf.write_f32::<LittleEndian>(uv.x as f32)
+                        .expect("cannot write f32");
+                    buf.write_f32::<LittleEndian>(uv.y as f32)
+                        .expect("cannot write f32");
+                }
 
-                buf.write_f32::<LittleEndian>(tan.x as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(tan.y as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(tan.z as f32)
-                    .expect("cannot write f32");
-                buf.write_f32::<LittleEndian>(0.0) // padding
-                    .expect("cannot write f32");
+                if format.has_tangents() {
+                    buf.write_f32::<LittleEndian>(tan.x as f32)
+                        .expect("cannot write f32");
+                    buf.write_f32::<LittleEndian>(tan.y as f32)
+                        .expect("cannot write f32");
+                    buf.write_f32::<LittleEndian>(tan.z as f32)
+                        .expect("cannot write f32");
+                }
+
+                for _ in 0..format.padding_length() {
+                    buf.write_u8(0) // padding
+                        .expect("cannot write f32");
+                }
             });
 
         buf
