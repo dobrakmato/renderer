@@ -54,4 +54,5 @@ unsafe impl TriviallyTransmutable for BasicVertex {}
 unsafe impl TriviallyTransmutable for NormalMappedVertex {}
 
 vulkano::impl_vertex!(NormalMappedVertex, position, normal, uv, tangent);
+vulkano::impl_vertex!(BasicVertex, position, normal, uv);
 vulkano::impl_vertex!(PositionOnlyVertex, position);
