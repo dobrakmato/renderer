@@ -8,6 +8,10 @@ use serde::{Deserialize, Serialize};
 pub enum VertexFormat {
     // vec3(pos), vec3(nor), vec2(uv), vec3(tangent) + 1 byte padding
     PositionNormalUvTangent,
+    // vec3(pos), vec3(nor), vec2(uv)
+    PositionNormalUv,
+    // vec3(pos) + 4 byte padding
+    Position,
 }
 
 impl VertexFormat {
@@ -16,6 +20,8 @@ impl VertexFormat {
     pub fn size_of_one_vertex(self) -> usize {
         match self {
             VertexFormat::PositionNormalUvTangent => std::mem::size_of::<f32>() * 12,
+            VertexFormat::PositionNormalUv => std::mem::size_of::<f32>() * 8,
+            VertexFormat::Position => std::mem::size_of::<f32>() * 4,
         }
     }
 }
