@@ -12,7 +12,7 @@ use crate::resources::mesh::{create_icosphere, IndexedMesh};
 use cgmath::Vector3;
 use std::sync::Arc;
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
-use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
+use vulkano::descriptor::DescriptorSet;
 use vulkano::device::{Device, Queue};
 use vulkano::framebuffer::{RenderPassAbstract, Subpass};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
