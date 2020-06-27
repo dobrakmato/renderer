@@ -1,6 +1,5 @@
 use crate::input::Input;
 use cgmath::{vec3, InnerSpace, Matrix4, PerspectiveFov, Point3, Rad, Transform, Vector3};
-use winit::event::VirtualKeyCode;
 
 pub trait Camera<T> {
     fn projection_matrix(&self) -> Matrix4<T>;
@@ -67,35 +66,19 @@ impl PerspectiveCamera {
     }
 
     pub fn update(&mut self, input: &Input) {
-        let speed = if input.keyboard.is_key_down(VirtualKeyCode::LShift) {
+        let speed = if input.universal.is_button_down("Sprint") {
             0.005
         } else {
             0.00125
         };
 
-        if input.keyboard.is_key_down(VirtualKeyCode::A) {
-            self.move_left(speed)
-        }
-        if input.keyboard.is_key_down(VirtualKeyCode::D) {
-            self.move_right(speed)
-        }
-        if input.keyboard.is_key_down(VirtualKeyCode::S) {
-            self.move_backward(speed)
-        }
-        if input.keyboard.is_key_down(VirtualKeyCode::W) {
-            self.move_forward(speed)
-        }
-        if input.keyboard.is_key_down(VirtualKeyCode::Space) {
-            self.move_up(speed)
-        }
-        if input.keyboard.is_key_down(VirtualKeyCode::LControl) {
-            self.move_down(speed)
-        }
+        self.move_right(speed * input.universal.axis("MoveRight"));
+        self.move_forward(speed * input.universal.axis("MoveForward"));
+        self.move_up(speed * input.universal.axis("MoveUp"));
 
-        let mouse_delta = input.mouse.delta();
         self.rotate(
-            Rad(mouse_delta.0 as f32 * 0.001),
-            Rad(mouse_delta.1 as f32 * 0.001),
+            Rad(input.universal.axis_raw("Mouse X") * 0.001),
+            Rad(input.universal.axis_raw("Mouse Y") * 0.001),
         )
     }
 }
