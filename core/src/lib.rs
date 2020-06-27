@@ -1,5 +1,7 @@
 //! Core functionality shared between all (or many) of the renderer crates.
 
+use std::ops::{Add, Mul, Sub};
+
 pub mod notification;
 pub mod perf;
 
@@ -30,4 +32,17 @@ macro_rules! assert_alignment {
             let _: [(); std::mem::align_of::<$typ>()] = [(); $to];
         };
     };
+}
+
+/// Performs [linear interpolation] between two values. This function is generic and
+/// inlined to call site.
+///
+/// [linear interpolation]: https://en.wikipedia.org/wiki/Linear_interpolation
+#[inline]
+pub fn lerp<T: Sub<T, Output = T> + Add<T, Output = T> + Mul<T, Output = T> + Copy>(
+    min: T,
+    max: T,
+    f: T,
+) -> T {
+    min + (max - min) * f
 }
