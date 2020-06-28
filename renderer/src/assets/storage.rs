@@ -3,15 +3,21 @@
 use crate::assets::{asset_from_bytes_dynamic, Asset, AssetLoadError, BatchLoad};
 use bf::uuid::Uuid;
 use core::notification::notification;
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use std::any::Any;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 use std::thread::spawn;
+use std::time::{Duration, Instant};
 use vulkano::device::Queue;
+
+/// An integer that represent the version of asset that is currently
+/// loaded. If an asset is reloaded this number is incremented.
+type AssetRevision = u32;
 
 /// All possible states for assets in storage.
 enum AssetState {
@@ -30,7 +36,7 @@ enum AssetState {
     LoadError(AssetLoadError),
     /// The asset was successfully loaded to memory and it is
     /// ready to be used.
-    Loaded(Arc<dyn Any + Send + Sync + 'static>),
+    Loaded(Arc<dyn Any + Send + Sync + 'static>, Instant),
     /// The asset was successfully loaded to memory and it was
     /// already used. It may or may not be currently present in
     /// memory.
@@ -51,9 +57,13 @@ type NotificationSend = core::notification::Sender;
 pub struct Storage {
     storage: RwLock<HashMap<Uuid, (AssetState, NotificationRecv)>>,
     load_queue: crossbeam::Sender<(Uuid, NotificationSend)>,
+    revisions: RwLock<HashMap<Uuid, AssetRevision>>,
     roots: Vec<PathBuf>,
     pub transfer_queue: Arc<Queue>,
 }
+
+// todo: separate asset path resolving
+// todo: separate automatic hot-reloading (watching)
 
 impl Storage {
     /// Constructs a new `Storage` and starts a specified amount of worker
@@ -66,6 +76,7 @@ impl Storage {
         let storage = Arc::new(Self {
             transfer_queue,
             storage: RwLock::new(HashMap::new()),
+            revisions: RwLock::new(HashMap::new()),
             load_queue: send,
             roots: vec![Path::new("D:\\_MATS\\OUT\\").into()],
         });
@@ -85,7 +96,6 @@ impl Storage {
     pub fn find_asset(&self, uuid: &Uuid) -> Option<PathBuf> {
         let mut file_name = String::with_capacity(36 + 3);
 
-        // SAFETY: We are appending ASCII characters only (UUID)
         file_name.push_str(uuid.to_hyphenated().to_string().to_lowercase().as_str());
         file_name.push_str(".bf");
 
@@ -112,9 +122,50 @@ impl Storage {
             None => false,
             Some((state, _)) => match state {
                 AssetState::Queued | AssetState::Loading | AssetState::LoadError(_) => false,
-                AssetState::Loaded(_) => true,
+                AssetState::Loaded(_, _) => true,
                 AssetState::Tracked(w) => w.strong_count() > 0,
             },
+        }
+    }
+
+    /// Returns the current asset revision number. Each time the asset is
+    /// reloaded this number is increased by one. When asset is loaded
+    /// for first time, it is assigned revision number 1.
+    ///
+    /// Assets that are not loaded (but may be in load-queue) have revision
+    /// number zero.
+    pub fn revision(&self, uuid: &Uuid) -> AssetRevision {
+        *self.revisions.read().unwrap().get(uuid).unwrap_or(&0)
+    }
+
+    /// Scans the whole storage and removes asset that were loaded but were never
+    /// actually used. It measures the duration between current time and the time
+    /// the asset was loaded and if the difference is bigger than provided threshold
+    /// the asset will be dropped.
+    ///
+    /// Note: This function acquires the write lock on the storage
+    /// for the whole operation. You should only call this function when you are
+    /// sure you can wait for this operation to complete.
+    pub fn gc(&self, leak_threshold: Duration) {
+        let mut lock = self.storage.write().unwrap();
+
+        // find all leaked assets
+        let leaked = lock
+            .keys()
+            .filter(|k| match lock.get(k).unwrap() {
+                (AssetState::Loaded(_, loaded_at), _) => loaded_at.elapsed() > leak_threshold,
+                _ => false,
+            })
+            .copied()
+            .collect::<Vec<_>>();
+
+        if !leaked.is_empty() {
+            warn!("GC-ed {} leaked assets! You should not rely on garbage collector to clean your mess.", leaked.len());
+        }
+
+        // remove all found assets
+        for x in leaked {
+            lock.remove(&x);
         }
     }
 
@@ -150,7 +201,7 @@ impl Storage {
         match self.storage.write().unwrap().get_mut(uuid) {
             None => None,
             Some((state, _)) => match state.deref() {
-                AssetState::Loaded(t) => {
+                AssetState::Loaded(t, _) => {
                     // here we need to move out the arc and convert the state
                     // from Loaded(owned) to Tracked(weak reference).
                     let strong = t.clone();
@@ -191,7 +242,7 @@ impl Storage {
                         error!("Requested re-load of asset that previously failed to load! {:?} Error: {:?}", uuid.to_hyphenated().to_string(), e);
                         true
                     }
-                    AssetState::Loaded(_) => false,
+                    AssetState::Loaded(_, _) => false,
                     AssetState::Tracked(w) => w.strong_count() > 0,
                 },
                 Some(recv.clone()),
@@ -214,6 +265,7 @@ impl Storage {
                 .write()
                 .unwrap()
                 .insert(uuid, (AssetState::Queued, recv.clone()));
+
             self.load_queue
                 .send((uuid, send))
                 .expect("cannot push to load queue");
@@ -227,6 +279,51 @@ impl Storage {
             uuid,
             PhantomData,
         )
+    }
+
+    /// Works the same way as `request_load` method but forces the load
+    /// from disk and deserialization even when the asset is present in
+    /// memory and usable.
+    ///
+    /// The asset is first dropped from tracking by the `Storage` and
+    /// then the load request is placed on the load-queue. If the asset
+    /// is used by someone the asset will not be dropped as it is stored
+    /// inside an `Arc`. The struct will continue to use the old revision
+    /// of the asset until it decides to use the new version.
+    ///
+    /// The reloaded asset will be placed in this storage and all consumers
+    /// must manually acquire the new revision of the asset from the
+    /// storage by calling the `get()` method.
+    ///
+    /// You can verify the revision of asset that is currently loaded
+    /// by calling the `revision()` method. If the `revision` number is
+    /// bigger then it was the last time you acquired this asset, you
+    /// can be sure that new version of this asset is ready to be used.
+    ///
+    /// Each call of this function will cause the asset to be loaded once.
+    pub fn request_reload<T: Asset>(&self, uuid: Uuid) -> LoadFuture<T> {
+        // if the asset is not yet loaded, treat this reload
+        // request as normal load request
+        if let None = self.storage.read().unwrap().get(&uuid) {
+            return self.request_load::<T>(uuid);
+        }
+
+        // create notification back from worker thread to notify
+        // that the resource is ready
+        let (send, recv) = notification();
+
+        // silently drop the old asset value regardless of
+        // whether is was Arc<T> or Weak<T>
+        self.storage
+            .write()
+            .unwrap()
+            .insert(uuid, (AssetState::Queued, recv.clone()));
+
+        self.load_queue
+            .send((uuid, send))
+            .expect("cannot push to load queue");
+
+        LoadFuture(recv, &self, uuid, PhantomData)
     }
 
     /// Creates a new batch load for specified items.
@@ -309,7 +406,14 @@ fn spawn_worker_thread(
             };
 
             // place result into storage as `Loaded`
-            storage.update_asset_state(&uuid, AssetState::Loaded(asset));
+            storage.update_asset_state(&uuid, AssetState::Loaded(asset, Instant::now()));
+
+            // update the revision number by incrementing or set it to one
+            match storage.revisions.write().unwrap().entry(uuid) {
+                Entry::Occupied(mut t) => t.insert(t.get() + 1),
+                Entry::Vacant(t) => *t.insert(1),
+            };
+
             // notify potential threads that the asset is ready
             send.signal();
             trace!("Loaded asset {:?}!", uuid.to_hyphenated().to_string());
