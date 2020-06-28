@@ -1,13 +1,21 @@
+//! Contains code related to cameras.
+
 use crate::input::Input;
 use cgmath::{vec3, InnerSpace, Matrix4, PerspectiveFov, Point3, Rad, Transform, Vector3};
 
+/// Object that can provide *view* and *projection matrices*.
 pub trait Camera<T> {
+    /// Returns the current *projection matrix*.
     fn projection_matrix(&self) -> Matrix4<T>;
+
+    /// Returns the current *view matrix*.
     fn view_matrix(&self) -> Matrix4<T>;
 }
 
 // todo: separate camera (render) from camera (movement/script)
 // todo: use quaternion for camera rotation
+
+/// First person perspective camera that is controlled by mouse and WASD keys.
 pub struct PerspectiveCamera {
     pub position: Point3<f32>,
     pub forward: Vector3<f32>,
