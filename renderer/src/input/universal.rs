@@ -140,6 +140,10 @@ impl Universal {
     }
 
     pub fn handle_event(&mut self, input_event: &DeviceEvent) {
+        if !self.input_enabled {
+            return;
+        }
+
         match input_event {
             DeviceEvent::MouseMotion { delta } => self.accept_mouse_movement(*delta),
             DeviceEvent::Key(k) => self.accept_keyboard_input(*k),
