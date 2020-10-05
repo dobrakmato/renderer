@@ -8,6 +8,6 @@ edition = "2018"
 structopt = "0.3.11"
 wavefront_obj = "7.0.0"
 byteorder = "1.3.2"
-ordered-float = "1.0.2"
+ordered-float = "2.0.0"
 bf = { path = "../bf" }
 core = { path = "../core" }
