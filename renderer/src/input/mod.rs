@@ -28,7 +28,8 @@ impl Input {
         }
     }
 
-    /// Enables or disables the handling of `winit` keyboard events.
+    /// Enables or disables the handling of input events on all
+    /// input types (mouse, keyboard, universal).
     pub fn set_enabled(&mut self, input_enabled: bool) {
         self.keyboard.set_enabled(input_enabled);
         self.mouse.set_enabled(input_enabled);

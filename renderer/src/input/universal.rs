@@ -1,3 +1,5 @@
+//! Abstraction over concrete physical devices with configurable mappings to virtual buttons & axes.
+
 use core::lerp;
 use std::collections::HashMap;
 use winit::event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode};
@@ -86,7 +88,7 @@ enum Mapping {
 /// Universal abstract input device that supports multiple
 /// concrete input devices (such as mouse and keyboard) and has
 /// support for configurable mapping (keybindings) of individual
-/// physical devices to this.
+/// physical devices.
 pub struct Universal {
     /// All existing axes.
     axes: HashMap<&'static str, Axis>,
