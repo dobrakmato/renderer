@@ -1,6 +1,8 @@
 ![build status](https://github.com/dobrakmato/renderer/workflows/Rust/badge.svg)
 -----------------
 
+![apple an ice](https://i.imgur.com/xWoAjcn.png)
+
 ### Prerequisites
 
 You need rust, cargo with stable toolchain. We also include [shaderc](https://github.com/google/shaderc-rs) so if
