@@ -12,8 +12,12 @@ pub enum Binding {
     MouseMovementY,
 }
 
+/// Axis represents an analog like input controller that
+/// ranges usually between `-1.0` and `1.0`. As the input might
+/// be from a digital device (eg. a keyboard), it has support
+/// for configurable smoothing parameter to imitate analog controller.
 pub struct Axis {
-    /// Specifies speed of smoothing (0 to 1).
+    /// Specifies speed of smoothing (`0.0` to `1.0`).
     pub smoothing: f32,
     pub dead_zone: f32,
     pub value: f32,
@@ -23,7 +27,7 @@ pub struct Axis {
 impl Axis {
     pub fn new() -> Self {
         Self {
-            smoothing: 0.1,
+            smoothing: 0.75,
             dead_zone: 0.05,
             value: 0.0,
             raw_value: 0.0,
@@ -32,10 +36,11 @@ impl Axis {
 
     fn accept_value(&mut self, value: f32) {
         self.raw_value = value;
+        self.apply_smoothing();
     }
 
     fn apply_smoothing(&mut self) {
-        self.value = lerp(self.value, self.raw_value, self.smoothing)
+        self.value = lerp(self.value, self.raw_value, 1.0 - self.smoothing)
     }
 
     #[inline]
@@ -48,6 +53,8 @@ impl Axis {
     }
 }
 
+/// A digital input controller that is either pressed
+/// or released.
 pub struct Button {
     pub down: bool,
     pub was_pressed: bool,
@@ -76,6 +83,10 @@ enum Mapping {
     Button(&'static str),
 }
 
+/// Universal abstract input device that supports multiple
+/// concrete input devices (such as mouse and keyboard) and has
+/// support for configurable mapping (keybindings) of individual
+/// physical devices to this.
 pub struct Universal {
     /// All existing axes.
     axes: HashMap<&'static str, Axis>,
@@ -227,6 +238,7 @@ impl Universal {
     }
 }
 
+/// Implements a default key maps that uses keyboard and mouse.
 impl Default for Universal {
     fn default() -> Self {
         let axes = ["MoveForward", "MoveRight", "MoveUp", MOUSE_X, MOUSE_Y];
