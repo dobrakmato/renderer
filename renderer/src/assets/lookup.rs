@@ -21,7 +21,7 @@ use std::collections::HashMap;
 static LOOKUP_MAP: OnceCell<HashMap<String, Uuid>> = OnceCell::new();
 
 /// Creates a `HashMap<String, Uuid>` from translation file defined
-/// in environment variable and returns it.
+/// in `LOOKUP_DB` environment variable and returns it.
 ///
 /// The hashmap will only have entries for names that are unique. If
 /// two assets in the translation file share the same name, no entry
