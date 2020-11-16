@@ -1,5 +1,6 @@
-![build status](https://github.com/dobrakmato/renderer/workflows/Rust/badge.svg)
+renderer
 -----------------
+![build status](https://github.com/dobrakmato/renderer/workflows/Rust/badge.svg)
 
 ![apple an ice](https://i.imgur.com/xWoAjcn.png)
 
