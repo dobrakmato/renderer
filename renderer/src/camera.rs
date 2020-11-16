@@ -1,6 +1,5 @@
 //! Contains code related to cameras.
 
-use crate::input::Input;
 use cgmath::{vec3, InnerSpace, Matrix4, PerspectiveFov, Point3, Rad, Transform, Vector3};
 
 /// Object that can provide *view* and *projection matrices*.
@@ -12,7 +11,6 @@ pub trait Camera<T> {
     fn view_matrix(&self) -> Matrix4<T>;
 }
 
-// todo: separate camera (render) from camera (movement/script)
 // todo: use quaternion for camera rotation
 
 /// First person perspective camera that is controlled by mouse and WASD keys.
@@ -71,23 +69,6 @@ impl PerspectiveCamera {
         if angle.abs() > 0.999 {
             self.forward = old_forward;
         }
-    }
-
-    pub fn update(&mut self, input: &Input) {
-        let speed = if input.universal.is_button_down("Sprint") {
-            0.005
-        } else {
-            0.00125
-        };
-
-        self.move_right(speed * input.universal.axis("MoveRight"));
-        self.move_forward(speed * input.universal.axis("MoveForward"));
-        self.move_up(speed * input.universal.axis("MoveUp"));
-
-        self.rotate(
-            Rad(input.universal.axis_raw("Mouse X") * 0.001),
-            Rad(input.universal.axis_raw("Mouse Y") * 0.001),
-        )
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::assets::Storage;
 use crate::input::Input;
+use crate::movement::FpsMovement;
 use crate::render::renderer::RendererState;
 use crate::render::ubo::DirectionalLight;
 use crate::render::vulkan::VulkanState;
@@ -42,7 +43,7 @@ impl Engine {
     }
 
     pub fn update(&mut self) {
-        self.game_state.camera.update(&self.input_state);
+        FpsMovement::update(&mut self.game_state.camera, &self.input_state);
 
         if self.input_state.keyboard.was_key_pressed(VirtualKeyCode::F) {
             let obj = self.game_state.objects.get_mut(0).unwrap();

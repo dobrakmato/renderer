@@ -23,6 +23,7 @@ mod assets;
 mod camera;
 mod engine;
 mod input;
+mod movement;
 mod render;
 mod resources;
 mod samplers;
