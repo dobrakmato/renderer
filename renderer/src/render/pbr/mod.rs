@@ -1,3 +1,5 @@
+//! Module containing all logic for PHR deferred rendering pipeline.
+
 use crate::render::hosek::HosekSky;
 use crate::render::pools::UniformBufferPool;
 use crate::render::samplers::Samplers;
@@ -64,11 +66,14 @@ impl Buffers {
     ) -> Self {
         // we create required shaders for all graphical pipelines we use in this
         // render pass from precompiled (embedded) spri-v binary data from soruces.
-        let vs = crate::shaders::vs_deferred_geometry::Shader::load(device.clone()).unwrap();
-        let fs = crate::shaders::fs_deferred_geometry::Shader::load(device.clone()).unwrap();
-        let tm_vs = crate::shaders::vs_passtrough::Shader::load(device.clone()).unwrap();
-        let tm_fs = crate::shaders::fs_tonemap::Shader::load(device.clone()).unwrap();
-        let dl_fs = crate::shaders::fs_deferred_lighting::Shader::load(device.clone()).unwrap();
+        let vs =
+            crate::render::shaders::vs_deferred_geometry::Shader::load(device.clone()).unwrap();
+        let fs =
+            crate::render::shaders::fs_deferred_geometry::Shader::load(device.clone()).unwrap();
+        let tm_vs = crate::render::shaders::vs_passtrough::Shader::load(device.clone()).unwrap();
+        let tm_fs = crate::render::shaders::fs_tonemap::Shader::load(device.clone()).unwrap();
+        let dl_fs =
+            crate::render::shaders::fs_deferred_lighting::Shader::load(device.clone()).unwrap();
 
         // create basic pipeline for drawing
         let geometry_pipeline = Arc::new(

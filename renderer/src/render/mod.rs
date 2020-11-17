@@ -29,6 +29,7 @@ pub mod pbr;
 pub mod pools;
 pub mod renderer;
 pub mod samplers;
+mod shaders;
 pub mod transform;
 pub mod ubo;
 pub mod vertex;
@@ -150,7 +151,7 @@ impl<'r, 's> Frame<'r, 's> {
                 path.buffers.lighting_gbuffer_ds.clone(),
                 lighting_lights_ds,
             ),
-            crate::shaders::fs_deferred_lighting::ty::PushConstants {
+            shaders::fs_deferred_lighting::ty::PushConstants {
                 resolution: dims,
                 light_count: state.directional_lights.len() as u32,
             },

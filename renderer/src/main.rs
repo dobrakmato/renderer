@@ -26,7 +26,6 @@ mod input;
 mod movement;
 mod render;
 mod resources;
-mod shaders;
 
 #[derive(Copy, Clone)]
 pub struct RendererConfiguration {
