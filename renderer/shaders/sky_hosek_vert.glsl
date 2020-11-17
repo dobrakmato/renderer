@@ -4,7 +4,7 @@ layout(location = 0) in vec4 position;
 
 layout(location = 0) out vec3 position0;
 
-layout(set = 0, binding = 0) uniform FrameMatrixData {
+layout(std140, set = 0, binding = 0) uniform FrameMatrixData {
     mat4 view;
     mat4 projection;
     mat4 invProjection;

@@ -15,11 +15,11 @@ struct DirectionalLight {
     vec3 color;
 };
 
-layout(set = 2, binding = 0) uniform Lights {
+layout(std140, set = 2, binding = 0) uniform Lights {
     DirectionalLight lights[MAX_LIGHTS];
 } lights_ubo;
 
-layout(set = 0, binding = 0) uniform FrameMatrixData {
+layout(std140, set = 0, binding = 0) uniform FrameMatrixData {
     mat4 view;
     mat4 projection;
     mat4 invProjection;
@@ -27,7 +27,7 @@ layout(set = 0, binding = 0) uniform FrameMatrixData {
     vec3 cameraPosition;
 } frame_matrix_data;
 
-layout(push_constant) uniform PushConstants {
+layout(std140, push_constant) uniform PushConstants {
     vec2 resolution;
     uint light_count;
 } push_constants;

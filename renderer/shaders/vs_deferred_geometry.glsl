@@ -8,7 +8,7 @@ layout(location = 3) in vec4 tangent;
 layout(location = 0) out vec2 uv0;
 layout(location = 1) out mat3 tbn0;
 
-layout(set = 0, binding = 0) uniform FrameMatrixData {
+layout(std140, set = 0, binding = 0) uniform FrameMatrixData {
     mat4 view;
     mat4 projection;
     mat4 invProjection;
