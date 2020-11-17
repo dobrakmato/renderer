@@ -28,6 +28,7 @@ pub mod object;
 pub mod pbr;
 pub mod pools;
 pub mod renderer;
+pub mod samplers;
 pub mod transform;
 pub mod ubo;
 pub mod vertex;

@@ -26,7 +26,6 @@ mod input;
 mod movement;
 mod render;
 mod resources;
-mod samplers;
 mod shaders;
 
 #[derive(Copy, Clone)]

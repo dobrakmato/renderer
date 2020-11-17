@@ -1,5 +1,6 @@
 use crate::render::hosek::HosekSky;
 use crate::render::pools::UniformBufferPool;
+use crate::render::samplers::Samplers;
 use crate::render::ubo::DirectionalLight;
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
 use crate::render::{
@@ -7,7 +8,6 @@ use crate::render::{
     LIGHTS_UBO_DESCRIPTOR_SET, SUBPASS_UBO_DESCRIPTOR_SET,
 };
 use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
-use crate::samplers::Samplers;
 use std::sync::Arc;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
