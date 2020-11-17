@@ -5,7 +5,7 @@
 use crate::render::hosek::dataset::{DATASETS_RGB, DATASETS_RGB_RAD};
 use crate::render::hosek::shaders::{get_or_load_fragment_shader, get_or_load_vertex_shader};
 use crate::render::pools::{UniformBufferPool, UniformBufferPoolError};
-use crate::render::ubo::{FrameMatrixData, HosekWilkieParams};
+use crate::render::ubo::FrameMatrixData;
 use crate::render::vertex::PositionOnlyVertex;
 use crate::render::{descriptor_set_layout, FrameMatrixPool, FRAME_DATA_UBO_DESCRIPTOR_SET};
 use crate::resources::mesh::{create_icosphere, IndexedMesh};
@@ -224,4 +224,33 @@ fn make_hosek_wilkie_params(
         padding8: 0.0,
         padding9: 0.0,
     }
+}
+
+/// Parameters for [Hosek-Wilkie] sky model implementation. Contains
+/// padding to correctly align vectors.
+///
+/// [Hosek-Wilkie]: https://cgg.mff.cuni.cz/projects/SkylightModelling/
+#[repr(C, align(16))]
+pub struct HosekWilkieParams {
+    pub a: Vector3<f32>,
+    pub padding0: f32,
+    pub b: Vector3<f32>,
+    pub padding1: f32,
+    pub c: Vector3<f32>,
+    pub padding2: f32,
+    pub d: Vector3<f32>,
+    pub padding3: f32,
+    pub e: Vector3<f32>,
+    pub padding4: f32,
+    pub f: Vector3<f32>,
+    pub padding5: f32,
+    pub g: Vector3<f32>,
+    pub padding6: f32,
+    pub h: Vector3<f32>,
+    pub padding7: f32,
+    pub i: Vector3<f32>,
+    pub padding8: f32,
+    pub z: Vector3<f32>,
+    pub padding9: f32,
+    pub sun_direction: Vector3<f32>,
 }
