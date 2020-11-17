@@ -56,7 +56,7 @@ type NotificationSend = core::notification::Sender;
 /// blocking other threads.
 pub struct Storage {
     storage: RwLock<HashMap<Uuid, (AssetState, NotificationRecv)>>,
-    load_queue: crossbeam::Sender<(Uuid, NotificationSend)>,
+    load_queue: crossbeam::channel::Sender<(Uuid, NotificationSend)>,
     revisions: RwLock<HashMap<Uuid, AssetRevision>>,
     roots: Vec<PathBuf>,
     pub transfer_queue: Arc<Queue>,
@@ -71,7 +71,7 @@ impl Storage {
     pub fn new(worker_count: usize, transfer_queue: Arc<Queue>) -> Arc<Self> {
         info!("Creating a Storage with {} worker threads.", worker_count);
 
-        let (send, recv) = crossbeam::unbounded();
+        let (send, recv) = crossbeam::channel::unbounded();
 
         let storage = Arc::new(Self {
             transfer_queue,
@@ -365,7 +365,7 @@ impl<'a, T: Asset> LoadFuture<'a, T> {
 /// Spawns a worker thread bound to specified load queue and target
 /// storage to load assets to.
 fn spawn_worker_thread(
-    queue: crossbeam::Receiver<(Uuid, NotificationSend)>,
+    queue: crossbeam::channel::Receiver<(Uuid, NotificationSend)>,
     storage: Arc<Storage>,
 ) {
     // helper macro to skip processing current item in the loop
