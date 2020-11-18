@@ -80,7 +80,11 @@ fn main() {
             } else {
                 1.0
             }),
-        metallic: params.metallic.unwrap_or(0.0),
+        metallic: params.metallic.unwrap_or(if params.metallic_map.is_none() {
+            0.0
+        } else {
+            1.0
+        }),
         alpha_cutoff: params.alpha_cutoff.unwrap_or(1.0),
         albedo_map: parse_uuid(params.albedo_map),
         normal_map: parse_uuid(params.normal_map),
