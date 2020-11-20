@@ -6,7 +6,7 @@ use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use vulkano::app_info_from_cargo_toml;
 use vulkano::device::{Device, DeviceCreationError, DeviceExtensions, Queue};
-use vulkano::instance::{Instance, PhysicalDevice};
+use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice};
 use vulkano::swapchain::Surface;
 use vulkano_win::{CreationError, VkSurfaceBuild};
 use winit::event_loop::EventLoop;
@@ -35,7 +35,10 @@ fn get_or_create_instance() -> Arc<Instance> {
             // required to create a windows which we will render to.
             Instance::new(
                 Some(&app_info_from_cargo_toml!()),
-                &vulkano_win::required_extensions(),
+                &InstanceExtensions {
+                    ext_debug_utils: true,
+                    ..vulkano_win::required_extensions()
+                },
                 layers,
             )
             .expect("cannot create vulkan instance")

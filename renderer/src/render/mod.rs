@@ -6,8 +6,11 @@ use crate::render::pools::UniformBufferPool;
 use crate::render::ubo::{DirectionalLight, FrameMatrixData};
 use crate::GameState;
 use cgmath::{EuclideanSpace, SquareMatrix, Vector3, Zero};
+use cstr::cstr;
 use std::sync::Arc;
-use vulkano::command_buffer::{AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState};
+use vulkano::command_buffer::{
+    AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState, SubpassContents,
+};
 use vulkano::descriptor::descriptor_set::UnsafeDescriptorSetLayout;
 use vulkano::descriptor::PipelineLayoutAbstract;
 use vulkano::device::{Device, Queue};
@@ -113,7 +116,7 @@ impl<'r, 's> Frame<'r, 's> {
 
         b.begin_render_pass(
             self.framebuffer.clone(),
-            false,
+            SubpassContents::Inline,
             vec![
                 ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
                 ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
@@ -126,12 +129,17 @@ impl<'r, 's> Frame<'r, 's> {
         .unwrap();
 
         // 1. SUBPASS - Geometry
+        b.debug_marker_begin(cstr!("Geometry Pass"), [1.0, 0.0, 0.0, 1.0])
+            .unwrap();
         for x in state.objects.iter() {
             x.draw_indexed(&dynamic_state, geometry_frame_matrix_data.clone(), &mut b)
         }
-        b.next_subpass(false).unwrap();
+        b.next_subpass(SubpassContents::Inline).unwrap();
+        b.debug_marker_end().unwrap();
 
         // 2. SUBPASS - Lighting
+        b.debug_marker_begin(cstr!("Lighting Pass"), [1.0, 1.0, 0.0, 1.0])
+            .unwrap();
         let mut lights = [DirectionalLight {
             direction: Vector3::zero(),
             intensity: 0.0,
@@ -157,14 +165,20 @@ impl<'r, 's> Frame<'r, 's> {
             },
         )
         .expect("cannot do lighting pass")
-        .next_subpass(false)
+        .next_subpass(SubpassContents::Inline)
         .unwrap();
+        b.debug_marker_end().unwrap();
 
         // 3. SUBPASS - Skybox
+        b.debug_marker_begin(cstr!("Skybox"), [0.0, 0.0, 1.0, 1.0])
+            .unwrap();
         path.sky.draw(&dynamic_state, fmd, &mut b);
-        b.next_subpass(false).unwrap();
+        b.next_subpass(SubpassContents::Inline).unwrap();
+        b.debug_marker_end().unwrap();
 
         // 4. SUBPASS - Tonemap
+        b.debug_marker_begin(cstr!("Tonemap"), [0.5, 0.5, 1.0, 0.0])
+            .unwrap();
         b.draw_indexed(
             path.buffers.tonemap_pipeline.clone(),
             &dynamic_state,
@@ -175,6 +189,8 @@ impl<'r, 's> Frame<'r, 's> {
         )
         .expect("cannot do tonemap pass");
         b.end_render_pass().unwrap();
+        b.debug_marker_end().unwrap();
+
         b.build().unwrap()
     }
 }

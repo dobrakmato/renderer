@@ -8,3 +8,9 @@ members = [
     "matcomp",
     "renderer"
 ]
+
+[profile.release]
+debug = true
+
+[patch.crates-io]
+vulkano = { git = 'https://github.com/dobrakmato/vulkano', package = 'vulkano', rev = '16933c9a5fd89cc54c649f52373e915db5643a02' }
