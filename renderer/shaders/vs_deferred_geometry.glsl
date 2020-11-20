@@ -16,7 +16,7 @@ layout(std140, set = 0, binding = 0) uniform FrameMatrixData {
     vec3 cameraPosition;
 } frame_matrix_data;
 
-layout(set = 2, binding = 0) uniform ObjectMatrixData {
+layout(std140, set = 2, binding = 0) uniform ObjectMatrixData {
     mat4 model;
 } object_matrix_data;
 
