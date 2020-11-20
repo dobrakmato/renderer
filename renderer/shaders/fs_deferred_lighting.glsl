@@ -33,6 +33,7 @@ layout(std140, push_constant) uniform PushConstants {
 } push_constants;
 
 
+// extract position from depth value
 vec3 PositionFromDepth(float depth) {
     vec2 coord = gl_FragCoord.xy / push_constants.resolution;
 
@@ -43,44 +44,68 @@ vec3 PositionFromDepth(float depth) {
     return worldSpacePosition.xyz;
 }
 
+// ggx distribution term
+float D_GGX(float roughness, float NdotH, const vec3 H) {
+    float oneMinusNoHSquared = 1.0 - NdotH * NdotH;
+    float a = NdotH * roughness;
+    float k = roughness / (oneMinusNoHSquared + a * a);
+    float d = k * k * (1.0 / 3.14159);
+    return d;
+}
 
-vec3 light(vec3 N, vec3 L, vec3 V, vec3 color, float roughness, vec3 albedo, float metallic) {
+float distribution(float roughness, float NdotH, const vec3 H) {
+    return D_GGX(roughness, NdotH, H);
+}
+
+float V_SmithGGXCorrelated(float roughness, float NdotV, float NdotL) {
+    float a2 = roughness * roughness;
+    float GGXV = NdotL * sqrt((NdotV - a2 * NdotV) * NdotV + a2);
+    float GGXL = NdotV * sqrt((NdotL - a2 * NdotL) * NdotL + a2);
+    return 0.5 / (GGXV + GGXL);
+}
+
+float visibility(float roughness, float NoV, float NoL) {
+    return V_SmithGGXCorrelated(roughness, NoV, NoL);
+}
+
+vec3 F_Schlick(const vec3 F0, float F90, float VdotH) {
+    return F0 + (F90 - F0) * pow(1.0 - VdotH, 5);
+}
+
+vec3 fresnel(const vec3 F0, float LdotH) {
+    float f90 = clamp(dot(F0, vec3(50.0 * 0.33)), 0.0, 1.0);
+    return F_Schlick(F0, f90, LdotH);
+}
+
+vec3 specular(float roughness, vec3 albedo, float metallic, const vec3 h, float NdotV, float NdotL, float NdotH, float LdotH) {
+    const vec3 dielectricSpecular = vec3(0.04, 0.04, 0.04);
+    vec3 F0 = mix(dielectricSpecular, albedo, metallic);
+
+    float D = distribution(roughness, NdotH, h);
+    float V = visibility(roughness, NdotV, NdotL);
+    vec3  F = fresnel(F0, LdotH);
+
+    return (D * V) * F;
+}
+
+vec3 diffuse(float roughness, vec3 albedo) {
+    return albedo / 3.14159;
+}
+
+vec3 light(vec3 N, vec3 L, vec3 V, vec3 lightColor, float roughness, vec3 albedo, float metallic) {
     vec3 H = normalize(L + V);
-    float alpha = roughness * roughness;
 
-    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    float NdotV = clamp(dot(N, V), 0.0001, 1.0);
     float NdotL = clamp(dot(N, L), 0.0, 1.0);
     float NdotH = clamp(dot(N, H), 0.0, 1.0);
-    float VdotH = clamp(dot(V, H), 0.0, 1.0);
+    float LdotH = clamp(dot(L, H), 0.0, 1.0);
 
-    float alphaSq = alpha * alpha;
-    float f = (NdotH * alphaSq - NdotH) * NdotH + 1.0;
-    float D = alphaSq / (3.14159 * f * f);
+    vec3 specular = specular(roughness, albedo, metallic, H, NdotV, NdotL, NdotH, LdotH);
+    vec3 diffuse = diffuse(roughness, albedo);
 
-    const vec3 dielectricSpecular = vec3(0.04, 0.04, 0.04);
-    const vec3 black = vec3(0.0, 0.0, 0.0);
+    vec3 color = diffuse + specular;
 
-    vec3 F0 = mix(dielectricSpecular, albedo, metallic);
-    vec3 F = (F0 + (1 - F0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0));
-
-    // float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaSq) + alphaSq);
-    // float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaSq) + alphaSq);
-    // float GGX = GGXL + GGXV;
-    // float G = 0.5 / (GGX);
-
-    float k = (alpha + 2 * roughness + 1) / 8.0;
-    float G = NdotL / (mix(NdotL, 1, k) * mix(NdotV, 1, k));
-
-    // float Vis = G / (4 * NdotL * NdotV);
-    float Vis = G / 4.0;
-
-    vec3 diffuse = mix(albedo * (vec3(1.0, 1.0, 1.0) - F0), black, metallic) / 3.14159;
-
-    vec3 specularContribution = D * Vis * F;
-    vec3 diffuseContribution = (1.0 - F) * diffuse;
-
-    return (specularContribution + diffuseContribution) * color * NdotL;
-
+    return (color * lightColor) * NdotL;
 }
 
 void main() {
@@ -103,7 +128,7 @@ void main() {
 
     vec3 result = vec3(0.0);
     for (uint i = 0; i < push_constants.light_count; i++) {
-        result += light(N, lights_ubo.lights[i].direction, V, lights_ubo.lights[i].color, roughness, albedo, metallic) * lights_ubo.lights[i].intensity * occlusion;
+        result += (light(N, lights_ubo.lights[i].direction, V, lights_ubo.lights[i].color, roughness, albedo, metallic) * lights_ubo.lights[i].intensity * occlusion);
     }
 
     hdr = vec4(result, 1.0);
