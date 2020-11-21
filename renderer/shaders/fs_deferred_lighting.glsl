@@ -119,7 +119,7 @@ void main() {
     vec3 normal = b1.rgb * 2 - 1.0;
     vec3 albedo = b2.rgb;
     float occlusion = b2.a;
-    float roughness = clamp(b3.r, 0.0, 1.0);
+    float roughness = clamp(b3.r, 0.00001, 1.0); // dissalow non-sensical 0 roughness
     float metallic = b3.g;
     vec3 position = PositionFromDepth(depth);
 
