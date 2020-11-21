@@ -90,6 +90,14 @@ impl Geometry {
     pub fn to_obj(&self) -> String {
         let mut buff = String::with_capacity(8192);
 
+        buff.push_str(&format!(
+            "# obj2bf dump {} positions {} tex-coords {} normals {} faces\n",
+            self.positions.len(),
+            self.tex_coords.len(),
+            self.normals.len(),
+            self.indices.len() / 3
+        ));
+
         for v in self.positions.iter() {
             buff.push_str(&format!("v {} {} {}\n", v.x, v.y, v.z))
         }

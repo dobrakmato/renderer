@@ -42,6 +42,14 @@ pub struct Obj2BfParameters {
     /// Causes the application to inspect the input file and print all possible convert commands.
     #[structopt(short, long)]
     print_options: bool,
+
+    /// Recalculates the normals instead of importing provided ones.
+    #[structopt(short, long)]
+    recalculate_normals: bool,
+
+    /// Whether to dump .obj file back after importing it. Useful for comparisons with original.
+    #[structopt(short, long)]
+    dump_obj: bool,
 }
 
 fn parse_index_type(src: &str) -> Result<IndexType, &'static str> {

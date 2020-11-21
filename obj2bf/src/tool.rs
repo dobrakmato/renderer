@@ -93,6 +93,11 @@ impl Obj2Bf {
 
         let mut geometry =
             Geometry::try_from((object, geo_idx)).map_err(Obj2BfError::CannotNormalizeObj)?;
+
+        if self.params.recalculate_normals {
+            geometry.recalculate_normals();
+        }
+
         geometry.recalculate_tangents();
 
         Ok(geometry)
@@ -124,6 +129,10 @@ impl Obj2Bf {
         let default_output = self.params.input.with_extension("bf");
         let save_path = self.params.output.clone().unwrap_or(default_output);
         let save_bytes = save_bf_to_bytes(&file).map_err(Obj2BfError::SerializationError)?;
+
+        if self.params.dump_obj {
+            std::fs::write("./obj2bf_dump.obj", geo.to_obj()).expect("cannot dump .obj file");
+        }
 
         std::fs::write(save_path, save_bytes).map_err(Obj2BfError::SaveIOError)
     }
