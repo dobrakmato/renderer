@@ -123,6 +123,9 @@ void main() {
     float metallic = b3.g;
     vec3 position = PositionFromDepth(depth);
 
+    /* remap roughness */
+    roughness = roughness * roughness;
+
     vec3 N = normalize(normal);
     vec3 V = normalize(frame_matrix_data.cameraPosition.xyz - position);
 

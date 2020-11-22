@@ -56,6 +56,7 @@ impl StaticMaterial {
         let roughness_map = load(material.roughness_map);
         let ao_map = load(material.ao_map);
         let metallic_map = load(material.metallic_map);
+        let opacity_map = load(material.opacity_map);
 
         let create = |opt: Option<Arc<bf::image::Image>>| {
             opt.map(|x| create_image(&x, assets.transfer_queue.clone()).unwrap().0)
@@ -67,6 +68,7 @@ impl StaticMaterial {
         let roughness = create(roughness_map.map(|x| x.wait()));
         let ao = create(ao_map.map(|x| x.wait()));
         let metallic = create(metallic_map.map(|x| x.wait()));
+        let opacity = create(opacity_map.map(|x| x.wait()));
 
         // create a uniform buffer with material data
         let data: MaterialData = (*material).into();
@@ -86,6 +88,7 @@ impl StaticMaterial {
         let roughness = fallback.white(&roughness);
         let ao = fallback.white(&ao);
         let metallic = fallback.black(&metallic);
+        let opacity = fallback.white(&opacity);
 
         // create descriptor set
         let set = PersistentDescriptorSet::start(layout.clone())
@@ -99,9 +102,11 @@ impl StaticMaterial {
             .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
             .add_sampled_image(ao, sampler.clone())
             .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
-            .add_sampled_image(metallic, sampler)
+            .add_sampled_image(metallic, sampler.clone())
             .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
             .add_buffer(buffer)
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_sampled_image(opacity, sampler)
             .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
             .build()
             .map_err(StaticMaterialError::CannotBuildDescriptorSet)?;

@@ -20,6 +20,8 @@ layout(std140, set = 1, binding = 6) uniform MaterialData {
     float roughness;
     float metallic;
 } material_data;
+layout(set = 1, binding = 7) uniform sampler2D opacity_map;
+
 
 // unpacks normal from DXT5nm format
 vec3 unpack_normal(vec4 packednormal) {
@@ -35,6 +37,11 @@ void main() {
     float roughness = material_data.roughness * texture(roughness_map, in_uv).r;
     float metallic = material_data.metallic * texture(metallic_map, in_uv).r;
     float occlusion = texture(occlusion_map, in_uv).r;
+    float opacity = texture(opacity_map, in_uv).r;
+
+    if (opacity < material_data.alpha_cutoff) {
+        discard;
+    }
 
     vec3 n = in_tbn * normalize(normal);
 

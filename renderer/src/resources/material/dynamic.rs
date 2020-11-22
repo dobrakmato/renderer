@@ -51,6 +51,7 @@ pub struct DynamicMaterial {
     pub roughness_map: Option<Arc<ImmutableImage<Format>>>,
     pub ao_map: Option<Arc<ImmutableImage<Format>>>,
     pub metallic_map: Option<Arc<ImmutableImage<Format>>>,
+    pub opacity_map: Option<Arc<ImmutableImage<Format>>>,
 }
 
 impl DynamicMaterial {
@@ -71,6 +72,7 @@ impl DynamicMaterial {
         let roughness_map = load(material.roughness_map);
         let ao_map = load(material.ao_map);
         let metallic_map = load(material.metallic_map);
+        let opacity_map = load(material.opacity_map);
 
         let create = |opt: Option<Arc<bf::image::Image>>| {
             opt.map(|x| create_image(&x, assets.transfer_queue.clone()).unwrap().0)
@@ -82,6 +84,7 @@ impl DynamicMaterial {
         let roughness_map = create(roughness_map.map(|x| x.wait()));
         let ao_map = create(ao_map.map(|x| x.wait()));
         let metallic_map = create(metallic_map.map(|x| x.wait()));
+        let opacity_map = create(opacity_map.map(|x| x.wait()));
 
         // create a descriptor set layout from pipeline
         let layout = pipeline
@@ -95,6 +98,7 @@ impl DynamicMaterial {
             roughness_map,
             ao_map,
             metallic_map,
+            opacity_map,
             sampler,
             fallback,
             data: (*material).into(),
@@ -121,6 +125,7 @@ impl Material for DynamicMaterial {
             let roughness = mat.fallback.white(&mat.roughness_map);
             let ao = mat.fallback.white(&mat.ao_map);
             let metallic = mat.fallback.black(&mat.metallic_map);
+            let opacity = mat.fallback.white(&mat.opacity_map);
 
             // create a uniform buffer for this frame
             let buffer = mat
@@ -147,6 +152,8 @@ impl Material for DynamicMaterial {
                 .add_sampled_image(metallic, mat.sampler.clone())
                 .map_err(DynamicMaterialError::CannotCreateDescriptorSet)?
                 .add_buffer(buffer)
+                .map_err(DynamicMaterialError::CannotCreateDescriptorSet)?
+                .add_sampled_image(opacity, mat.sampler.clone())
                 .map_err(DynamicMaterialError::CannotCreateDescriptorSet)?
                 .build()
                 .map_err(DynamicMaterialError::CannotBuildDescriptorSet)?;
