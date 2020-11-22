@@ -70,8 +70,8 @@ fn parse_format(src: &str) -> Result<Format, &'static str> {
         "srgb_dxt3" => Ok(Format::SrgbDxt3),
         "srgb_dxt5" => Ok(Format::SrgbDxt5),
         "srgb_bc7" => Ok(Format::SrgbBC7),
-        "srgb" => Ok(Format::Rgb8),
-        "srgba" => Ok(Format::Rgba8),
+        "srgb" => Ok(Format::Srgb8),
+        "srgba" => Ok(Format::Srgb8A8),
         _ => Err("unknown format"),
     }
 }
