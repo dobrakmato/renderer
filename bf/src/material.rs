@@ -34,6 +34,7 @@ pub struct Material {
     pub roughness_map: Option<Uuid>,
     pub ao_map: Option<Uuid>,
     pub metallic_map: Option<Uuid>,
+    pub opacity_map: Option<Uuid>,
 }
 
 impl Default for Material {
@@ -50,6 +51,7 @@ impl Default for Material {
             roughness_map: None,
             ao_map: None,
             metallic_map: None,
+            opacity_map: None,
         }
     }
 }

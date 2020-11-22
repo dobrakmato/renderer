@@ -39,6 +39,9 @@ pub struct MatCompParameters {
     roughness_map: Option<String>,
 
     #[structopt(long)]
+    opacity_map: Option<String>,
+
+    #[structopt(long)]
     ao_map: Option<String>,
 
     #[structopt(long)]
@@ -92,6 +95,7 @@ fn main() {
         roughness_map: parse_uuid(params.roughness_map),
         ao_map: parse_uuid(params.ao_map),
         metallic_map: parse_uuid(params.metallic_map),
+        opacity_map: parse_uuid(params.opacity_map),
     };
 
     let file = File::create_uncompressed(Container::Material(material));
