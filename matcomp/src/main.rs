@@ -85,7 +85,7 @@ fn main() {
         } else {
             1.0
         }),
-        alpha_cutoff: params.alpha_cutoff.unwrap_or(1.0),
+        alpha_cutoff: params.alpha_cutoff.unwrap_or(0.5),
         albedo_map: parse_uuid(params.albedo_map),
         normal_map: parse_uuid(params.normal_map),
         displacement_map: parse_uuid(params.displacement_map),
