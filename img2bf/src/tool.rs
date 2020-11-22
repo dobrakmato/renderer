@@ -9,7 +9,7 @@ use image::{DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel};
 use std::ops::{Deref, DerefMut};
 
 // generate `Statistics` struct with `CPUProfiler`s
-impl_stats_struct!(pub Statistics; load, vflip, channels, swizzle, mipmaps, dxt, save);
+impl_stats_struct!(pub Statistics; load, vflip, hflip, channels, swizzle, mipmaps, dxt, save);
 
 #[derive(Debug)]
 pub enum Img2BfError {
@@ -51,6 +51,17 @@ impl Img2Bf {
 
         if self.params.v_flip {
             Ok(image.flipv())
+        } else {
+            Ok(image)
+        }
+    }
+
+    /// Horizontally flips the image if requested via parameters.
+    fn h_flip(&mut self, image: DynamicImage) -> Result<DynamicImage, Img2BfError> {
+        measure_scope!(self.stats.hflip);
+
+        if self.params.h_flip {
+            Ok(image.fliph())
         } else {
             Ok(image)
         }
@@ -340,6 +351,7 @@ impl Img2Bf {
         let image = tool.load_image()?;
         let (width, height) = tool.extract_dimensions(&image)?;
         let image = tool.v_flip(image)?;
+        let image = tool.h_flip(image)?;
         let mut image = tool.convert_channels(image)?;
 
         tool.swizzle(&mut image)?;

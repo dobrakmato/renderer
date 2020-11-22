@@ -31,6 +31,10 @@ pub struct Img2BfParameters {
     #[structopt(short, long)]
     v_flip: bool,
 
+    /// Whether to horizontally flip image data
+    #[structopt(short, long)]
+    h_flip: bool,
+
     /// Whether to pack input image as normal map (DXT5nm).
     #[structopt(short, long)]
     pack_normal_map: bool,
@@ -89,6 +93,7 @@ fn main() {
 
     println!("load={}ms", stats.load.total_time().as_millis());
     println!("vflip={}ms", stats.vflip.total_time().as_millis());
+    println!("hflip={}ms", stats.hflip.total_time().as_millis());
     println!("channels={}ms", stats.channels.total_time().as_millis());
     println!("swizzle={}ms", stats.swizzle.total_time().as_millis());
     println!("mipmaps={}ms", stats.mipmaps.total_time().as_millis());
