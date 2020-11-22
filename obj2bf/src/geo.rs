@@ -251,6 +251,9 @@ impl TryFrom<(&Object, usize)> for Geometry {
             Some(t) => t,
         };
 
+        let not_nan_zero = NotNan::new(0.0).unwrap();
+        let not_nan_zero_vec = Vec3::new(not_nan_zero, not_nan_zero, not_nan_zero);
+
         // to find unique vertex data triplets we need to store all vertices
         // in a hashmap. because rust f32, f64 is not Hash by default we use
         // a crate `ordered-float`. before finding unique vertices we wrap them
@@ -273,21 +276,25 @@ impl TryFrom<(&Object, usize)> for Geometry {
         let mut triplets_idx = 0;
         let mut triplets_unique = HashMap::new();
         let mut geometry = Self::default();
+        let mut geometry_has_normals = true;
 
         for shape in geo.shapes.iter() {
             /* the library will automatically convert polygons to triangles */
-            if let Triangle(
-                (vi, Some(ti), Some(ni)),
-                (vj, Some(tj), Some(nj)),
-                (vk, Some(tk), Some(nk)),
-            ) = shape.primitive
+            if let Triangle((vi, Some(ti), ni), (vj, Some(tj), nj), (vk, Some(tk), nk)) =
+                shape.primitive
             {
                 for (v, t, n) in [(vi, ti, ni), (vj, tj, nj), (vk, tk, nk)].iter() {
                     /* Safe: indices are guaranteed to be valid by the library */
                     let triplet = unsafe {
                         let v = vertex_to_vec(obj.vertices.get_unchecked(*v))?;
                         let t = tvertex_to_vec(obj.tex_vertices.get_unchecked(*t))?;
-                        let n = vertex_to_vec(obj.normals.get_unchecked(*n))?;
+                        let n = match n {
+                            Some(n_) => vertex_to_vec(obj.normals.get_unchecked(*n_)),
+                            None => {
+                                geometry_has_normals = false;
+                                Ok(not_nan_zero_vec)
+                            }
+                        }?;
                         (v, t, n)
                     };
 
@@ -311,6 +318,11 @@ impl TryFrom<(&Object, usize)> for Geometry {
                 return Err(ObjImportError::UnsupportedPrimitive(shape.primitive));
             }
         }
+
+        if !geometry_has_normals {
+            geometry.recalculate_normals();
+        }
+
         Ok(geometry)
     }
 }
