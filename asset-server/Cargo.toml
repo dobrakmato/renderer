@@ -1,0 +1,23 @@
+[package]
+name = "asset-server"
+version = "0.1.0"
+authors = ["Matej <dobrakmato@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+actix-web = "3.2.0"
+actix-cors = "0.5.3"
+bf = { path = "../bf" }
+env_logger = "0.8.2"
+futures = "0.3.1"
+chrono = { version = "0.4.19", features = ["serde"] }
+log = "0.4.11"
+notify = "4.0.12"
+num_cpus = "1.13.0"
+once_cell = "1.5.2"
+rusqlite = "0.24.1"
+serde = "1.0.117"
+serde_json = "1.0.59"
+tokio = { version = "0.2.23", features = ["full"] }
+uuid = { version = "0.8.1", features = ['v5'] }
+walkdir = "2"
