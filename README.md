@@ -11,6 +11,7 @@ no prebuild binary is available for you system you will need to install dependen
 ### Modules
 This project contains following modules.
 
+- [asset-server](asset-server/README.md) - daemon that watches & recompiles imported assets on the fly
 - [core](core/README.md) - library with code used in other crates
 - [bf](bf/README.md) - library for working with bf files (based on [bincode](https://github.com/servo/bincode))
 - [bfinfo](bfinfo/README.md) - app to introspect / extract metadata from bf files
