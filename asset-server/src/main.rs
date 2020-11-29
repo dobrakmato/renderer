@@ -14,6 +14,7 @@ pub mod compiler;
 pub mod database;
 pub mod http;
 pub mod importer;
+pub mod input2uuid;
 pub mod library;
 pub mod models;
 pub mod ops;

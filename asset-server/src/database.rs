@@ -1,5 +1,6 @@
 //! Persistent storage for application objects.
 
+use crate::input2uuid::dump_input2uuid;
 use crate::models::{Asset, Compilation};
 use crate::settings::Settings;
 use log::info;
@@ -161,11 +162,12 @@ pub fn load_database(settings: &Settings) -> Arc<Database> {
 
     let db = Arc::new(Database::new(file));
 
-    async fn auto_flush_loop(mut interval: Interval, db: Arc<Database>) {
+    async fn auto_flush_loop(mut interval: Interval, input2uuid: String, db: Arc<Database>) {
         loop {
             interval.tick().await;
             if db.dirty.fetch_or(false, Ordering::SeqCst) {
                 db.flush();
+                dump_input2uuid(&input2uuid, db.get_assets()).await;
                 db.dirty.fetch_and(false, Ordering::SeqCst);
             }
         }
@@ -173,7 +175,11 @@ pub fn load_database(settings: &Settings) -> Arc<Database> {
 
     // install auto-flush
     let interval = tokio::time::interval(std::time::Duration::from_secs(15));
-    tokio::spawn(auto_flush_loop(interval, db.clone()));
+    tokio::spawn(auto_flush_loop(
+        interval,
+        settings.input2uuid.clone(),
+        db.clone(),
+    ));
 
     db
 }

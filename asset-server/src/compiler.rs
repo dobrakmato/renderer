@@ -17,6 +17,7 @@ use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 struct CompilerInner {
+    max_concurrency: usize,
     semaphore: Semaphore,
     // stats
     queued: AtomicUsize,
@@ -41,6 +42,7 @@ impl Compiler {
     ) -> Compiler {
         Self {
             inner: Arc::new(CompilerInner {
+                max_concurrency,
                 semaphore: Semaphore::new(max_concurrency),
                 queued: AtomicUsize::new(0),
                 eta_ms: AtomicU64::new(0),
@@ -65,6 +67,7 @@ impl Compiler {
 
         publish_server_event(Event::CompilerStatus {
             queued: queued + 1,
+            concurrency: self.inner.max_concurrency - self.inner.semaphore.available_permits(),
             eta: Duration::from_millis(eta_stats as u64) + eta,
         });
 
@@ -151,7 +154,10 @@ impl Compiler {
 
         publish_server_event(Event::CompilerStatus {
             queued: queued - 1,
-            eta: Duration::from_millis(eta_stats as u64) - eta,
+            concurrency: compiler.max_concurrency - compiler.semaphore.available_permits(),
+            eta: Duration::from_millis(eta_stats as u64)
+                .checked_sub(eta)
+                .unwrap_or(Duration::from_millis(0)),
         });
 
         drop(lock);

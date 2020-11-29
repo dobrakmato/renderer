@@ -38,7 +38,10 @@ impl Ops {
     pub fn get_compilations(&self, uuid: &Uuid) -> Vec<Compilation> {
         match self.database.get_compilations(uuid) {
             None => vec![],
-            Some(t) => t,
+            Some(mut t) => {
+                t.sort_unstable_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                t
+            }
         }
     }
 

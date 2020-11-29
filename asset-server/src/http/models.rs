@@ -37,6 +37,7 @@ pub enum Event {
     },
     CompilerStatus {
         queued: usize,
+        concurrency: usize,
         eta: Duration,
     },
     ScanResults(ScanResults),
