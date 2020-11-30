@@ -178,8 +178,8 @@ impl CompileCommand for Material {
         if let Some(t) = self.blend_mode {
             cmd.arg("--blend-mode");
             match t {
-                BlendMode::Opaque => "opaque",
-                BlendMode::Masked => "masked",
+                BlendMode::Opaque => cmd.arg("opaque"),
+                BlendMode::Masked => cmd.arg("masked"),
             };
         }
 

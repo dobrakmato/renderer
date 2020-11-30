@@ -15,7 +15,7 @@ pub enum CompilationStatus {
     Queued,
     Compiling,
     Compiled,
-    Error(String),
+    Error { error: String },
 }
 
 #[derive(Serialize, Deserialize)]

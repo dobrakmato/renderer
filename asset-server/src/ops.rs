@@ -53,8 +53,11 @@ impl Ops {
         self.scanner.is_dirty(uuid)
     }
 
-    pub fn update_asset(&self, asset: Asset) {
+    pub fn update_asset(&self, mut asset: Asset) {
         let uuid = asset.uuid();
+
+        // fix timestamp
+        asset.set_updated_now();
 
         self.database.update_asset(&uuid, asset.clone());
         self.scanner.is_dirty(&uuid);

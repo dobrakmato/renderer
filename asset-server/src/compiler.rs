@@ -117,10 +117,19 @@ impl Compiler {
             Ok(t) => {
                 if !t.status.success() {
                     let err = format!("Process execution failed with code {:?}!", t.status.code());
+                    let stdout = String::from_utf8_lossy(&t.stdout);
+                    let stderr = String::from_utf8_lossy(&t.stderr);
                     error!("{}", err);
-                    error!("Stdout: {}", String::from_utf8_lossy(&t.stdout));
-                    error!("Stderr: {}", String::from_utf8_lossy(&t.stderr));
-                    error = Some(err);
+                    error!("Stdout: {}", stdout);
+                    error!("Stderr: {}", stderr);
+                    error = Some(format!(
+                        "{}\n{}\n{}\nCOMMAND RUN: {}\nPROPERTIES: {}",
+                        err,
+                        stdout,
+                        stderr,
+                        cmd_string,
+                        serde_json::to_string_pretty(&asset).unwrap()
+                    ));
                 }
             }
             Err(e) => {
@@ -134,7 +143,7 @@ impl Compiler {
             uuid,
             status: match &error {
                 None => CompilationStatus::Compiled,
-                Some(e) => CompilationStatus::Error(e.clone()),
+                Some(e) => CompilationStatus::Error { error: e.clone() },
             },
         });
 

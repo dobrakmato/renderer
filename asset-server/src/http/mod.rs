@@ -6,6 +6,7 @@ use actix_cors::Cors;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json, Path};
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
+use log::info;
 use std::ops::Deref;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -18,6 +19,8 @@ pub async fn start_server(ops: Arc<Ops>) -> std::io::Result<()> {
     let sys = rt::System::run_in_tokio("server", &local);
     let stream = create_event_stream();
     let ops = Data::new(ops);
+
+    info!("Starting API server, you can view the GUI at https://asset-server-ui.surge.sh!");
 
     HttpServer::new(move || {
         App::new()
@@ -62,9 +65,7 @@ async fn put_asset(uuid: Path<Uuid>, asset: Json<Asset>, ops: Data<Arc<Ops>>) ->
         return HttpResponse::new(StatusCode::BAD_REQUEST);
     }
 
-    ops.update_asset(asset.deref().clone());
-
-    return HttpResponse::new(StatusCode::OK);
+    HttpResponse::Ok().json(ops.update_asset(asset.deref().clone()))
 }
 
 async fn get_dirty_assets(ops: Data<Arc<Ops>>) -> impl Responder {

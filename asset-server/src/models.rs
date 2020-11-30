@@ -102,6 +102,15 @@ impl Asset {
     }
 
     #[inline]
+    pub fn set_updated_now(&mut self) {
+        match self {
+            Asset::Image(t) => t.updated_at = Utc::now(),
+            Asset::Mesh(t) => t.updated_at = Utc::now(),
+            Asset::Material(t) => t.updated_at = Utc::now(),
+        }
+    }
+
+    #[inline]
     pub fn input_path(&self) -> Option<&String> {
         match self {
             Asset::Image(t) => Some(&t.input_path),
