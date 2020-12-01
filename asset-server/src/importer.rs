@@ -100,7 +100,7 @@ impl Importer {
 
         for x in std::fs::read_dir(disk_path).map_err(|_| ImportError::ReadDirError)? {
             let x = x.unwrap().path();
-            let file_name = x.file_name().unwrap().to_str().unwrap();
+            let file_name = x.file_name().unwrap().to_str().unwrap().to_lowercase();
 
             if ALBEDO_STRINGS.iter().any(|x| file_name.contains(x)) {
                 asset.albedo_map = Some(self.find_dependency_uuid(&x)?);
