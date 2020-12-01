@@ -161,7 +161,7 @@ impl Importer {
             .file_name()
             .map(OsStr::to_str)
             .flatten()
-            .map(str::to_string)
+            .map(str::to_lowercase)
         {
             Some(t) => t,
             None => return Err(ImportError::BadPath),
