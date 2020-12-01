@@ -10,7 +10,14 @@ use std::path::Path;
 use std::sync::Arc;
 use uuid::Uuid;
 
-const ALBEDO_STRINGS: &[&str] = &["_col.", "_color.", "diffuse.", "_albedo.", "_basecolor."];
+const ALBEDO_STRINGS: &[&str] = &[
+    "_col.",
+    "_color.",
+    "diffuse.",
+    "_albedo.",
+    "_basecolor.",
+    "-albedo",
+];
 const DISPLACEMENT_STRINGS: &[&str] = &["_disp.", "_displacement."];
 const NORMAL_STRINGS: &[&str] = &["_nrm.", "_normal.", "_normalmap."];
 const ROUGHNESS_STRINGS: &[&str] = &["_rgh.", "_roughness."];
@@ -100,7 +107,13 @@ impl Importer {
 
         for x in std::fs::read_dir(disk_path).map_err(|_| ImportError::ReadDirError)? {
             let x = x.unwrap().path();
-            let file_name = x.file_name().unwrap().to_str().unwrap().to_lowercase();
+            let file_name = x
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_lowercase()
+                .replace("-", "_");
 
             if ALBEDO_STRINGS.iter().any(|x| file_name.contains(x)) {
                 asset.albedo_map = Some(self.find_dependency_uuid(&x)?);
