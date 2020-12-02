@@ -94,6 +94,8 @@ impl Ops {
     pub fn cancel_tracking(&self, uuid: &Uuid) {
         self.database.delete_asset(uuid);
 
+        info!("Canceled tracking of asset {:?}", uuid);
+
         publish_server_event(Event::AssetRemoved { uuid: *uuid });
     }
 

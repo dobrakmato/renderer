@@ -82,7 +82,12 @@ impl Importer {
             return Err(ImportError::MissingExtension);
         }
 
-        let mut name = disk_path.file_name().unwrap().to_str().unwrap().to_string();
+        let input_path = self
+            .library
+            .disk_path_to_db_path(disk_path)
+            .trim_end_matches(|x| x == '/' || x == '\\');
+
+        let mut name = input_path.to_string();
         name.push_str(".mat");
 
         let mut is_material = false;
