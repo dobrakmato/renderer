@@ -4,6 +4,7 @@ use crate::database::Database;
 use crate::library::Library;
 use crate::models::{Asset, Image, Material, Mesh};
 use bf::image::Format;
+use bf::material::BlendMode;
 use chrono::Utc;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -145,6 +146,10 @@ impl Importer {
                 asset.opacity_map = Some(self.find_dependency_uuid(&x)?);
                 is_material = true;
             }
+        }
+
+        if asset.opacity_map.is_some() {
+            asset.blend_mode = Some(BlendMode::Masked);
         }
 
         if is_material {
