@@ -155,7 +155,7 @@ impl Buffers {
         let ldr_buffer = AttachmentImage::with_usage(
             device.clone(),
             dimensions,
-            Format::R8G8B8A8Unorm,
+            Format::B10G11R11UfloatPack32,
             ImageUsage {
                 input_attachment: true,
                 sampled: true,
@@ -278,7 +278,7 @@ impl PBRDeffered {
                     ldr: {
                         load: DontCare,
                         store: Store,
-                        format: Format::R8G8B8A8Unorm,
+                        format: Format::B10G11R11UfloatPack32,
                         samples: 1,
                     }
                 },
