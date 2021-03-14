@@ -9,8 +9,7 @@ use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
 use bf::uuid::Uuid;
 use cgmath::{vec3, Deg, InnerSpace, Point3, Quaternion, Rotation3, Vector3};
-use log::{info, Level};
-use std::str::FromStr;
+use log::{info, Level, LevelFilter};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::dpi::{LogicalSize, Size};
@@ -54,7 +53,10 @@ pub struct GameState {
 
 fn main() {
     // initialize logging at start of the application
-    simple_logger::init_with_level(Level::Debug).unwrap();
+    simple_logger::SimpleLogger::new()
+        .with_level(LevelFilter::Debug)
+        .init()
+        .unwrap();
 
     #[cfg(debug_assertions)]
     warn!("this is a debug build. performance may hurt.");
