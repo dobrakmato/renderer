@@ -3,7 +3,7 @@ use bf::image::{Format, Image};
 use bf::{save_bf_to_bytes, Container, File};
 use core::impl_stats_struct;
 use core::measure_scope;
-use image::dxt::{DXTEncoder, DXTVariant};
+use image::codecs::dxt::{DxtEncoder, DxtVariant};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel};
 use std::ops::{Deref, DerefMut};
@@ -73,9 +73,9 @@ impl Img2Bf {
 
         if image.color().channel_count() != self.params.format.channels() {
             match self.params.format.channels() {
-                1 => Ok(DynamicImage::ImageLuma8(image.to_luma())),
-                3 => Ok(DynamicImage::ImageRgb8(image.to_rgb())),
-                4 => Ok(DynamicImage::ImageRgba8(image.to_rgba())),
+                1 => Ok(DynamicImage::ImageLuma8(image.to_luma8())),
+                3 => Ok(DynamicImage::ImageRgb8(image.to_rgb8())),
+                4 => Ok(DynamicImage::ImageRgba8(image.to_rgba8())),
                 _ => panic!("requested output format has unsupported num of channels"),
             }
         } else {
@@ -216,13 +216,13 @@ impl Img2Bf {
         // image-rs dxt encoder function
         let image_dxt = |variant| {
             let mut storage: Vec<u8> = vec![];
-            DXTEncoder::new(&mut storage)
+            DxtEncoder::new(&mut storage)
                 .encode(&image.to_bytes(), image.width(), image.height(), variant)
                 .map_err(Img2BfError::BlockCompressionError)
                 .map(|()| storage)
         };
 
-        let rgba_image = image.to_rgba(); // todo: lazily evaluate
+        let rgba_image = image.to_rgba8(); // todo: lazily evaluate
         let intel_tex_surface = || intel_tex::RgbaSurface {
             data: rgba_image.as_ref(),
             width: image.width(),
@@ -242,7 +242,7 @@ impl Img2Bf {
             Format::SrgbDxt1 | Format::Dxt1 => {
                 intel_tex::bc1::compress_blocks(&intel_tex_surface())
             }
-            Format::SrgbDxt3 | Format::Dxt3 => image_dxt(DXTVariant::DXT3)?,
+            Format::SrgbDxt3 | Format::Dxt3 => image_dxt(DxtVariant::DXT3)?,
             Format::SrgbDxt5 | Format::Dxt5 => {
                 intel_tex::bc3::compress_blocks(&intel_tex_surface())
             }

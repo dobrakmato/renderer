@@ -5,8 +5,8 @@ authors = ["Matej <dobrakmato@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-image = "0.23.0"
+image = "0.23.14"
 intel_tex = "0.1.4"
-structopt = "0.3.7"
+structopt = "0.3.21"
 bf = { path = "../bf" }
 core = { path = "../core" }
