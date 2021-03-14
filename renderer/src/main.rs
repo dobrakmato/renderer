@@ -7,9 +7,8 @@ use crate::render::ubo::DirectionalLight;
 use crate::render::vertex::NormalMappedVertex;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
-use bf::uuid::Uuid;
 use cgmath::{vec3, Deg, InnerSpace, Point3, Quaternion, Rotation3, Vector3};
-use log::{info, Level, LevelFilter};
+use log::{info, LevelFilter};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::dpi::{LogicalSize, Size};
@@ -88,7 +87,7 @@ fn main() {
                     color: vec3(1.0, 1.0, 0.8),
                 },
                 DirectionalLight {
-                    direction: vec3(-5.0, 1.0, 1.0).normalize(),
+                    direction: vec3(-5.0, 1.0, -1.0).normalize(),
                     intensity: 2.5,
                     color: vec3(0.8, 1.0, 1.0),
                 },
@@ -134,7 +133,7 @@ fn load(engine: &mut Engine) {
     let sneakers = Object::new(
         static_mesh(
             assets
-                .request_load(lookup(".\\pbr_sneaker/PB170_Sneaker_Sm.obj"))
+                .request_load(lookup("pbr_sneaker\\PB170_Sneaker_Sm.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("pbr_sneaker.mat")).wait()).0,
@@ -150,7 +149,7 @@ fn load(engine: &mut Engine) {
     let cabinet = Object::new(
         static_mesh(
             assets
-                .request_load(lookup(".\\pbr_cabinet/cabinet.obj"))
+                .request_load(lookup("pbr_cabinet\\cabinet.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("pbr_cabinet.mat")).wait()).0,
@@ -166,7 +165,7 @@ fn load(engine: &mut Engine) {
     let welding_setup = Object::new(
         static_mesh(
             assets
-                .request_load(lookup(".\\pbr_welding_setup/WeldingSetup_obj.obj"))
+                .request_load(lookup("pbr_welding_setup\\WeldingSetup_obj.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("pbr_welding_setup.mat")).wait()).0,
@@ -182,7 +181,7 @@ fn load(engine: &mut Engine) {
     let cottage = Object::new(
         static_mesh(
             assets
-                .request_load(lookup(".\\pbr_cottage/Cottage_FREE.obj"))
+                .request_load(lookup("pbr_cottage\\Cottage_FREE.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("pbr_cottage.mat")).wait()).0,
@@ -190,7 +189,7 @@ fn load(engine: &mut Engine) {
         path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(1.0, 1.0, 1.0),
-            position: vec3(0.0, 0.1, -30.0),
+            position: vec3(0.0, 0.0, -15.0),
             ..Transform::default()
         },
     );
@@ -198,7 +197,7 @@ fn load(engine: &mut Engine) {
     let red_barn = Object::new(
         static_mesh(
             assets
-                .request_load(lookup(".\\pbr_red_barn/Rbarn15.obj"))
+                .request_load(lookup("pbr_red_barn\\Rbarn15.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("pbr_red_barn.mat")).wait()).0,
@@ -214,7 +213,7 @@ fn load(engine: &mut Engine) {
     let apple = Object::new(
         static_mesh(
             assets
-                .request_load(lookup(".\\3DApple002_2K-JPG/3DApple002_2K.obj"))
+                .request_load(lookup("3DApple002_2K-JPG\\3DApple002_2K.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DApple002_2K-JPG.mat")).wait()).0,
@@ -231,7 +230,7 @@ fn load(engine: &mut Engine) {
         static_mesh(
             assets
                 .request_load(lookup(
-                    ".\\autumn_casualwoman_01/autumn_casualwoman_01_lowpoly_3dsmax.obj",
+                    "autumn_casualwoman_01\\autumn_casualwoman_01_lowpoly_3dsmax.obj",
                 ))
                 .wait(),
         ),
@@ -245,7 +244,7 @@ fn load(engine: &mut Engine) {
         path.buffers.geometry_pipeline.clone(),
         Transform {
             scale: vec3(0.1, 0.1, 0.1),
-            position: vec3(7.0, 0.3, 0.0),
+            position: vec3(7.0, 0.0, 0.0),
             ..Transform::default()
         },
     );
@@ -253,7 +252,7 @@ fn load(engine: &mut Engine) {
     let bread1 = Object::new(
         static_mesh(
             assets
-                .request_load(Uuid::from_str("6f88a288-6ce9-5455-9bd8-3546c5b39467").unwrap())
+                .request_load(lookup("3DBread001_LowPoly\\3DBread001_LowPoly.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DBread001_LowPoly.mat")).wait()).0,
@@ -269,7 +268,7 @@ fn load(engine: &mut Engine) {
     let rock1 = Object::new(
         static_mesh(
             assets
-                .request_load(Uuid::from_str("3f9e7780-6d4e-5108-9d36-23fc77339efb").unwrap())
+                .request_load(lookup("3DRock001_2K\\3DRock001_2K.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DRock001_2K.mat")).wait()).0,
@@ -285,7 +284,7 @@ fn load(engine: &mut Engine) {
     let rock2 = Object::new(
         static_mesh(
             assets
-                .request_load(Uuid::from_str("1a55dc06-6577-5cb5-9184-7a3b8d1e0c5a").unwrap())
+                .request_load(lookup("3DRock002_9K\\3DRock002_9K.obj"))
                 .wait(),
         ),
         static_material(assets.request_load(lookup("3DRock002_9K.mat")).wait()).0,
@@ -298,9 +297,84 @@ fn load(engine: &mut Engine) {
         },
     );
 
+    let jess = Object::new(
+        static_mesh(
+            assets
+                .request_load(lookup(
+                    "Jess_Casual_Walking_001\\Jess_Casual_Walking_001.obj",
+                ))
+                .wait(),
+        ),
+        static_material(
+            assets
+                .request_load(lookup("Jess_Casual_Walking_001.mat"))
+                .wait(),
+        )
+        .0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(0.001, 0.001, 0.001),
+            position: vec3(-1.65, 0.5, -9.72),
+            rotation: Quaternion::from_angle_x(Deg(-90.0)),
+        },
+    );
+
+    let fern = Object::new(
+        static_mesh(
+            assets
+                .request_load(lookup("Soi_Foliage_OBJ\\SM_Fern_01.obj"))
+                .wait(),
+        ),
+        static_material(
+            assets
+                .request_load(lookup("Soi_Foliage_OBJ\\T_Ferns.mat"))
+                .wait(),
+        )
+        .0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(1.0, 1.0, 1.0),
+            position: vec3(0.0, 0.0, -9.5),
+            ..Transform::default()
+        },
+    );
+
+    let test_cube = Object::new(
+        static_mesh(
+            assets
+                .request_load(lookup("test_cube\\test_cube_default.obj"))
+                .wait(),
+        ),
+        static_material(assets.request_load(lookup("test_cube.mat")).wait()).0,
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(1.0, 1.0, 1.0),
+            position: vec3(-5.0, 0.5, -5.0),
+            ..Transform::default()
+        },
+    );
+
     let mat_start = Instant::now();
     let materials = [
         "1k_floor.mat",
+        "copper-rock1.mat",
+        "sandstonecliff-ue.mat",
+        "Moss001_2K-JPG.mat",
+        "PavingStones066_2K-JPG.mat",
+        "PavingStones084_2K-JPG.mat",
+        "sand1-ue.mat",
+        "Fabric008_2K-JPG.mat",
+        "Ground033_2K-JPG.mat",
+        "Ground035_2K-JPG.mat",
+        "Leather012_2K-JPG.mat",
+        "Leather016_2K-JPG.mat",
+        "Metal006_2K-JPG.mat",
+        "Metal012_2K-JPG.mat",
+        "MetalPlates004_2K-JPG.mat",
+        "MetalPlates006_2K-JPG.mat",
         "[2K]Bricks22.mat",
         "[2K]Concrete07.mat",
         "[2K]Ground27.mat",
@@ -355,7 +429,7 @@ fn load(engine: &mut Engine) {
         "Material load took {} seconds!",
         mat_start.elapsed().as_secs_f32()
     );
-    let plane_mesh = static_mesh(assets.request_load(lookup("./plane.obj")).wait());
+    let plane_mesh = static_mesh(assets.request_load(lookup("plane.obj")).wait());
 
     // setup sky
     path.sky.sun_dir = engine.game_state.directional_lights[0].direction;
@@ -372,7 +446,7 @@ fn load(engine: &mut Engine) {
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
-            scale: vec3(100.0, 1.0, 100.0),
+            scale: vec3(50.0, 1.0, 50.0),
             ..Transform::default()
         },
     );
@@ -380,11 +454,14 @@ fn load(engine: &mut Engine) {
 
     state.objects = vec![
         plane,
+        fern,
+        test_cube,
         apple,
         bread1,
         rock1,
         rock2,
         woman,
+        jess,
         cottage,
         welding_setup,
         sneakers,

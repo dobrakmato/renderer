@@ -84,6 +84,6 @@ impl Camera<f32> for PerspectiveCamera {
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {
-        Matrix4::look_at_dir(self.position, self.forward, self.up)
+        Matrix4::look_to_rh(self.position, self.forward, self.up)
     }
 }

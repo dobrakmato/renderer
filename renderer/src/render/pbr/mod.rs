@@ -20,9 +20,7 @@ use vulkano::framebuffer::Framebuffer;
 use vulkano::framebuffer::{
     FramebufferAbstract, FramebufferCreationError, RenderPassAbstract, Subpass,
 };
-use vulkano::image::{
-    AttachmentImage, ImageCreateFlags, ImageTiling, ImageType, ImageUsage, SwapchainImage,
-};
+use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;

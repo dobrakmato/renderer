@@ -1,7 +1,6 @@
 //! Fast approximate anti-aliasing.
 
 use crate::render::descriptor_set_layout;
-use crate::render::samplers::Samplers;
 use crate::render::vertex::PositionOnlyVertex;
 use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
 use std::sync::Arc;
@@ -17,7 +16,6 @@ use vulkano::image::{AttachmentImage, SwapchainImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::{GraphicsPipeline, GraphicsPipelineAbstract};
 use vulkano::sampler::Sampler;
-use vulkano::swapchain::Swapchain;
 use winit::window::Window;
 
 pub mod shaders {

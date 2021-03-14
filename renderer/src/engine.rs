@@ -45,6 +45,21 @@ impl Engine {
     pub fn update(&mut self) {
         FpsMovement::update(&mut self.game_state.camera, &self.input_state);
 
+        let sec = self.game_state.start.elapsed().as_secs_f32() * 0.1;
+        let (s, c) = sec.sin_cos();
+
+        self.game_state.directional_lights[0].direction.x = s;
+        self.game_state.directional_lights[0].direction.z = c;
+        self.game_state.directional_lights[0].direction.normalize();
+        // self.game_state.directional_lights[1].direction.x = -s;
+        // self.game_state.directional_lights[1].direction.z = -c;
+        // self.game_state.directional_lights[1].direction.normalize();
+
+        self.vulkan_state
+            .surface()
+            .window()
+            .set_title(&format!("{:?}", self.game_state.camera.position));
+
         if self.input_state.keyboard.was_key_pressed(VirtualKeyCode::F) {
             let obj = self.game_state.objects.get_mut(0).unwrap();
             obj.material = self.game_state.materials
@@ -57,16 +72,16 @@ impl Engine {
             let mut rng = rand::thread_rng();
             self.game_state.directional_lights.push(DirectionalLight {
                 direction: Vector3::new(
-                    rng.gen_range(-1.0, 1.0),
-                    rng.gen_range(0.0, 2.0),
-                    rng.gen_range(-1.0, 1.0),
+                    rng.gen_range(-1.0..1.0),
+                    rng.gen_range(0.0..2.0),
+                    rng.gen_range(-1.0..1.0),
                 )
                 .normalize(),
                 intensity: 1.0,
                 color: Vector3::new(
-                    rng.gen_range(0.3, 1.0),
-                    rng.gen_range(0.3, 1.0),
-                    rng.gen_range(0.3, 1.0),
+                    rng.gen_range(0.3..1.0),
+                    rng.gen_range(0.3..1.0),
+                    rng.gen_range(0.3..1.0),
                 ),
             })
         }

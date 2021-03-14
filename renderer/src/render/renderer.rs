@@ -1,6 +1,5 @@
 //! *Swapchain* creation & render-loop.
 
-use crate::render::fxaa::FXAA;
 use crate::render::pbr::PBRDeffered;
 use crate::render::vulkan::VulkanState;
 use crate::render::Frame;
