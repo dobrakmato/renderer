@@ -35,7 +35,7 @@ pub mod renderer;
 pub mod samplers;
 mod shaders;
 pub mod transform;
-pub mod txaa;
+// pub mod txaa;
 pub mod ubo;
 pub mod vertex;
 pub mod vulkan;
