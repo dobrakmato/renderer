@@ -1,5 +1,6 @@
 //! Module containing all logic for PHR deferred rendering pipeline.
 
+use crate::render::fxaa::FXAA;
 use crate::render::hosek::HosekSky;
 use crate::render::pools::UniformBufferPool;
 use crate::render::samplers::Samplers;
@@ -19,7 +20,9 @@ use vulkano::framebuffer::Framebuffer;
 use vulkano::framebuffer::{
     FramebufferAbstract, FramebufferCreationError, RenderPassAbstract, Subpass,
 };
-use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
+use vulkano::image::{
+    AttachmentImage, ImageCreateFlags, ImageTiling, ImageType, ImageUsage, SwapchainImage,
+};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
@@ -33,11 +36,13 @@ pub type LightDataPool = UniformBufferPool<[DirectionalLight; 1024]>;
 /// changes.
 pub struct PBRDeffered {
     pub render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
+    pub framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
     pub samplers: Samplers,
     pub lights_buffer_pool: LightDataPool,
     pub fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     pub buffers: Buffers,
     pub sky: HosekSky,
+    pub fxaa: FXAA,
 }
 
 /// Long-lived objects & buffers that **do** change when resolution changes.
@@ -47,6 +52,7 @@ pub struct Buffers {
     pub gbuffer2: Arc<AttachmentImage>,
     pub gbuffer3: Arc<AttachmentImage>,
     pub depth_buffer: Arc<AttachmentImage>,
+    pub ldr_buffer: Arc<AttachmentImage>,
     // pipelines are dependant on the viewport + buffers
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub lighting_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
@@ -118,11 +124,11 @@ impl Buffers {
         // create various buffers dependant on the resolution with this
         // simple & useful macro
         macro_rules! buffer {
-            ($format:expr) => {
-                buffer!($format, ImageUsage::none())
+            ($name:tt, $format:expr) => {
+                buffer!($name, $format, ImageUsage::none())
             };
-            ($format:expr, $usage:expr) => {
-                AttachmentImage::with_usage(
+            ($name:tt, $format:expr, $usage:expr) => {{
+                let x = AttachmentImage::with_usage(
                     device.clone(),
                     dimensions,
                     $format,
@@ -132,16 +138,33 @@ impl Buffers {
                         ..$usage
                     },
                 )
-                .map_err(|_| panic!("cannot create buffer {}", stringify!($format)))
-                .unwrap()
-            };
+                .expect(&format!("cannot create buffer {}", stringify!($format)));
+                // device.set_object_name(&x, cstr::cstr!($name));
+                x
+            }};
         }
 
-        let depth_buffer = buffer!(Format::D16Unorm, ImageUsage::depth_stencil_attachment());
-        let hdr_buffer = buffer!(Format::B10G11R11UfloatPack32);
-        let gbuffer1 = buffer!(Format::A2B10G10R10UnormPack32);
-        let gbuffer2 = buffer!(Format::R8G8B8A8Unorm);
-        let gbuffer3 = buffer!(Format::R8G8B8A8Unorm);
+        let depth_buffer = buffer!(
+            "Depth buffer",
+            Format::D16Unorm,
+            ImageUsage::depth_stencil_attachment()
+        );
+        let hdr_buffer = buffer!("HDR Buffer", Format::B10G11R11UfloatPack32);
+        let gbuffer1 = buffer!("GBuffer 1", Format::A2B10G10R10UnormPack32);
+        let gbuffer2 = buffer!("GBuffer 2", Format::R8G8B8A8Unorm);
+        let gbuffer3 = buffer!("GBuffer 3", Format::R8G8B8A8Unorm);
+        let ldr_buffer = AttachmentImage::with_usage(
+            device.clone(),
+            dimensions,
+            Format::R8G8B8A8Unorm,
+            ImageUsage {
+                input_attachment: true,
+                sampled: true,
+                ..ImageUsage::none()
+            },
+        )
+        .expect(&format!("cannot create buffer {}", stringify!($format)));
+        // device.set_object_name(&ldr_buffer, cstr::cstr!("LDR Buffer"));
 
         // create persistent descriptor sets that contains bindings to
         // buffers used in subpasses
@@ -188,6 +211,7 @@ impl Buffers {
             gbuffer2,
             gbuffer3,
             hdr_buffer,
+            ldr_buffer,
         }
     }
 }
@@ -233,10 +257,10 @@ impl PBRDeffered {
                         format: Format::B10G11R11UfloatPack32,
                         samples: 1,
                     },
-                    final_color: {
+                    ldr: {
                         load: DontCare,
                         store: Store,
-                        format: swapchain.format(),
+                        format: Format::R8G8B8A8Unorm,
                         samples: 1,
                     }
                 },
@@ -257,7 +281,7 @@ impl PBRDeffered {
                         input: []
                     },
                     {
-                         color: [final_color],
+                         color: [ldr],
                          depth_stencil: {},
                          input: [hdr]
                     }
@@ -268,18 +292,43 @@ impl PBRDeffered {
 
         let samplers = Samplers::new(device.clone()).unwrap();
         let buffers = Buffers::new(render_pass.clone(), device.clone(), swapchain.dimensions());
-        let sky = HosekSky::new(queue, render_pass.clone(), device.clone());
+        let sky = HosekSky::new(queue.clone(), render_pass.clone(), device.clone());
+        let framebuffer = Arc::new(
+            Framebuffer::start(render_pass.clone())
+                .add(buffers.gbuffer1.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(buffers.gbuffer2.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(buffers.gbuffer3.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(buffers.depth_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(buffers.hdr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(buffers.ldr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .build()
+                .expect("cannot build framebuffer"),
+        );
 
         Self {
             fst,
+            framebuffer: framebuffer as Arc<_>,
             render_pass: render_pass as Arc<_>,
             lights_buffer_pool: LightDataPool::new(
-                device,
+                device.clone(),
                 buffers
                     .lighting_pipeline
                     .descriptor_set_layout(LIGHTS_UBO_DESCRIPTOR_SET)
                     .unwrap()
                     .clone(),
+            ),
+            fxaa: FXAA::new(
+                queue.clone(),
+                device.clone(),
+                swapchain.format(),
+                buffers.ldr_buffer.clone(),
+                samplers.aniso_repeat.clone(),
             ),
             buffers,
             sky,
@@ -291,16 +340,7 @@ impl PBRDeffered {
         &self,
         final_image: Arc<SwapchainImage<Window>>,
     ) -> Result<Arc<dyn FramebufferAbstract + Send + Sync>, FramebufferCreationError> {
-        Ok(Arc::new(
-            Framebuffer::start(self.render_pass.clone())
-                .add(self.buffers.gbuffer1.clone())?
-                .add(self.buffers.gbuffer2.clone())?
-                .add(self.buffers.gbuffer3.clone())?
-                .add(self.buffers.depth_buffer.clone())?
-                .add(self.buffers.hdr_buffer.clone())?
-                .add(final_image)?
-                .build()?,
-        ))
+        self.fxaa.create_framebuffer(final_image)
     }
 
     pub fn recreate_buffers(&mut self, dimensions: [u32; 2]) {

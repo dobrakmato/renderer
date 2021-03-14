@@ -1,5 +1,6 @@
 //! *Swapchain* creation & render-loop.
 
+use crate::render::fxaa::FXAA;
 use crate::render::pbr::PBRDeffered;
 use crate::render::vulkan::VulkanState;
 use crate::render::Frame;
@@ -110,16 +111,15 @@ impl RendererState {
         )
         .map_err(RendererStateError::CannotCreateSwapchain)?;
 
+        let render_path =
+            PBRDeffered::new(graphical_queue.clone(), device.clone(), swapchain.clone());
+
         // todo: move RenderPath creation to constructor params, or something
         Ok(RendererState {
             previous_frame_end: now(device.clone()),
             framebuffers_out_of_date: true,
             framebuffers: SmallVec::new(),
-            render_path: PBRDeffered::new(
-                graphical_queue.clone(),
-                device.clone(),
-                swapchain.clone(),
-            ),
+            render_path,
             swapchain_images,
             swapchain,
             device,
@@ -207,7 +207,7 @@ impl RendererState {
         }
     }
 
-    /// Forces recreation of *swapchain* and it's images. Transitively the *framebuffers*
+    /// Forces recreation of *swapchain* and it's images. Transitively the *framebuffers*   
     /// and internal buffers of current render path will be also recreated.
     pub fn recreate_swapchain(&mut self) {
         // new dimensions of the swapchain

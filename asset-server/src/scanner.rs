@@ -5,6 +5,7 @@ use crate::http::models::Event;
 use crate::http::stream::publish_server_event;
 use crate::importer::Importer;
 use crate::library::Library;
+use crate::models::Asset;
 use crate::settings::Settings;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -47,6 +48,11 @@ impl Scanner {
         let asset = self.database.get_asset(uuid).expect("asset not found");
         let input = asset.input_path();
         let output = self.library.compute_output_path(uuid);
+
+        // asset has zero compilations
+        if self.database.get_last_compilation(&uuid).is_none() {
+            return true;
+        }
 
         // output file does not exists (project is clean)
         if !output.exists() {
@@ -107,10 +113,18 @@ impl Scanner {
         }
     }
 
+    fn find_asset_by_path_hack(&self, path: &Path) -> Option<Asset> {
+        self.database
+            .find_asset_by_path(self.library.disk_path_to_db_path(path))
+            .or_else(|| {
+                // maybe this is a folder and we are looking for a material
+                self.database
+                    .find_asset_by_path(self.library.disk_path_to_db_path(&path.join(".mat")))
+            })
+    }
+
     pub fn refresh_file(&self, disk_path: &Path) {
-        let asset = self
-            .database
-            .find_asset_by_path(self.library.disk_path_to_db_path(disk_path));
+        let asset = self.find_asset_by_path_hack(disk_path);
 
         match asset {
             // if the file is tracked
@@ -121,7 +135,6 @@ impl Scanner {
                 if !disk_path.exists() {
                     self.dirty.write().unwrap().remove(&uuid);
                     self.database.delete_asset(&uuid);
-                    return;
                 } else {
                     // file was not removed, update dirty
                     self.is_dirty(&uuid);
@@ -145,10 +158,7 @@ impl Scanner {
 
             results.scanned += 1;
 
-            match self
-                .database
-                .find_asset_by_path(self.library.disk_path_to_db_path(path))
-            {
+            match self.find_asset_by_path_hack(path) {
                 Some(ass) => {
                     let uuid = ass.uuid();
                     if self.is_dirty(&uuid) {

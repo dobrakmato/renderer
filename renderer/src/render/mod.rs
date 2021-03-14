@@ -26,6 +26,7 @@ pub const OBJECT_DATA_UBO_DESCRIPTOR_SET: usize = 2;
 pub const SUBPASS_UBO_DESCRIPTOR_SET: usize = 1;
 pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
 
+pub mod fxaa;
 pub mod hosek;
 pub mod object;
 pub mod pbr;
@@ -34,6 +35,7 @@ pub mod renderer;
 pub mod samplers;
 mod shaders;
 pub mod transform;
+pub mod txaa;
 pub mod ubo;
 pub mod vertex;
 pub mod vulkan;
@@ -115,7 +117,7 @@ impl<'r, 's> Frame<'r, 's> {
         let mut b = self.builder.take().unwrap();
 
         b.begin_render_pass(
-            self.framebuffer.clone(),
+            path.framebuffer.clone(),
             SubpassContents::Inline,
             vec![
                 ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
@@ -128,7 +130,7 @@ impl<'r, 's> Frame<'r, 's> {
         )
         .unwrap();
 
-        // 1. SUBPASS - Geometry
+        // 1.1. SUBPASS - Geometry
         b.debug_marker_begin(cstr!("Geometry Pass"), [1.0, 0.0, 0.0, 1.0])
             .unwrap();
         for x in state.objects.iter() {
@@ -137,7 +139,7 @@ impl<'r, 's> Frame<'r, 's> {
         b.next_subpass(SubpassContents::Inline).unwrap();
         b.debug_marker_end().unwrap();
 
-        // 2. SUBPASS - Lighting
+        // 1.2. SUBPASS - Lighting
         b.debug_marker_begin(cstr!("Lighting Pass"), [1.0, 1.0, 0.0, 1.0])
             .unwrap();
         let mut lights = [DirectionalLight {
@@ -169,14 +171,14 @@ impl<'r, 's> Frame<'r, 's> {
         .unwrap();
         b.debug_marker_end().unwrap();
 
-        // 3. SUBPASS - Skybox
+        // 1.3. SUBPASS - Skybox
         b.debug_marker_begin(cstr!("Skybox"), [0.0, 0.0, 1.0, 1.0])
             .unwrap();
         path.sky.draw(&dynamic_state, fmd, &mut b);
         b.next_subpass(SubpassContents::Inline).unwrap();
         b.debug_marker_end().unwrap();
 
-        // 4. SUBPASS - Tonemap
+        // 1.4. SUBPASS - Tonemap
         b.debug_marker_begin(cstr!("Tonemap"), [0.5, 0.5, 1.0, 0.0])
             .unwrap();
         b.draw_indexed(
@@ -190,6 +192,26 @@ impl<'r, 's> Frame<'r, 's> {
         .expect("cannot do tonemap pass");
         b.end_render_pass().unwrap();
         b.debug_marker_end().unwrap();
+
+        // 2.1 FXAA
+        b.debug_marker_begin(cstr!("FXAA"), [1.0, 0.3, 0.0, 1.0]);
+        b.begin_render_pass(
+            self.framebuffer.clone(),
+            SubpassContents::Inline,
+            vec![ClearValue::None],
+        )
+        .unwrap();
+        b.draw_indexed(
+            path.fxaa.pipeline.clone(),
+            &dynamic_state,
+            vec![path.fxaa.fst.vertex_buffer().clone()],
+            path.fxaa.fst.index_buffer().clone(),
+            path.fxaa.ldr_buffer_ds.clone(),
+            fxaa::shaders::fragment::ty::PushConstants { resolution: dims },
+        )
+        .expect("cannot do fxaa pass");
+        b.end_render_pass();
+        b.debug_marker_end();
 
         b.build().unwrap()
     }
