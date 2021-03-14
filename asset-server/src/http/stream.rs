@@ -2,7 +2,7 @@ use crate::http::models::Event;
 use actix_web::rt::time::{interval_at, Instant};
 use actix_web::web::{Bytes, Data};
 use actix_web::{Error, HttpResponse, Responder};
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use log::error;
 use once_cell::sync::OnceCell;
 use std::pin::Pin;
@@ -62,10 +62,11 @@ impl Broadcaster {
     fn spawn_ping(me: Data<Mutex<Self>>) {
         actix_web::rt::spawn(async move {
             let mut task = interval_at(Instant::now(), Duration::from_secs(10));
-            while task.next().await.is_some() {
+            loop {
+                task.tick().await;
                 me.lock().unwrap().remove_stale_clients();
             }
-        })
+        });
     }
 
     fn remove_stale_clients(&mut self) {
@@ -107,7 +108,7 @@ impl Stream for Client {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut self.0).poll_next(cx) {
+        match Pin::new(&mut self.0).poll_recv(cx) {
             Poll::Ready(Some(v)) => Poll::Ready(Some(Ok(v))),
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
