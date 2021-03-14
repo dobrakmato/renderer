@@ -14,6 +14,8 @@ pub const IMG2BF: &str = "img2bf.exe";
 pub const OBJ2BF: &str = "obj2bf.exe";
 /// Command for launching material compiler (`matcomp`) tool.
 pub const MATCOMP: &str = "matcomp.exe";
+/// Command for launching information extractor (`bfinfo`) tool.
+pub const BFINFO: &str = "bfinfo.exe";
 
 /// Custom command struct that is serializable.
 #[derive(Serialize, Deserialize)]

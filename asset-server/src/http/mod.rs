@@ -4,7 +4,7 @@ use crate::models::Asset;
 use crate::ops::Ops;
 use actix_cors::Cors;
 use actix_web::http::StatusCode;
-use actix_web::web::{Data, Json, Path};
+use actix_web::web::{Bytes, Data, Json, Path};
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
 use log::info;
 use std::ops::Deref;
@@ -33,7 +33,7 @@ pub async fn start_server(ops: Arc<Ops>) -> std::io::Result<()> {
             .route("/assets/dirty", web::get().to(get_dirty_assets))
             .route("/assets/{uuid}", web::get().to(get_asset))
             .route("/assets/{uuid}", web::put().to(put_asset))
-            //.route("/assets/{uuid}/preview", web::put().to(get_asset_preview))
+            .route("/assets/{uuid}/preview", web::get().to(get_asset_preview))
             .route(
                 "/assets/{uuid}/compilations",
                 web::get().to(get_asset_compilations),
@@ -73,7 +73,12 @@ async fn get_dirty_assets(ops: Data<Arc<Ops>>) -> impl Responder {
     Json(ops.get_dirty_assets())
 }
 
-// async fn get_asset_preview(uuid: Path<Uuid>) -> impl Responder {}
+async fn get_asset_preview(uuid: Path<Uuid>, ops: Data<Arc<Ops>>) -> impl Responder {
+    match ops.preview_asset(uuid.deref()).await {
+        None => HttpResponse::NotFound().body(""),
+        Some(t) => HttpResponse::Ok().body(Bytes::from(t)),
+    }
+}
 
 async fn get_asset_compilations(uuid: Path<Uuid>, ops: Data<Arc<Ops>>) -> impl Responder {
     Json(ops.get_compilations(uuid.deref()))

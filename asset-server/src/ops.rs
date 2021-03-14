@@ -5,6 +5,7 @@ use crate::http::stream::publish_server_event;
 use crate::importer::Importer;
 use crate::library::Library;
 use crate::models::{Asset, Compilation};
+use crate::preview::Preview;
 use crate::scanner::Scanner;
 use crate::settings::Settings;
 use log::info;
@@ -19,6 +20,7 @@ pub struct Ops {
     scanner: Arc<Scanner>,
     settings: Arc<Settings>,
     importer: Arc<Importer>,
+    preview: Arc<Preview>,
 }
 
 impl Ops {
@@ -122,6 +124,10 @@ impl Ops {
             }
         }
     }
+
+    pub async fn preview_asset(&self, uuid: &Uuid) -> Option<Vec<u8>> {
+        self.preview.preview_file(uuid).await
+    }
 }
 
 pub fn create_ops(
@@ -131,6 +137,7 @@ pub fn create_ops(
     compiler: Arc<Compiler>,
     scanner: Arc<Scanner>,
     importer: Arc<Importer>,
+    preview: Arc<Preview>,
 ) -> Arc<Ops> {
     Arc::new(Ops {
         settings,
@@ -139,5 +146,6 @@ pub fn create_ops(
         compiler,
         library,
         scanner,
+        preview,
     })
 }

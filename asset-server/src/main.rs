@@ -4,6 +4,7 @@ use crate::http::start_server;
 use crate::importer::create_importer;
 use crate::library::create_library;
 use crate::ops::create_ops;
+use crate::preview::create_preview;
 use crate::scanner::create_scanner;
 use crate::settings::load_settings;
 use crate::watch::create_watcher;
@@ -18,6 +19,7 @@ pub mod input2uuid;
 pub mod library;
 pub mod models;
 pub mod ops;
+pub mod preview;
 pub mod scanner;
 pub mod settings;
 pub mod watch;
@@ -46,6 +48,7 @@ async fn main() {
         library.clone(),
         scanner.clone(),
     );
+    let preview = create_preview(database.clone(), library.clone());
     let ops = create_ops(
         settings.clone(),
         database,
@@ -53,6 +56,7 @@ async fn main() {
         compiler,
         scanner,
         importer,
+        preview,
     );
 
     // start file-system watcher
