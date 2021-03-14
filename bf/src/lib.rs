@@ -4,7 +4,7 @@ use crate::image::Image;
 use crate::lz4::Compressed;
 use crate::material::Material;
 use crate::mesh::Mesh;
-use bincode::config;
+use bincode::{options, Options};
 use serde::{Deserialize, Serialize};
 
 pub use uuid;
@@ -183,8 +183,8 @@ pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, LoadError> {
         return Err(LoadError::InvalidMagic);
     }
 
-    config()
-        .little_endian()
+    options()
+        .with_little_endian()
         .deserialize(bytes)
         .map_err(LoadError::BincodeError)
         .and_then(verify_bf_file_header)
@@ -195,8 +195,8 @@ pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, LoadError> {
 /// as it is in `load_bf_from_bytes` function. This allows to
 /// write potentially invalid Files.
 pub fn save_bf_to_bytes(file: &File) -> Result<Vec<u8>, LoadError> {
-    config()
-        .little_endian()
+    options()
+        .with_little_endian()
         .serialize(file)
         .map_err(LoadError::BincodeError)
 }

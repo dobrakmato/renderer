@@ -1,11 +1,11 @@
 //! Helper module for easy integration of compressed parts of
 //! struct into `serde`.
 
-use bincode::config;
+use bincode::{options, Options};
 use lz4::block::{compress, decompress, CompressionMode};
 use serde::de::{DeserializeOwned, Error, Visitor};
-use serde::export::Formatter;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
@@ -93,7 +93,11 @@ where
         // 1. convert the `T` to bytes using `bincode`
         // 2. compress the serialized bytes using `lz4`
 
-        let serialized = config().little_endian().serialize(&self.0).ok().unwrap();
+        let serialized = options()
+            .with_little_endian()
+            .serialize(&self.0)
+            .ok()
+            .unwrap();
         let compressed = compress(serialized.as_slice(), self.1.into(), true)
             .ok()
             .unwrap();
@@ -122,8 +126,8 @@ where
         // 2. deserialize decompressed bytes to `Compressed<T>` using `bincode`
 
         let decompressed = decompress(v, None).ok().unwrap();
-        let deserialized: T = config()
-            .little_endian()
+        let deserialized: T = options()
+            .with_little_endian()
             .deserialize(decompressed.as_slice())
             .ok()
             .unwrap();
