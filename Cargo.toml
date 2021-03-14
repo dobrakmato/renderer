@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "asset-server",
     "core",
     "bf",
     "img2bf",
