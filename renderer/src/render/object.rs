@@ -95,6 +95,7 @@ impl<V: Vertex> Object<V> {
                                 object_matrix_data,
                             ),
                             (),
+                            None,
                         )
                         .expect("cannot DrawIndexed this mesh");
                     }),+

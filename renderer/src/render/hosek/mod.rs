@@ -118,6 +118,7 @@ impl HosekSky {
             self.mesh.index_buffer().clone(),
             (frame_matrix_data, sky_data),
             (),
+            None,
         )
         .expect("cannot draw Sky");
     }

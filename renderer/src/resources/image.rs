@@ -6,7 +6,9 @@ use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer};
 use vulkano::device::Queue;
 use vulkano::format::Format;
-use vulkano::image::{Dimensions, ImageCreationError, ImageLayout, ImageUsage, ImmutableImage};
+use vulkano::image::{
+    Dimensions, ImageCreationError, ImageLayout, ImageUsage, ImmutableImage, MipmapsCount,
+};
 use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::sync::GpuFuture;
 
@@ -114,6 +116,7 @@ pub fn create_single_pixel_image(
             width: 1,
             height: 1,
         },
+        MipmapsCount::One,
         Format::R8G8B8A8Unorm,
         queue,
     )

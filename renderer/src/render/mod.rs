@@ -165,6 +165,7 @@ impl<'r, 's> Frame<'r, 's> {
                 resolution: dims,
                 light_count: state.directional_lights.len() as u32,
             },
+            None,
         )
         .expect("cannot do lighting pass")
         .next_subpass(SubpassContents::Inline)
@@ -188,6 +189,7 @@ impl<'r, 's> Frame<'r, 's> {
             path.fst.index_buffer().clone(),
             path.buffers.tonemap_ds.clone(),
             (),
+            None,
         )
         .expect("cannot do tonemap pass");
         b.end_render_pass().unwrap();
@@ -208,6 +210,7 @@ impl<'r, 's> Frame<'r, 's> {
             path.fxaa.fst.index_buffer().clone(),
             path.fxaa.ldr_buffer_ds.clone(),
             fxaa::shaders::fragment::ty::PushConstants { resolution: dims },
+            None,
         )
         .expect("cannot do fxaa pass");
         b.end_render_pass();

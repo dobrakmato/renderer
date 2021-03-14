@@ -146,7 +146,7 @@ pub enum LoadError {
 pub const BF_MAGIC: u16 = 17986;
 
 /// Version of BF format this version is able to read.
-pub const BF_VERSION: u8 = 2;
+pub const BF_VERSION: u8 = 3;
 
 fn verify_bf_file_header(file: File) -> Result<File, LoadError> {
     if file.magic != BF_MAGIC {
@@ -174,13 +174,6 @@ pub fn load_bf_from_bytes(bytes: &[u8]) -> Result<File, LoadError> {
     // the magic.
     if bytes.len() < 2 {
         return Err(LoadError::FileTooShort);
-    }
-
-    // verify magic even before trying to deserialize. this can
-    // prevent confusing errors when deserialization fails in the
-    // middle of file of wrong format
-    if u16::from_le_bytes([bytes[0], bytes[1]]) != BF_MAGIC {
-        return Err(LoadError::InvalidMagic);
     }
 
     options()
