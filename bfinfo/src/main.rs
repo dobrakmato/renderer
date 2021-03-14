@@ -80,7 +80,7 @@ fn handle_image(image: Image, dump: bool, unpack: bool) {
 
             // unpack dxt5nm
             let img = if unpack {
-                let mut img = img.to_rgba();
+                let mut img = img.to_rgba8();
 
                 for x in img.pixels_mut() {
                     let snap = *x;
