@@ -35,6 +35,7 @@ pub struct FXAA {
     pub pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     pub ldr_buffer_ds: Arc<dyn DescriptorSet + Send + Sync>,
+    sampler: Arc<Sampler>,
 }
 
 impl FXAA {
@@ -90,7 +91,7 @@ impl FXAA {
 
         let ldr_buffer_ds = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(&pipeline, FXAA_DESCRIPTOR_SET))
-                .add_sampled_image(ldr_buffer, sampler)
+                .add_sampled_image(ldr_buffer, sampler.clone())
                 .unwrap()
                 .build()
                 .unwrap(),
@@ -98,10 +99,26 @@ impl FXAA {
 
         Self {
             fst,
+            sampler,
             pipeline,
             render_pass,
             ldr_buffer_ds: ldr_buffer_ds as Arc<_>,
         }
+    }
+
+    pub fn recreate_descriptor(&mut self, ldr_buffer: Arc<AttachmentImage>) {
+        let new_descriptor_set = Arc::new(
+            PersistentDescriptorSet::start(descriptor_set_layout(
+                &self.pipeline,
+                FXAA_DESCRIPTOR_SET,
+            ))
+            .add_sampled_image(ldr_buffer, self.sampler.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
+        );
+
+        self.ldr_buffer_ds = new_descriptor_set;
     }
 
     pub fn create_framebuffer(

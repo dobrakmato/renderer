@@ -117,7 +117,7 @@ impl<'r, 's> Frame<'r, 's> {
         let mut b = self.builder.take().unwrap();
 
         b.begin_render_pass(
-            path.framebuffer.clone(),
+            path.buffers.framebuffer.clone(),
             SubpassContents::Inline,
             vec![
                 ClearValue::Float([0.0, 0.0, 0.0, 0.0]),

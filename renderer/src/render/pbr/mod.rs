@@ -34,7 +34,6 @@ pub type LightDataPool = UniformBufferPool<[DirectionalLight; 1024]>;
 /// changes.
 pub struct PBRDeffered {
     pub render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
-    pub framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
     pub samplers: Samplers,
     pub lights_buffer_pool: LightDataPool,
     pub fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
@@ -51,6 +50,8 @@ pub struct Buffers {
     pub gbuffer3: Arc<AttachmentImage>,
     pub depth_buffer: Arc<AttachmentImage>,
     pub ldr_buffer: Arc<AttachmentImage>,
+    pub framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
+
     // pipelines are dependant on the viewport + buffers
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub lighting_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
@@ -164,6 +165,24 @@ impl Buffers {
         .expect(&format!("cannot create buffer {}", stringify!($format)));
         // device.set_object_name(&ldr_buffer, cstr::cstr!("LDR Buffer"));
 
+        let framebuffer = Arc::new(
+            Framebuffer::start(render_pass.clone())
+                .add(gbuffer1.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(gbuffer2.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(gbuffer3.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(depth_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(hdr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(ldr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .build()
+                .expect("cannot build framebuffer"),
+        );
+
         // create persistent descriptor sets that contains bindings to
         // buffers used in subpasses
         let tonemap_descriptor_set = Arc::new(
@@ -204,6 +223,7 @@ impl Buffers {
             tonemap_ds: tonemap_descriptor_set as Arc<_>,
             lighting_pipeline: lighting_pipeline as Arc<_>,
             lighting_gbuffer_ds: lighting_gbuffer_ds as Arc<_>,
+            framebuffer: framebuffer as Arc<_>,
             depth_buffer,
             gbuffer1,
             gbuffer2,
@@ -291,27 +311,9 @@ impl PBRDeffered {
         let samplers = Samplers::new(device.clone()).unwrap();
         let buffers = Buffers::new(render_pass.clone(), device.clone(), swapchain.dimensions());
         let sky = HosekSky::new(queue.clone(), render_pass.clone(), device.clone());
-        let framebuffer = Arc::new(
-            Framebuffer::start(render_pass.clone())
-                .add(buffers.gbuffer1.clone())
-                .expect("cannot add attachment to framebuffer")
-                .add(buffers.gbuffer2.clone())
-                .expect("cannot add attachment to framebuffer")
-                .add(buffers.gbuffer3.clone())
-                .expect("cannot add attachment to framebuffer")
-                .add(buffers.depth_buffer.clone())
-                .expect("cannot add attachment to framebuffer")
-                .add(buffers.hdr_buffer.clone())
-                .expect("cannot add attachment to framebuffer")
-                .add(buffers.ldr_buffer.clone())
-                .expect("cannot add attachment to framebuffer")
-                .build()
-                .expect("cannot build framebuffer"),
-        );
 
         Self {
             fst,
-            framebuffer: framebuffer as Arc<_>,
             render_pass: render_pass as Arc<_>,
             lights_buffer_pool: LightDataPool::new(
                 device.clone(),
@@ -346,6 +348,8 @@ impl PBRDeffered {
             self.render_pass.clone(),
             self.render_pass.device().clone(),
             dimensions,
-        )
+        );
+        self.fxaa
+            .recreate_descriptor(self.buffers.ldr_buffer.clone());
     }
 }
