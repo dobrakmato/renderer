@@ -5,6 +5,6 @@ authors = ["Matej <dobrakmato@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-uuid = { version = "0.8.1", features = ["serde"] }
-structopt = "0.3.7"
+uuid = { version = "0.8.2", features = ["serde"] }
+structopt = "0.3.21"
 bf = { path = "../bf" }
