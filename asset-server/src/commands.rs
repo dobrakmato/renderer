@@ -4,9 +4,9 @@ use bf::image::Format;
 use bf::material::BlendMode;
 use bf::mesh::{IndexType, VertexFormat};
 use core::fmt;
-use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
+use std::fmt::Formatter;
 
 /// Command for launching image importer (`img2bf`) tool.
 pub const IMG2BF: &str = "img2bf.exe";
