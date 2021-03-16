@@ -434,7 +434,7 @@ fn load(engine: &mut Engine) {
     // setup sky
     path.sky.sun_dir = engine.game_state.directional_lights[0].direction;
     path.sky.turbidity = 8.0;
-    path.sky.ground_albedo = Vector3::new(0.0, 0.0, 0.0);
+    path.sky.ground_albedo = Vector3::new(1.0, 0.0, 0.0);
 
     let state = &mut engine.game_state;
 

@@ -4,6 +4,7 @@ use std::ops::{Add, Mul, Sub};
 
 pub mod notification;
 pub mod perf;
+pub mod tool;
 
 /// Statically asserts that the alignment of specified type is
 /// specified number of bytes.

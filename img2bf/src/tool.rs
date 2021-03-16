@@ -3,6 +3,7 @@ use bf::image::{Format, Image};
 use bf::{save_bf_to_bytes, Container, File};
 use core::impl_stats_struct;
 use core::measure_scope;
+use core::tool::Tool;
 use image::codecs::dxt::{DxtEncoder, DxtVariant};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel};
@@ -366,5 +367,14 @@ impl Img2Bf {
         tool.save_bf_image(width, height, payload)?;
 
         Ok(tool.stats)
+    }
+}
+
+impl Tool for Img2Bf {
+    type Params = Img2BfParameters;
+    type Result = ();
+
+    fn execute(&self, params: Self::Params) -> Result<Statistics<'static>, Img2BfError> {
+        Img2Bf::convert(params)
     }
 }
