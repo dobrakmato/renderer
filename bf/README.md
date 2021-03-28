@@ -59,3 +59,21 @@ pub enum VertexDataFormat {
     PositionNormalUv, // vec3 (pos), vec3(nor), vec2(uv)
 }
 ```
+
+### Scene / Tree
+
+Each tree has one root node.
+
+Each node may have zero or more children. Each node may have zero or more component attached to it.
+
+
+These components are supported:
+```rust
+pub enum Component {
+    Name,
+    Sky,
+    Transform,
+    MeshRenderer,
+    DirectionalLight,
+}
+```

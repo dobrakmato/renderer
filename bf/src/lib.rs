@@ -4,14 +4,17 @@ use crate::image::Image;
 use crate::lz4::Compressed;
 use crate::material::Material;
 use crate::mesh::Mesh;
+use crate::tree::{Tree, TreeError};
 use bincode::{options, Options};
 use serde::{Deserialize, Serialize};
 
 pub use uuid;
+
 pub mod image;
 pub mod lz4;
 pub mod material;
 pub mod mesh;
+pub mod tree;
 
 /// Possible BF file types (Image, Mesh...).
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,6 +22,7 @@ pub enum Container {
     Image(Image),
     Mesh(Mesh),
     Material(Material),
+    Tree(Tree),
 }
 
 /// Different data storage modes (compressed, uncompressed).
@@ -124,6 +128,19 @@ impl File {
     pub fn try_to_material(self) -> Result<Material, ()> {
         try_to_dynamic!(self.into_container(), Material)
     }
+
+    /// Tries to unwrap container (data) of this file as `Tree`.
+    ///
+    /// This function returns `Ok(Tree)` if the file contains a `Tree` and `Err(TreeError)` otherwise.
+    pub fn try_to_tree(self) -> Result<Tree, TreeError> {
+        match try_to_dynamic!(self.into_container(), Tree) {
+            Err(_) => Err(TreeError::NotATree),
+            Ok(t) => match t.validate_handles() {
+                Ok(t) => Ok(t),
+                Err(e) => Err(e),
+            },
+        }
+    }
 }
 
 /// Enumeration of all possible errors that can happen when loading a .bf file
@@ -146,7 +163,7 @@ pub enum LoadError {
 pub const BF_MAGIC: u16 = 17986;
 
 /// Version of BF format this version is able to read.
-pub const BF_VERSION: u8 = 3;
+pub const BF_VERSION: u8 = 4;
 
 fn verify_bf_file_header(file: File) -> Result<File, LoadError> {
     if file.magic != BF_MAGIC {
