@@ -372,7 +372,7 @@ impl Img2Bf {
 
 impl Tool for Img2Bf {
     type Params = Img2BfParameters;
-    type Result = ();
+    type Result = Result<Statistics<'static>, Img2BfError>;
 
     fn execute(&self, params: Self::Params) -> Result<Statistics<'static>, Img2BfError> {
         Img2Bf::convert(params)

@@ -20,6 +20,7 @@ pub trait Asset: Any + Send + Sync + 'static {}
 impl Asset for bf::material::Material {}
 impl Asset for bf::mesh::Mesh {}
 impl Asset for bf::image::Image {}
+impl Asset for bf::tree::Tree {}
 
 /// Possible errors that can happen while loading an `Asset`.
 #[derive(Debug)]
@@ -42,6 +43,7 @@ fn asset_from_bytes_dynamic(bytes: &[u8]) -> LoadResult<Arc<dyn Any + Send + Syn
             Container::Image(t) => Arc::new(t),
             Container::Mesh(t) => Arc::new(t),
             Container::Material(t) => Arc::new(t),
+            Container::Tree(t) => Arc::new(t),
         },
     )
 }

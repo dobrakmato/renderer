@@ -1,6 +1,7 @@
 use bf::image::{Format, Image};
 use bf::material::Material;
 use bf::mesh::Mesh;
+use bf::tree::Tree;
 use bf::{load_bf_from_bytes, Container};
 use image::dxt::{DXTVariant, DxtDecoder};
 use image::{DynamicImage, ImageBuffer, ImageDecoder, ImageFormat};
@@ -35,6 +36,7 @@ fn main() {
         Container::Image(i) => handle_image(i, opt.dump, opt.unpack_normal_map),
         Container::Mesh(g) => handle_mesh(g, opt.dump),
         Container::Material(m) => handle_material(m),
+        Container::Tree(t) => handle_tree(t),
     }
 }
 
@@ -175,4 +177,10 @@ fn handle_material(material: Material) {
     println!("material");
 
     println!("{:#?}", material)
+}
+
+fn handle_tree(tree: Tree) {
+    println!("tree");
+
+    println!("{:?}", tree);
 }
