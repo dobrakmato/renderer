@@ -3,7 +3,7 @@
 //!
 //! The main interface this module provides
 //! is a [`lookup()`](fn.lookup.html) function.
-//! Note: the lookup function should only be for development.  
+//! Note: the lookup function should only be used for development.  
 //!
 //! # Example
 //! ```rust
@@ -20,6 +20,9 @@ use std::collections::HashMap;
 /// Read-only lazily created translation `HashMap`.
 static LOOKUP_MAP: OnceCell<HashMap<String, Uuid>> = OnceCell::new();
 
+// default path searched when no env variable is provided
+const DEFAULT_LOOKUP_DB: &str = "C:\\Users\\Matej\\CLionProjects\\renderer\\assets\\input2uuid.dat";
+
 /// Creates a `HashMap<String, Uuid>` from translation file defined
 /// in `LOOKUP_DB` environment variable and returns it.
 ///
@@ -28,39 +31,45 @@ static LOOKUP_MAP: OnceCell<HashMap<String, Uuid>> = OnceCell::new();
 /// with such name will be present in returned hashmap.
 fn build_lookup_map() -> HashMap<String, Uuid> {
     info!("Initializing internal lookup-map for `lookup` function.");
+    info!("Note: Using `lookup()` function is considered a hack and it should only be used for development.");
     let mut map = HashMap::<String, Uuid>::new();
 
-    std::fs::read_to_string(
-        std::env::var("LOOKUP_DB")
-            .ok()
-            .unwrap_or_else(|| "D:\\_MATS\\input2uuid.dat".into())
-            .as_str(),
-    )
-    .expect("cannot read specified LOOKUP_DB file!")
-    .split('\n')
-    .filter(|l| !l.is_empty())
-    .map(|line| {
-        line.split_at(
-            line.find('=')
-                .expect("invalid lookup db: missing = character"),
-        )
-    })
-    .map(|(k, v)| (k, &v[1..]))
-    .for_each(|(k, v)| match map.entry(k.to_string()) {
-        Entry::Occupied(t) => error!(
-            "Duplicate look-up name {} for entries {} and {}",
-            k,
-            t.get().to_string(),
-            v
-        ),
-        Entry::Vacant(t) => {
-            t.insert(
-                Uuid::parse_str(v)
-                    .map_err(|e| error!("invalid lookup db: invalid uuid {:?} {:?}", v, e))
-                    .unwrap(),
-            );
-        }
-    });
+    let path = std::env::var("LOOKUP_DB")
+        .ok()
+        .unwrap_or_else(|| DEFAULT_LOOKUP_DB.into());
+
+    info!("Using lookup input2uuid file: {:?}", path);
+
+    std::fs::read_to_string(path.as_str())
+        .expect("Cannot read specified file as lookup database!")
+        .split('\n')
+        .filter(|l| !l.is_empty())
+        .enumerate()
+        .map(|(idx, line)| {
+            line.split_at(line.find('=').expect(&format!(
+                "Invalid file: missing = character on line {}",
+                idx
+            )))
+        })
+        .map(|(k, v)| (k, &v[1..]))
+        .for_each(|(k, v)| match map.entry(k.to_string()) {
+            Entry::Occupied(t) => error!(
+                "Invalid file: duplicate look-up name {:?} for entries {:?} and {:?}",
+                k,
+                t.get().to_string(),
+                v
+            ),
+            Entry::Vacant(t) => {
+                t.insert(
+                    Uuid::parse_str(v)
+                        .map_err(|e| error!("Invalid file: invalid uuid {:?} {:?}", v, e))
+                        .unwrap(),
+                );
+            }
+        });
+
+    info!("Loaded {} entries from lookup database.", map.len());
+
     map
 }
 
@@ -76,6 +85,6 @@ fn build_lookup_map() -> HashMap<String, Uuid> {
 pub fn lookup(name: &str) -> Uuid {
     match LOOKUP_MAP.get_or_init(build_lookup_map).get(name) {
         Some(t) => *t,
-        None => panic!("no or multiple entries for name {:?}", name),
+        None => panic!("No lookup entry found for name '{}'!", name),
     }
 }
