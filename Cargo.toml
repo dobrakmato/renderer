@@ -12,3 +12,6 @@ members = [
 
 [profile.release]
 debug = true
+lto = false
+incremental = true
+codegen-units = 256
