@@ -1,3 +1,5 @@
+//! Various input handling movement controllers.
+
 use crate::camera::PerspectiveCamera;
 use crate::input::Input;
 use cgmath::Rad;

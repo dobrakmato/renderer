@@ -24,7 +24,7 @@ impl Input {
         Self {
             keyboard: Keyboard::default(),
             mouse: Mouse::new(window),
-            universal: Universal::default(),
+            universal: Universal::default(), // todo: load bindings from configuration
         }
     }
 
