@@ -81,7 +81,7 @@ impl VulkanState {
     /// Creates or uses already created Vulkan instance and creates a new
     /// window with surface, device and queues for this `VulkanState`.
     pub fn new(
-        conf: RendererConfiguration,
+        conf: &RendererConfiguration,
         event_loop: &EventLoop<()>,
     ) -> Result<Self, VulkanStateError> {
         let instance = get_or_create_instance();

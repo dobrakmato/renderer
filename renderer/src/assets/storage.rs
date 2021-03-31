@@ -9,7 +9,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock, Weak};
 use std::thread::spawn;
 use std::time::{Duration, Instant};
@@ -68,17 +68,17 @@ pub struct Storage {
 impl Storage {
     /// Constructs a new `Storage` and starts a specified amount of worker
     /// threads.
-    pub fn new(worker_count: usize, transfer_queue: Arc<Queue>) -> Arc<Self> {
+    pub fn new(worker_count: usize, transfer_queue: Arc<Queue>, roots: Vec<PathBuf>) -> Arc<Self> {
         info!("Creating a Storage with {} worker threads.", worker_count);
 
         let (send, recv) = crossbeam::channel::unbounded();
 
         let storage = Arc::new(Self {
             transfer_queue,
+            roots,
             storage: RwLock::new(HashMap::new()),
             revisions: RwLock::new(HashMap::new()),
             load_queue: send,
-            roots: vec![Path::new("D:\\_MATS\\OUT\\").into()],
         });
 
         for _ in 0..worker_count {

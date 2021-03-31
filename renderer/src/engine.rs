@@ -24,11 +24,12 @@ pub struct Engine {
 impl Engine {
     pub fn new(
         initial_state: GameState,
-        conf: RendererConfiguration,
+        conf: &RendererConfiguration,
         event_loop: EventLoop<()>,
     ) -> Self {
         let vulkan_state = VulkanState::new(conf, &event_loop).expect("cannot create VulkanState");
-        let asset_storage = Storage::new(8, vulkan_state.transfer_queue());
+        let asset_storage =
+            Storage::new(8, vulkan_state.transfer_queue(), conf.content_roots.clone());
         let renderer_state =
             RendererState::new(&vulkan_state).expect("cannot create RendererState");
         let input_state = Input::new(vulkan_state.surface());

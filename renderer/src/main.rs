@@ -1,5 +1,6 @@
 use crate::assets::lookup;
 use crate::camera::PerspectiveCamera;
+use crate::config::RendererConfiguration;
 use crate::engine::Engine;
 use crate::render::object::Object;
 use crate::render::transform::Transform;
@@ -11,35 +12,16 @@ use cgmath::{vec3, Deg, InnerSpace, Point3, Quaternion, Rotation3, Vector3};
 use log::{info, LevelFilter};
 use std::sync::Arc;
 use std::time::Instant;
-use winit::dpi::{LogicalSize, Size};
 use winit::event_loop::EventLoop;
-
-#[cfg(debug_assertions)]
-use log::warn;
 
 mod assets;
 mod camera;
+mod config;
 mod engine;
 mod input;
 mod movement;
 mod render;
 mod resources;
-
-#[derive(Copy, Clone)]
-pub struct RendererConfiguration {
-    pub fullscreen: bool,
-    pub resolution: [u16; 2],
-    pub gpu: usize,
-}
-
-impl Into<Size> for RendererConfiguration {
-    fn into(self) -> Size {
-        Size::Logical(LogicalSize::new(
-            self.resolution[0] as f64,
-            self.resolution[1] as f64,
-        ))
-    }
-}
 
 pub struct GameState {
     start: Instant,
@@ -58,14 +40,10 @@ fn main() {
         .unwrap();
 
     #[cfg(debug_assertions)]
-    warn!("this is a debug build. performance may hurt.");
+    log::warn!("this is a debug build. performance may hurt.");
 
     // load configuration from a file
-    let conf = RendererConfiguration {
-        fullscreen: false,
-        resolution: [1600, 900],
-        gpu: 0,
-    };
+    let conf = RendererConfiguration::default();
     let event_loop = EventLoop::new();
     let mut engine = Engine::new(
         GameState {
@@ -95,7 +73,7 @@ fn main() {
             materials: vec![],
             floor_mat: 0,
         },
-        conf,
+        &conf,
         event_loop,
     );
     load(&mut engine);
