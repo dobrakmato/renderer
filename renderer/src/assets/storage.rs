@@ -371,7 +371,7 @@ fn spawn_worker_thread(
     // helper macro to skip processing current item in the loop
     // mark it as errored and move to next item in the queue
     macro_rules! give_up_with_error {
-        ($uuid: expr, $err: expr) => {{
+        ($send: expr, $uuid: expr, $err: expr) => {{
             let _err = $err;
             error!(
                 "Cannot load asset {:?} due to {:?}",
@@ -379,6 +379,7 @@ fn spawn_worker_thread(
                 &_err
             );
             storage.update_asset_state($uuid, AssetState::LoadError(_err));
+            $send.signal();
             continue;
         }};
     }
@@ -392,16 +393,16 @@ fn spawn_worker_thread(
 
             // read bytes from disk
             let bytes = match storage.find_asset(&uuid) {
-                None => give_up_with_error!(&uuid, AssetLoadError::FileNotFound),
+                None => give_up_with_error!(send, &uuid, AssetLoadError::FileNotFound),
                 Some(path) => match std::fs::read(path) {
-                    Err(e) => give_up_with_error!(&uuid, AssetLoadError::CannotReadFile(e)),
+                    Err(e) => give_up_with_error!(send, &uuid, AssetLoadError::CannotReadFile(e)),
                     Ok(t) => t,
                 },
             };
 
             // decode the asset from bytes
             let asset = match asset_from_bytes_dynamic(bytes.as_slice()) {
-                Err(e) => give_up_with_error!(&uuid, e),
+                Err(e) => give_up_with_error!(send, &uuid, e),
                 Ok(t) => t,
             };
 
