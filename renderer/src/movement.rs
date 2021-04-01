@@ -10,9 +10,9 @@ pub struct FpsMovement;
 impl FpsMovement {
     pub fn update(camera: &mut PerspectiveCamera, input: &Input) {
         let speed = if input.universal.is_button_down("Sprint") {
-            0.005
+            4.0 * 0.005
         } else {
-            0.00125
+            4.0 * 0.00125
         };
 
         camera.move_right(speed * input.universal.axis("MoveRight"));

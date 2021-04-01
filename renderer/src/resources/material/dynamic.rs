@@ -159,7 +159,7 @@ impl Material for DynamicMaterial {
                 .map_err(DynamicMaterialError::CannotBuildDescriptorSet)?;
 
             Ok(Arc::new(descriptor_set))
-        };
+        }
 
         internal(&self)
             .map_err(|e| {

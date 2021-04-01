@@ -5,7 +5,6 @@ use crate::render::transform::Transform;
 use crate::render::vertex::NormalMappedVertex;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
-use crate::GameState;
 use cgmath::{vec3, Deg, Quaternion, Rotation3, Vector3};
 use log::info;
 use std::sync::Arc;
