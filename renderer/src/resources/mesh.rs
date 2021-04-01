@@ -319,6 +319,24 @@ pub enum DynamicIndexedMesh<V: Vertex> {
     U32(IndexedMesh<V, u32>),
 }
 
+impl<V> From<IndexedMesh<V, u16>> for DynamicIndexedMesh<V>
+where
+    V: Vertex,
+{
+    fn from(idx: IndexedMesh<V, u16>) -> Self {
+        DynamicIndexedMesh::U16(idx)
+    }
+}
+
+impl<V> From<IndexedMesh<V, u32>> for DynamicIndexedMesh<V>
+where
+    V: Vertex,
+{
+    fn from(idx: IndexedMesh<V, u32>) -> Self {
+        DynamicIndexedMesh::U32(idx)
+    }
+}
+
 /// Result of [`create_mesh_dynamic`](fn.create_mesh_dynamic.html) function invocation.
 pub type DynamicIndexedMeshResult<V> =
     Result<(Arc<DynamicIndexedMesh<V>>, Box<dyn GpuFuture>), CreateBufferError>;
