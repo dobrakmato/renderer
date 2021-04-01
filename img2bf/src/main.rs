@@ -40,19 +40,19 @@ pub struct Img2BfParameters {
     pack_normal_map: bool,
 
     /// Swizzle destination: red channel
-    #[structopt(short, long)]
+    #[structopt(long)]
     destination_r: Option<String>,
 
     /// Swizzle destination: green channel
-    #[structopt(short, long)]
+    #[structopt(long)]
     destination_g: Option<String>,
 
     /// Swizzle destination: blue channel
-    #[structopt(short, long)]
+    #[structopt(long)]
     destination_b: Option<String>,
 
     /// Swizzle destination: alpha channel
-    #[structopt(short, long)]
+    #[structopt(long)]
     destination_a: Option<String>,
 }
 
