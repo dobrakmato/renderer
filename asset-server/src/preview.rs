@@ -50,6 +50,7 @@ impl Preview {
                         "Preview command failed for asset {:?}",
                         &image.uuid.to_string(),
                     );
+                    error!("Error: {:?}", t);
                     return None;
                 }
             }
