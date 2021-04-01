@@ -118,6 +118,61 @@ impl StaticMaterial {
             future,
         ))
     }
+
+    pub fn from_material_data(
+        parameters: MaterialData,
+        pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+        sampler: Arc<Sampler>,
+        queue: Arc<Queue>,
+        fallback: Arc<FallbackMaps>,
+    ) -> Result<(Arc<Self>, impl GpuFuture), StaticMaterialError> {
+        // create a uniform buffer with material data
+        let (buffer, future) =
+            ImmutableBuffer::from_data(parameters, BufferUsage::uniform_buffer(), queue)
+                .map_err(StaticMaterialError::CannotCreateUniformBuffer)?;
+
+        // create a descriptor set layout from pipeline
+        let layout = pipeline
+            .descriptor_set_layout(MATERIAL_UBO_DESCRIPTOR_SET)
+            .ok_or(StaticMaterialError::InvalidDescriptorSetNumber)?;
+
+        // use loaded textures or fallbacks
+        let albedo = fallback.fallback_white.clone();
+        let normal = fallback.fallback_normal.clone();
+        let displacement = fallback.fallback_black.clone();
+        let roughness = fallback.fallback_white.clone();
+        let ao = fallback.fallback_white.clone();
+        let metallic = fallback.fallback_white.clone();
+        let opacity = fallback.fallback_white.clone();
+
+        // create descriptor set
+        let set = PersistentDescriptorSet::start(layout.clone())
+            .add_sampled_image(albedo, sampler.clone())
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_sampled_image(normal, sampler.clone())
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_sampled_image(displacement, sampler.clone())
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_sampled_image(roughness, sampler.clone())
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_sampled_image(ao, sampler.clone())
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_sampled_image(metallic, sampler.clone())
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_buffer(buffer)
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .add_sampled_image(opacity, sampler)
+            .map_err(StaticMaterialError::CannotCreateDescriptorSet)?
+            .build()
+            .map_err(StaticMaterialError::CannotBuildDescriptorSet)?;
+
+        Ok((
+            Arc::new(Self {
+                descriptor_set: Arc::new(set),
+            }),
+            future,
+        ))
+    }
 }
 
 impl Material for StaticMaterial {

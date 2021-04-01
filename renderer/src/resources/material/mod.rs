@@ -81,7 +81,7 @@ impl FallbackMaps {
 pub fn create_default_fallback_maps(queue: Arc<Queue>) -> (Arc<FallbackMaps>, impl GpuFuture) {
     let (white, f1) = create_single_pixel_image(queue.clone(), [255; 4]).unwrap();
     let (black, f2) = create_single_pixel_image(queue.clone(), [0; 4]).unwrap();
-    let (normal, f3) = create_single_pixel_image(queue, [0, 128, 0, 128]).unwrap();
+    let (normal, f3) = create_single_pixel_image(queue, [0, 128, 0, 128]).unwrap(); // normal map is in packed representation
 
     (
         Arc::new(FallbackMaps {
