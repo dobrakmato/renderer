@@ -134,6 +134,7 @@ impl RendererState {
         // if framebuffers are out-of date, we need to recreate them.
         if self.framebuffers_out_of_date {
             self.recreate_framebuffers();
+            self.framebuffers_out_of_date = false;
         }
 
         // clean-up all resources from the previous frame
