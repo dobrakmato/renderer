@@ -13,7 +13,7 @@ use std::time::Instant;
 pub fn create(engine: &mut Engine) {
     let start = Instant::now();
     let device = &engine.vulkan_state.device();
-    let assets = &engine.asset_storage;
+    let assets = &engine.content;
     let path = &mut engine.renderer_state.render_path;
 
     let (fallback_maps, _) = create_default_fallback_maps(engine.vulkan_state.transfer_queue());

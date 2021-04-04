@@ -1,7 +1,6 @@
 //! Dynamic material that can change its properties in each frame.
 
 use crate::render::ubo::MaterialData;
-use bf::uuid::Uuid;
 use std::sync::{Arc, Mutex};
 use vulkano::buffer::{BufferUsage, CpuBufferPool};
 use vulkano::descriptor::descriptor_set::{
@@ -9,7 +8,7 @@ use vulkano::descriptor::descriptor_set::{
 };
 use vulkano::descriptor::DescriptorSet;
 
-use crate::assets::Storage;
+use crate::assets::Content;
 use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
 use vulkano::format::Format;
@@ -17,6 +16,7 @@ use vulkano::image::ImmutableImage;
 use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
+use vulkano::sync::GpuFuture;
 
 /// Errors that may happen when creating a dynamic material.
 #[derive(Debug)]
@@ -57,34 +57,37 @@ pub struct DynamicMaterial {
 impl DynamicMaterial {
     pub fn from_material(
         material: &bf::material::Material,
-        assets: &Storage,
+        content: &Content,
         pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
         fallback: Arc<FallbackMaps>,
     ) -> Result<Arc<Self>, DynamicMaterialError> {
-        // helper function to load Image asset from Option<Uuid>
-        let load = |opt: Option<Uuid>| opt.map(|x| assets.request_load(x));
+        macro_rules! load_image_sync {
+            ($map: expr) => {
+                match &$map {
+                    None => None,
+                    Some(uuid) => {
+                        let guard = content.request_load(*uuid);
+                        let image = guard.wait();
+                        let (image, f) = create_image(&image, content.transfer_queue.clone())
+                            .expect("cannot create image");
 
-        // request to load all maps
-        let albedo_map = load(material.albedo_map);
-        let normal_map = load(material.normal_map);
-        let displacement_map = load(material.displacement_map);
-        let roughness_map = load(material.roughness_map);
-        let ao_map = load(material.ao_map);
-        let metallic_map = load(material.metallic_map);
-        let opacity_map = load(material.opacity_map);
+                        f.then_signal_fence_and_flush().ok();
 
-        let create = |opt: Option<Arc<bf::image::Image>>| {
-            opt.map(|x| create_image(&x, assets.transfer_queue.clone()).unwrap().0)
-        };
+                        Some(image)
+                    }
+                }
+            };
+        }
 
-        let albedo_map = create(albedo_map.map(|x| x.wait()));
-        let normal_map = create(normal_map.map(|x| x.wait()));
-        let displacement_map = create(displacement_map.map(|x| x.wait()));
-        let roughness_map = create(roughness_map.map(|x| x.wait()));
-        let ao_map = create(ao_map.map(|x| x.wait()));
-        let metallic_map = create(metallic_map.map(|x| x.wait()));
-        let opacity_map = create(opacity_map.map(|x| x.wait()));
+        // use loaded textures or fallbacks
+        let albedo_map = load_image_sync!(material.albedo_map);
+        let normal_map = load_image_sync!(material.normal_map);
+        let displacement_map = load_image_sync!(material.displacement_map);
+        let roughness_map = load_image_sync!(material.roughness_map);
+        let ao_map = load_image_sync!(material.ao_map);
+        let metallic_map = load_image_sync!(material.metallic_map);
+        let opacity_map = load_image_sync!(material.opacity_map);
 
         // create a descriptor set layout from pipeline
         let layout = pipeline

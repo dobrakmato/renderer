@@ -1,10 +1,9 @@
 //! Static material whose properties are determined at creation time.
 
-use crate::assets::Storage;
+use crate::assets::Content;
 use crate::render::ubo::MaterialData;
 use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
-use bf::uuid::Uuid;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};
 use vulkano::descriptor::descriptor_set::{
@@ -40,35 +39,29 @@ pub struct StaticMaterial {
 impl StaticMaterial {
     pub fn from_material(
         material: &bf::material::Material,
-        assets: &Storage,
+        content: &Content,
         pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
         queue: Arc<Queue>,
         fallback: Arc<FallbackMaps>,
     ) -> Result<(Arc<Self>, impl GpuFuture), StaticMaterialError> {
-        // helper function to load Image asset from Option<Uuid>
-        let load = |opt: Option<Uuid>| opt.map(|x| assets.request_load(x));
+        macro_rules! load_image_sync {
+            ($map: expr, $def: expr) => {
+                match &$map {
+                    None => (&$def).clone(),
+                    Some(uuid) => {
+                        let guard = content.request_load(*uuid);
+                        let image = guard.wait();
+                        let (image, f) = create_image(&image, content.transfer_queue.clone())
+                            .expect("cannot create image");
 
-        // request to load all maps
-        let albedo_map = load(material.albedo_map);
-        let normal_map = load(material.normal_map);
-        let displacement_map = load(material.displacement_map);
-        let roughness_map = load(material.roughness_map);
-        let ao_map = load(material.ao_map);
-        let metallic_map = load(material.metallic_map);
-        let opacity_map = load(material.opacity_map);
+                        f.then_signal_fence_and_flush().ok();
 
-        let create = |opt: Option<Arc<bf::image::Image>>| {
-            opt.map(|x| create_image(&x, assets.transfer_queue.clone()).unwrap().0)
-        };
-
-        let albedo = create(albedo_map.map(|x| x.wait()));
-        let normal = create(normal_map.map(|x| x.wait()));
-        let displacement = create(displacement_map.map(|x| x.wait()));
-        let roughness = create(roughness_map.map(|x| x.wait()));
-        let ao = create(ao_map.map(|x| x.wait()));
-        let metallic = create(metallic_map.map(|x| x.wait()));
-        let opacity = create(opacity_map.map(|x| x.wait()));
+                        image
+                    }
+                }
+            };
+        }
 
         // create a uniform buffer with material data
         let data: MaterialData = (*material).into();
@@ -82,13 +75,13 @@ impl StaticMaterial {
             .ok_or(StaticMaterialError::InvalidDescriptorSetNumber)?;
 
         // use loaded textures or fallbacks
-        let albedo = fallback.white(&albedo);
-        let normal = fallback.normal(&normal);
-        let displacement = fallback.black(&displacement);
-        let roughness = fallback.white(&roughness);
-        let ao = fallback.white(&ao);
-        let metallic = fallback.black(&metallic);
-        let opacity = fallback.white(&opacity);
+        let albedo = load_image_sync!(material.albedo_map, fallback.fallback_white);
+        let normal = load_image_sync!(material.normal_map, fallback.fallback_normal);
+        let displacement = load_image_sync!(material.displacement_map, fallback.fallback_black);
+        let roughness = load_image_sync!(material.roughness_map, fallback.fallback_white);
+        let ao = load_image_sync!(material.ao_map, fallback.fallback_white);
+        let metallic = load_image_sync!(material.metallic_map, fallback.fallback_black);
+        let opacity = load_image_sync!(material.opacity_map, fallback.fallback_white);
 
         // create descriptor set
         let set = PersistentDescriptorSet::start(layout.clone())

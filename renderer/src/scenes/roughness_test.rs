@@ -3,31 +3,39 @@ use crate::engine::Engine;
 use crate::render::object::Object;
 use crate::render::transform::Transform;
 use crate::render::ubo::MaterialData;
-use crate::render::vertex::NormalMappedVertex;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
 use cgmath::vec3;
 use log::info;
-use std::sync::Arc;
 use std::time::Instant;
 use vulkano::sync::GpuFuture;
 
 pub fn create(engine: &mut Engine) {
-    let start = Instant::now();
     let device = &engine.vulkan_state.device();
-    let assets = &engine.asset_storage;
+    let assets = &engine.content;
     let path = &mut engine.renderer_state.render_path;
 
     let (fallback_maps, f1) = create_default_fallback_maps(engine.vulkan_state.transfer_queue());
 
-    let static_mesh = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh_dynamic::<NormalMappedVertex>(&mesh, assets.transfer_queue.clone())
-            .expect("cannot create mesh from bf::mesh::Mesh")
-            .0
-    };
+    macro_rules! mesh {
+        ($name: expr) => {{
+            let guard = assets.request_load(lookup($name));
 
-    let plane_mesh = static_mesh(assets.request_load(lookup("plane.obj")).wait());
-    let sphere_mesh = static_mesh(assets.request_load(lookup("sphere.obj")).wait());
+            let mesh = guard.wait::<bf::mesh::Mesh>();
+
+            let (mesh, f) = create_mesh_dynamic(&mesh, assets.transfer_queue.clone())
+                .expect("cannot create mesh");
+            f.then_signal_fence_and_flush().ok();
+
+            mesh
+        }};
+    }
+
+    let start = Instant::now();
+    info!("Loading scene assets...");
+
+    let plane_mesh = mesh!("plane.obj");
+    let sphere_mesh = mesh!("sphere.obj");
 
     let state = &mut engine.game_state;
 
