@@ -11,8 +11,9 @@ use parking_lot::{RawRwLock, RwLock, RwLockReadGuard};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
-use std::thread::spawn;
+use std::time::Instant;
 use vulkano::device::Queue;
 
 // some helper types
@@ -58,17 +59,27 @@ struct Load {
 
 /// Actual internal storage.
 static STORAGE: Lazy<Storage<BoxedAsset>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static WORKER_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// Function that drives single worker thread.
 fn spawn_worker_thread(rx: LoadRx) {
-    spawn(move || loop {
-        let item = match rx.recv() {
-            Ok(t) => t,
-            Err(_) => return,
-        };
+    std::thread::Builder::new()
+        .name(format!(
+            "ContentWorker-{}",
+            WORKER_COUNTER.fetch_add(1, Ordering::SeqCst)
+        ))
+        .spawn(move || {
+            loop {
+                let item = match rx.recv() {
+                    Ok(t) => t,
+                    Err(_) => break,
+                };
 
-        load(item);
-    });
+                load(item);
+            }
+            info!("Worker thread exited!");
+        })
+        .expect("cannot start worker thread");
 }
 
 /// Function that actually loads an asset into storage.
@@ -88,7 +99,8 @@ fn load(work: Load) {
         }};
     }
 
-    trace!("Loading file {:?} as asset {:?}", work.path, work.uuid);
+    let start = Instant::now();
+    trace!(" Loading file {:?} as asset {:?}", work.path, work.uuid);
 
     let bytes = match std::fs::read(work.path) {
         Err(e) => give_up_with_error!(e),
@@ -109,7 +121,11 @@ fn load(work: Load) {
 
     // update the storage
     {
-        trace!("Updating the storage of {:?}", work.uuid);
+        trace!(" Updating the storage of {:?}", work.uuid);
+        trace!(
+            "[{:?}] Acquiring WRITE lock to store loaded asset",
+            std::thread::current().name()
+        );
         let mut guard = STORAGE.write();
         match guard.get_mut(&work.uuid) {
             None => panic!("loaded asset that was not found in storage map"),
@@ -118,9 +134,14 @@ fn load(work: Load) {
                 slot.asset = Some(asset);
             }
         }
+        trace!("[{:?}] Dropping WRITE lock", std::thread::current().name())
     }
 
-    trace!("Asset {:?} completely loaded! ", work.uuid);
+    trace!(
+        " Asset {:?} completely loaded in {}ms! ",
+        work.uuid,
+        start.elapsed().as_millis()
+    );
     // send notification (we don't care if it arrives)
     work.tx.send(()).ok();
 }
@@ -178,10 +199,14 @@ impl Content {
         let (tx, rx) = bounded(1);
         let load = Load { uuid, path, tx };
 
-        info!("Load request {:?}...", uuid.to_hyphenated().to_string());
+        trace!("Load request {:?}...", uuid.to_hyphenated().to_string());
 
         // create initial entry or update existing entry in the storage
         {
+            trace!(
+                "[{:?}] Acquiring WRITE lock to request load",
+                std::thread::current().name()
+            );
             let mut guard = STORAGE.write();
             match guard.entry(uuid) {
                 Entry::Occupied(mut t) => t.get_mut().rx = Some(rx.clone()),
@@ -189,6 +214,7 @@ impl Content {
                     t.insert(AssetSlot::new_empty(rx.clone()));
                 }
             }
+            trace!("[{:?}] Dropping WRITE lock", std::thread::current().name())
         }
 
         // push item to the load queue (we don't care if it fails)
@@ -201,6 +227,10 @@ impl Content {
     }
 
     pub fn get<A: BfAsset>(&self, uuid: &Uuid) -> Option<MappedRwLockReadGuard<RawRwLock, A>> {
+        trace!(
+            "[{:?}] Acquiring READ lock to read asset",
+            std::thread::current().name()
+        );
         let guard = STORAGE.read();
 
         if guard.contains_key(uuid) && guard.get(uuid).unwrap().asset.is_some() {
@@ -213,14 +243,19 @@ impl Content {
                 x.downcast_ref::<A>().unwrap()
             }));
         }
+        trace!("[{:?}] Dropping READ lock", std::thread::current().name());
 
         None
     }
 
     pub fn get_blocking<A: BfAsset>(&self, uuid: &Uuid) -> MappedRwLockReadGuard<RawRwLock, A> {
         let rx = {
+            trace!(
+                "[{:?}] Acquiring READ lock to wait for asset",
+                std::thread::current().name()
+            );
             let guard = STORAGE.read();
-            match guard.get(uuid) {
+            let x = match guard.get(uuid) {
                 None => None,
                 Some(slot) => match slot.rx {
                     None => None, // nothing to do, asset is already loaded
@@ -232,7 +267,9 @@ impl Content {
                         },
                     },
                 },
-            }
+            };
+            trace!("[{:?}] Dropping READ lock", std::thread::current().name());
+            x
         };
 
         if let Some(rx) = rx {

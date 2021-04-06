@@ -2,13 +2,12 @@ use crate::assets::lookup;
 use crate::engine::Engine;
 use crate::render::object::Object;
 use crate::render::transform::Transform;
-use crate::render::vertex::NormalMappedVertex;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
 use cgmath::{vec3, Deg, Quaternion, Rotation3, Vector3};
 use log::info;
-use std::sync::Arc;
 use std::time::Instant;
+use vulkano::sync::GpuFuture;
 
 pub fn create(engine: &mut Engine) {
     let start = Instant::now();
@@ -18,31 +17,46 @@ pub fn create(engine: &mut Engine) {
 
     let (fallback_maps, _) = create_default_fallback_maps(engine.vulkan_state.transfer_queue());
 
-    let static_material = |mat: Arc<bf::material::Material>| {
-        StaticMaterial::from_material(
-            mat.as_ref(),
-            &assets,
-            path.buffers.geometry_pipeline.clone(),
-            path.samplers.aniso_repeat.clone(),
-            assets.transfer_queue.clone(),
-            fallback_maps.clone(),
-        )
-        .unwrap()
-    };
+    macro_rules! mesh {
+        ($name: expr) => {{
+            let guard = assets.request_load(lookup($name));
 
-    let static_mesh = |mesh: Arc<bf::mesh::Mesh>| {
-        create_mesh_dynamic::<NormalMappedVertex>(&mesh, assets.transfer_queue.clone())
-            .expect("cannot create mesh from bf::mesh::Mesh")
-            .0
-    };
+            let mesh = guard.wait::<bf::mesh::Mesh>();
+
+            let (mesh, f) = create_mesh_dynamic(&mesh, assets.transfer_queue.clone())
+                .expect("cannot create mesh");
+            f.then_signal_fence_and_flush().ok();
+
+            mesh
+        }};
+    }
+
+    macro_rules! material {
+        ($name: expr) => {{
+            let material = {
+                let guard = assets.request_load(lookup($name));
+                let mat = guard.wait();
+                *mat
+            };
+
+            let (material, f) = StaticMaterial::from_material(
+                &material,
+                &assets,
+                path.buffers.geometry_pipeline.clone(),
+                path.samplers.aniso_repeat.clone(),
+                assets.transfer_queue.clone(),
+                fallback_maps.clone(),
+            )
+            .expect("cannot create material");
+            f.then_signal_fence_and_flush().ok();
+
+            material
+        }};
+    }
 
     let sneakers = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("pbr_sneaker\\PB170_Sneaker_Sm.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("pbr_sneaker.mat")).wait()).0,
+        mesh!("pbr_sneaker\\PB170_Sneaker_Sm.obj"),
+        material!("pbr_sneaker.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -53,12 +67,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let cabinet = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("pbr_cabinet\\cabinet.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("pbr_cabinet.mat")).wait()).0,
+        mesh!("pbr_cabinet\\cabinet.obj"),
+        material!("pbr_cabinet.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -69,12 +79,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let welding_setup = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("pbr_welding_setup\\WeldingSetup_obj.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("pbr_welding_setup.mat")).wait()).0,
+        mesh!("pbr_welding_setup\\WeldingSetup_obj.obj"),
+        material!("pbr_welding_setup.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -85,12 +91,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let cottage = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("pbr_cottage\\Cottage_FREE.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("pbr_cottage.mat")).wait()).0,
+        mesh!("pbr_cottage\\Cottage_FREE.obj"),
+        material!("pbr_cottage.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -101,12 +103,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let red_barn = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("pbr_red_barn\\Rbarn15.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("pbr_red_barn.mat")).wait()).0,
+        mesh!("pbr_red_barn\\Rbarn15.obj"),
+        material!("pbr_red_barn.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -117,12 +115,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let apple = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("3DApple002_2K-JPG\\3DApple002_2K.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("3DApple002_2K-JPG.mat")).wait()).0,
+        mesh!("3DApple002_2K-JPG\\3DApple002_2K.obj"),
+        material!("3DApple002_2K-JPG.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -133,19 +127,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let woman = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup(
-                    "autumn_casualwoman_01\\autumn_casualwoman_01_lowpoly_3dsmax.obj",
-                ))
-                .wait(),
-        ),
-        static_material(
-            assets
-                .request_load(lookup("autumn_casualwoman_01.mat"))
-                .wait(),
-        )
-        .0,
+        mesh!("autumn_casualwoman_01\\autumn_casualwoman_01_lowpoly_3dsmax.obj"),
+        material!("autumn_casualwoman_01.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -156,12 +139,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let bread1 = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("3DBread001_LowPoly\\3DBread001_LowPoly.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("3DBread001_LowPoly.mat")).wait()).0,
+        mesh!("3DBread001_LowPoly\\3DBread001_LowPoly.obj"),
+        material!("3DBread001_LowPoly.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -172,12 +151,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let rock1 = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("3DRock001_2K\\3DRock001_2K.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("3DRock001_2K.mat")).wait()).0,
+        mesh!("3DRock001_2K\\3DRock001_2K.obj"),
+        material!("3DRock001_2K.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -188,12 +163,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let rock2 = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("3DRock002_9K\\3DRock002_9K.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("3DRock002_9K.mat")).wait()).0,
+        mesh!("3DRock002_9K\\3DRock002_9K.obj"),
+        material!("3DRock002_9K.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -204,19 +175,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let jess = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup(
-                    "Jess_Casual_Walking_001\\Jess_Casual_Walking_001.obj",
-                ))
-                .wait(),
-        ),
-        static_material(
-            assets
-                .request_load(lookup("Jess_Casual_Walking_001.mat"))
-                .wait(),
-        )
-        .0,
+        mesh!("Jess_Casual_Walking_001\\Jess_Casual_Walking_001.obj"),
+        material!("Jess_Casual_Walking_001.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -227,17 +187,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let fern = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("Soi_Foliage_OBJ\\SM_Fern_01.obj"))
-                .wait(),
-        ),
-        static_material(
-            assets
-                .request_load(lookup("Soi_Foliage_OBJ\\T_Ferns.mat"))
-                .wait(),
-        )
-        .0,
+        mesh!("Soi_Foliage_OBJ\\SM_Fern_01.obj"),
+        material!("Soi_Foliage_OBJ\\T_Ferns.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -248,12 +199,8 @@ pub fn create(engine: &mut Engine) {
     );
 
     let test_cube = Object::new(
-        static_mesh(
-            assets
-                .request_load(lookup("test_cube\\test_cube_default.obj"))
-                .wait(),
-        ),
-        static_material(assets.request_load(lookup("test_cube.mat")).wait()).0,
+        mesh!("test_cube\\test_cube_default.obj"),
+        material!("test_cube.mat"),
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
@@ -263,8 +210,9 @@ pub fn create(engine: &mut Engine) {
         },
     );
 
+    // todo: rewrite using a pipeline
     let mat_start = Instant::now();
-    let materials = [
+    let mat_reqs = [
         "1k_floor.mat",
         "copper-rock1.mat",
         "sandstonecliff-ue.mat",
@@ -328,14 +276,38 @@ pub fn create(engine: &mut Engine) {
     ]
     .iter()
     .map(|x| lookup(x))
-    .map(|x| assets.request_load::<bf::material::Material>(x).wait())
-    .map(|x| static_material(x).0)
-    .collect();
+    .map(|x| assets.request_load(x))
+    .collect::<Vec<_>>();
+
+    let materials = mat_reqs
+        .iter()
+        .map(|x| {
+            let mat = *x.wait();
+            StaticMaterial::from_material(
+                &mat,
+                &assets,
+                path.buffers.geometry_pipeline.clone(),
+                path.samplers.aniso_repeat.clone(),
+                assets.transfer_queue.clone(),
+                fallback_maps.clone(),
+            )
+            .ok()
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let materials = materials
+        .into_iter()
+        .map(|(x, f)| {
+            f.then_signal_fence_and_flush().ok();
+            x
+        })
+        .collect();
     println!(
         "Material load took {} seconds!",
         mat_start.elapsed().as_secs_f32()
     );
-    let plane_mesh = static_mesh(assets.request_load(lookup("plane.obj")).wait());
+    let plane_mesh = mesh!("plane.obj");
 
     // setup sky
     path.sky.sun_dir = engine.game_state.directional_lights[0].direction;
