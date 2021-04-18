@@ -3,12 +3,10 @@ use crate::engine::Engine;
 use crate::render::object::Object;
 use crate::render::transform::Transform;
 use crate::render::ubo::MaterialData;
-use crate::render::vertex::NormalMappedVertex;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
-use crate::resources::mesh::{create_mesh_dynamic, DynamicIndexedMesh};
+use crate::resources::mesh::create_mesh_dynamic;
 use cgmath::vec3;
 use log::info;
-use std::sync::Arc;
 use std::time::Instant;
 use vulkano::sync::GpuFuture;
 

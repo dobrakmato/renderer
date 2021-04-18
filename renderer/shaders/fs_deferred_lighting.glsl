@@ -73,7 +73,7 @@ vec3 F_Schlick(const vec3 F0, float F90, float VdotH) {
 }
 
 vec3 fresnel(const vec3 F0, float LdotH) {
-    float f90 = clamp(dot(F0, vec3(50.0 * 0.33)), 0.0, 1.0);
+    float f90 = clamp(dot(F0, vec3(50.0 * 0.33)), 0.0, 1.0); // todo: replace with material property
     return F_Schlick(F0, f90, LdotH);
 }
 
@@ -103,7 +103,7 @@ vec3 light(vec3 N, vec3 L, vec3 V, vec3 lightColor, float roughness, vec3 albedo
     vec3 specular = specular(roughness, albedo, metallic, H, NdotV, NdotL, NdotH, LdotH);
     vec3 diffuse = diffuse(roughness, albedo);
 
-    vec3 color = diffuse + specular;
+    vec3 color = diffuse * (1 - metallic) + mix(specular, specular * albedo, metallic);
 
     return (color * lightColor) * NdotL;
 }
