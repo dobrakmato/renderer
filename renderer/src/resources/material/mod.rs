@@ -13,6 +13,7 @@ pub use dynamic::DynamicMaterial;
 pub use r#static::StaticMaterial;
 use vulkano::descriptor::DescriptorSet;
 use vulkano::device::Queue;
+use vulkano::image::view::ImageView;
 use vulkano::sync::GpuFuture;
 
 /// Index of descriptor set that is used for material data.
@@ -46,11 +47,11 @@ impl Into<MaterialData> for bf::material::Material {
 /// - If the option is `None`, this function returns cloned `Arc` of fallback texture.
 pub struct FallbackMaps {
     /// Fallback texture that is white (255, 255, 255).
-    pub fallback_white: Arc<ImmutableImage<Format>>,
+    pub fallback_white: Arc<ImageView<Arc<ImmutableImage<Format>>>>,
     /// Fallback texture that is black (0, 0, 0).
-    pub fallback_black: Arc<ImmutableImage<Format>>,
+    pub fallback_black: Arc<ImageView<Arc<ImmutableImage<Format>>>>,
     /// Fallback texture that is flat tangent space normal map (128, 128, 255).
-    pub fallback_normal: Arc<ImmutableImage<Format>>,
+    pub fallback_normal: Arc<ImageView<Arc<ImmutableImage<Format>>>>,
 }
 
 macro_rules! fallback_fn {
@@ -59,8 +60,8 @@ macro_rules! fallback_fn {
         #[inline]
         pub fn $name(
             &self,
-            expected: &Option<Arc<ImmutableImage<Format>>>,
-        ) -> Arc<ImmutableImage<Format>> {
+            expected: &Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+        ) -> Arc<ImageView<Arc<ImmutableImage<Format>>>> {
             expected
                 .as_ref()
                 .cloned()
@@ -85,9 +86,9 @@ pub fn create_default_fallback_maps(queue: Arc<Queue>) -> (Arc<FallbackMaps>, im
 
     (
         Arc::new(FallbackMaps {
-            fallback_white: white,
-            fallback_black: black,
-            fallback_normal: normal,
+            fallback_white: ImageView::new(white).ok().unwrap(),
+            fallback_black: ImageView::new(black).ok().unwrap(),
+            fallback_normal: ImageView::new(normal).ok().unwrap(),
         }),
         f1.join(f2).join(f3),
     )

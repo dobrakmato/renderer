@@ -11,6 +11,7 @@ use vulkano::descriptor::descriptor_set::{
 };
 use vulkano::descriptor::DescriptorSet;
 use vulkano::device::Queue;
+use vulkano::image::view::ImageView;
 use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::sampler::Sampler;
@@ -57,7 +58,7 @@ impl StaticMaterial {
 
                         f.then_signal_fence_and_flush().ok();
 
-                        image
+                        ImageView::new(image).expect("cannot create view from image")
                     }
                 }
             };

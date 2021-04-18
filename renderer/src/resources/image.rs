@@ -7,7 +7,8 @@ use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer};
 use vulkano::device::Queue;
 use vulkano::format::Format;
 use vulkano::image::{
-    Dimensions, ImageCreationError, ImageLayout, ImageUsage, ImmutableImage, MipmapsCount,
+    ImageCreateFlags, ImageCreationError, ImageDimensions, ImageLayout, ImageUsage, ImmutableImage,
+    MipmapsCount,
 };
 use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::sync::GpuFuture;
@@ -50,9 +51,10 @@ pub fn create_image(
     // create image on the gpu and allocate memory for it
     let (immutable, init) = ImmutableImage::uninitialized(
         queue.device().clone(),
-        Dimensions::Dim2d {
+        ImageDimensions::Dim2d {
             width: image.width as u32,
             height: image.height as u32,
+            array_layers: 1,
         },
         to_vulkan_format(image.format),
         image.mipmap_count(),
@@ -61,6 +63,7 @@ pub fn create_image(
             sampled: true,
             ..ImageUsage::none()
         },
+        ImageCreateFlags::none(),
         ImageLayout::ShaderReadOnlyOptimal,
         Some(queue.family()),
     )
@@ -112,9 +115,10 @@ pub fn create_single_pixel_image(
 ) -> Result<(Arc<ImmutableImage<Format>>, impl GpuFuture), CreateImageError> {
     ImmutableImage::from_iter(
         color.iter().cloned(),
-        Dimensions::Dim2d {
+        ImageDimensions::Dim2d {
             width: 1,
             height: 1,
+            array_layers: 1,
         },
         MipmapsCount::One,
         Format::R8G8B8A8Unorm,

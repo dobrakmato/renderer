@@ -20,6 +20,7 @@ use vulkano::framebuffer::Framebuffer;
 use vulkano::framebuffer::{
     FramebufferAbstract, FramebufferCreationError, RenderPassAbstract, Subpass,
 };
+use vulkano::image::view::ImageView;
 use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::GraphicsPipeline;
@@ -44,12 +45,12 @@ pub struct PBRDeffered {
 
 /// Long-lived objects & buffers that **do** change when resolution changes.
 pub struct Buffers {
-    pub hdr_buffer: Arc<AttachmentImage>,
-    pub gbuffer1: Arc<AttachmentImage>,
-    pub gbuffer2: Arc<AttachmentImage>,
-    pub gbuffer3: Arc<AttachmentImage>,
-    pub depth_buffer: Arc<AttachmentImage>,
-    pub ldr_buffer: Arc<AttachmentImage>,
+    pub hdr_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
+    pub gbuffer1: Arc<ImageView<Arc<AttachmentImage>>>,
+    pub gbuffer2: Arc<ImageView<Arc<AttachmentImage>>>,
+    pub gbuffer3: Arc<ImageView<Arc<AttachmentImage>>>,
+    pub depth_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
+    pub ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
     pub framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
 
     // pipelines are dependant on the viewport + buffers
@@ -139,7 +140,7 @@ impl Buffers {
                 )
                 .expect(&format!("cannot create buffer {}", stringify!($format)));
                 // device.set_object_name(&x, cstr::cstr!($name));
-                x
+                ImageView::new(x).ok().unwrap()
             }};
         }
 
@@ -164,6 +165,7 @@ impl Buffers {
         )
         .expect(&format!("cannot create buffer {}", stringify!($format)));
         // device.set_object_name(&ldr_buffer, cstr::cstr!("LDR Buffer"));
+        let ldr_buffer = ImageView::new(ldr_buffer).ok().unwrap();
 
         let framebuffer = Arc::new(
             Framebuffer::start(render_pass.clone())
@@ -338,7 +340,7 @@ impl PBRDeffered {
 
     pub fn create_framebuffer(
         &self,
-        final_image: Arc<SwapchainImage<Window>>,
+        final_image: Arc<ImageView<SwapchainImage<Window>>>,
     ) -> Result<Arc<dyn FramebufferAbstract + Send + Sync>, FramebufferCreationError> {
         self.fxaa.create_framebuffer(final_image)
     }

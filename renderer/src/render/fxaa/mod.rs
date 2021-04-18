@@ -12,6 +12,7 @@ use vulkano::framebuffer::Framebuffer;
 use vulkano::framebuffer::{
     FramebufferAbstract, FramebufferCreationError, RenderPassAbstract, Subpass,
 };
+use vulkano::image::view::ImageView;
 use vulkano::image::{AttachmentImage, SwapchainImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::{GraphicsPipeline, GraphicsPipelineAbstract};
@@ -43,7 +44,7 @@ impl FXAA {
         queue: Arc<Queue>,
         device: Arc<Device>,
         swapchain_format: Format,
-        ldr_buffer: Arc<AttachmentImage>,
+        ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
         sampler: Arc<Sampler>,
     ) -> Self {
         // first we generate some useful resources on the fly
@@ -106,7 +107,7 @@ impl FXAA {
         }
     }
 
-    pub fn recreate_descriptor(&mut self, ldr_buffer: Arc<AttachmentImage>) {
+    pub fn recreate_descriptor(&mut self, ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>) {
         let new_descriptor_set = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(
                 &self.pipeline,
@@ -123,7 +124,7 @@ impl FXAA {
 
     pub fn create_framebuffer(
         &self,
-        final_image: Arc<SwapchainImage<Window>>,
+        final_image: Arc<ImageView<SwapchainImage<Window>>>,
     ) -> Result<Arc<dyn FramebufferAbstract + Send + Sync>, FramebufferCreationError> {
         Ok(Arc::new(
             Framebuffer::start(self.render_pass.clone())

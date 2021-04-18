@@ -13,6 +13,7 @@ use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
 use vulkano::framebuffer::FramebufferAbstract;
+use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::swapchain;
 use vulkano::swapchain::{
@@ -44,7 +45,7 @@ pub struct RendererState {
     /// Current `Swapchain` object.
     swapchain: Arc<Swapchain<Window>>,
     /// Vector of *swapchain* images.
-    swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
+    swapchain_images: Vec<Arc<ImageView<SwapchainImage<Window>>>>,
     /// Vector of current framebuffers.
     framebuffers: SmallVec<[Arc<dyn FramebufferAbstract + Send + Sync>; 4]>,
     /// Whether the vector of framebuffers is out-of-date. Framebuffers may become out-of-date
@@ -119,7 +120,7 @@ impl RendererState {
             framebuffers_out_of_date: true,
             framebuffers: SmallVec::new(),
             render_path,
-            swapchain_images,
+            swapchain_images: swapchain_imgs_to_views(swapchain_images),
             swapchain,
             device,
             graphical_queue,
@@ -222,7 +223,7 @@ impl RendererState {
         };
 
         self.swapchain = swapchain;
-        self.swapchain_images = imgs;
+        self.swapchain_images = swapchain_imgs_to_views(imgs);
 
         // mark framebuffers as out-of-date
         self.framebuffers_out_of_date = true;
@@ -247,6 +248,20 @@ impl RendererState {
             Err(e) => panic!("cannot (re)create framebuffers: {}", e),
         };
     }
+}
+
+/// Converts a `Vec<SwapchainImage>` to `Vec<ImageView>` without double Arc-ing the
+/// image resource.
+fn swapchain_imgs_to_views(
+    imgs: Vec<Arc<SwapchainImage<Window>>>,
+) -> Vec<Arc<ImageView<SwapchainImage<Window>>>> {
+    imgs.into_iter()
+        .map(|x| {
+            ImageView::new(Arc::try_unwrap(x).ok().unwrap())
+                .ok()
+                .unwrap()
+        })
+        .collect()
 }
 
 /// Creates a **now** GpuFuture wrapped in `Box` and `Option`.

@@ -12,6 +12,7 @@ use crate::assets::Content;
 use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
 use vulkano::format::Format;
+use vulkano::image::view::ImageView;
 use vulkano::image::ImmutableImage;
 use vulkano::memory::DeviceMemoryAllocError;
 use vulkano::pipeline::GraphicsPipelineAbstract;
@@ -45,13 +46,13 @@ pub struct DynamicMaterial {
     pub fallback: Arc<FallbackMaps>,
     pub sampler: Arc<Sampler>,
     pub data: MaterialData,
-    pub albedo_map: Option<Arc<ImmutableImage<Format>>>,
-    pub normal_map: Option<Arc<ImmutableImage<Format>>>,
-    pub displacement_map: Option<Arc<ImmutableImage<Format>>>,
-    pub roughness_map: Option<Arc<ImmutableImage<Format>>>,
-    pub ao_map: Option<Arc<ImmutableImage<Format>>>,
-    pub metallic_map: Option<Arc<ImmutableImage<Format>>>,
-    pub opacity_map: Option<Arc<ImmutableImage<Format>>>,
+    pub albedo_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+    pub normal_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+    pub displacement_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+    pub roughness_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+    pub ao_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+    pub metallic_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+    pub opacity_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
 }
 
 impl DynamicMaterial {
@@ -74,7 +75,7 @@ impl DynamicMaterial {
 
                         f.then_signal_fence_and_flush().ok();
 
-                        Some(image)
+                        Some(ImageView::new(image).expect("cannot create view from image"))
                     }
                 }
             };
