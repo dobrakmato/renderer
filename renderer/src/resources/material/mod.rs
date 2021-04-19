@@ -2,7 +2,6 @@
 
 use crate::render::ubo::MaterialData;
 use std::sync::Arc;
-use vulkano::format::Format;
 use vulkano::image::ImmutableImage;
 
 mod dynamic;
@@ -47,11 +46,11 @@ impl Into<MaterialData> for bf::material::Material {
 /// - If the option is `None`, this function returns cloned `Arc` of fallback texture.
 pub struct FallbackMaps {
     /// Fallback texture that is white (255, 255, 255).
-    pub fallback_white: Arc<ImageView<Arc<ImmutableImage<Format>>>>,
+    pub fallback_white: Arc<ImageView<Arc<ImmutableImage>>>,
     /// Fallback texture that is black (0, 0, 0).
-    pub fallback_black: Arc<ImageView<Arc<ImmutableImage<Format>>>>,
+    pub fallback_black: Arc<ImageView<Arc<ImmutableImage>>>,
     /// Fallback texture that is flat tangent space normal map (128, 128, 255).
-    pub fallback_normal: Arc<ImageView<Arc<ImmutableImage<Format>>>>,
+    pub fallback_normal: Arc<ImageView<Arc<ImmutableImage>>>,
 }
 
 macro_rules! fallback_fn {
@@ -60,8 +59,8 @@ macro_rules! fallback_fn {
         #[inline]
         pub fn $name(
             &self,
-            expected: &Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
-        ) -> Arc<ImageView<Arc<ImmutableImage<Format>>>> {
+            expected: &Option<Arc<ImageView<Arc<ImmutableImage>>>>,
+        ) -> Arc<ImageView<Arc<ImmutableImage>>> {
             expected
                 .as_ref()
                 .cloned()

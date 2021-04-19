@@ -7,7 +7,7 @@ use crate::render::{descriptor_set_layout, OBJECT_DATA_UBO_DESCRIPTOR_SET};
 use crate::resources::material::Material;
 use crate::resources::mesh::DynamicIndexedMesh;
 use std::sync::Arc;
-use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState, PrimaryAutoCommandBuffer};
 use vulkano::descriptor::DescriptorSet;
 use vulkano::device::Device;
 use vulkano::pipeline::vertex::Vertex;
@@ -72,7 +72,7 @@ impl<V: Vertex> Object<V> {
         &self,
         dynamic_state: &DynamicState,
         frame_matrix_data: Arc<dyn DescriptorSet + Send + Sync>,
-        cmd: &mut AutoCommandBufferBuilder,
+        cmd: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     ) {
         let object_matrix_data = self
             .object_matrix_data()

@@ -14,17 +14,15 @@ use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
 use std::sync::Arc;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
-use vulkano::device::{Device, Queue};
+use vulkano::device::{Device, DeviceOwned, Queue};
 use vulkano::format::Format;
-use vulkano::framebuffer::Framebuffer;
-use vulkano::framebuffer::{
-    FramebufferAbstract, FramebufferCreationError, RenderPassAbstract, Subpass,
-};
 use vulkano::image::view::ImageView;
 use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
+use vulkano::render_pass::{Framebuffer, RenderPass};
+use vulkano::render_pass::{FramebufferAbstract, FramebufferCreationError, Subpass};
 use vulkano::swapchain::Swapchain;
 use winit::window::Window;
 
@@ -34,7 +32,7 @@ pub type LightDataPool = UniformBufferPool<[DirectionalLight; 1024]>;
 /// Long-lived objects & buffers that **do not** change when resolution
 /// changes.
 pub struct PBRDeffered {
-    pub render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
+    pub render_pass: Arc<RenderPass>,
     pub samplers: Samplers,
     pub lights_buffer_pool: LightDataPool,
     pub fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
@@ -65,11 +63,7 @@ pub struct Buffers {
 }
 
 impl Buffers {
-    fn new(
-        render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
-        device: Arc<Device>,
-        dimensions: [u32; 2],
-    ) -> Self {
+    fn new(render_pass: Arc<RenderPass>, device: Arc<Device>, dimensions: [u32; 2]) -> Self {
         // we create required shaders for all graphical pipelines we use in this
         // render pass from precompiled (embedded) spri-v binary data from soruces.
         let vs =

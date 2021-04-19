@@ -46,13 +46,13 @@ pub struct DynamicMaterial {
     pub fallback: Arc<FallbackMaps>,
     pub sampler: Arc<Sampler>,
     pub data: MaterialData,
-    pub albedo_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
-    pub normal_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
-    pub displacement_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
-    pub roughness_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
-    pub ao_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
-    pub metallic_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
-    pub opacity_map: Option<Arc<ImageView<Arc<ImmutableImage<Format>>>>>,
+    pub albedo_map: Option<Arc<ImageView<Arc<ImmutableImage>>>>,
+    pub normal_map: Option<Arc<ImageView<Arc<ImmutableImage>>>>,
+    pub displacement_map: Option<Arc<ImageView<Arc<ImmutableImage>>>>,
+    pub roughness_map: Option<Arc<ImageView<Arc<ImmutableImage>>>>,
+    pub ao_map: Option<Arc<ImageView<Arc<ImmutableImage>>>>,
+    pub metallic_map: Option<Arc<ImageView<Arc<ImmutableImage>>>>,
+    pub opacity_map: Option<Arc<ImageView<Arc<ImmutableImage>>>>,
 }
 
 impl DynamicMaterial {

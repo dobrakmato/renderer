@@ -8,14 +8,12 @@ use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::DescriptorSet;
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
-use vulkano::framebuffer::Framebuffer;
-use vulkano::framebuffer::{
-    FramebufferAbstract, FramebufferCreationError, RenderPassAbstract, Subpass,
-};
 use vulkano::image::view::ImageView;
 use vulkano::image::{AttachmentImage, SwapchainImage};
 use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::{GraphicsPipeline, GraphicsPipelineAbstract};
+use vulkano::render_pass::{Framebuffer, RenderPass};
+use vulkano::render_pass::{FramebufferAbstract, FramebufferCreationError, Subpass};
 use vulkano::sampler::Sampler;
 use winit::window::Window;
 
@@ -32,7 +30,7 @@ pub mod shaders {
 const FXAA_DESCRIPTOR_SET: usize = 0;
 
 pub struct FXAA {
-    pub render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
+    pub render_pass: Arc<RenderPass>,
     pub pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
     pub ldr_buffer_ds: Arc<dyn DescriptorSet + Send + Sync>,

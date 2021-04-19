@@ -12,9 +12,9 @@ use std::sync::Arc;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
-use vulkano::framebuffer::FramebufferAbstract;
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
+use vulkano::render_pass::FramebufferAbstract;
 use vulkano::swapchain;
 use vulkano::swapchain::{
     Capabilities, CapabilitiesError, ColorSpace, FullscreenExclusive, PresentMode, Swapchain,

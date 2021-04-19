@@ -11,13 +11,13 @@ use crate::render::{descriptor_set_layout, FrameMatrixPool, FRAME_DATA_UBO_DESCR
 use crate::resources::mesh::{create_icosphere, IndexedMesh};
 use cgmath::Vector3;
 use std::sync::Arc;
-use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState, PrimaryAutoCommandBuffer};
 use vulkano::descriptor::DescriptorSet;
 use vulkano::device::{Device, Queue};
-use vulkano::framebuffer::{RenderPassAbstract, Subpass};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
+use vulkano::render_pass::{RenderPass, Subpass};
 
 mod dataset;
 mod shaders;
@@ -43,11 +43,7 @@ pub struct HosekSky {
 impl HosekSky {
     /// Creates a new `Sky` with specified parameters. Provided pipeline should be the one
     /// that will be used to render the sky.
-    pub fn new(
-        queue: Arc<Queue>,
-        render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
-        device: Arc<Device>,
-    ) -> Self {
+    pub fn new(queue: Arc<Queue>, render_pass: Arc<RenderPass>, device: Arc<Device>) -> Self {
         // todo: decide with to do with `expect` and with future
         let (mesh, _) = create_icosphere(queue, 0).expect("cannot generate icosphere for Sky");
 
@@ -100,7 +96,7 @@ impl HosekSky {
         &self,
         dynamic_state: &DynamicState,
         frame_matrix_data: FrameMatrixData,
-        cmd: &mut AutoCommandBufferBuilder,
+        cmd: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     ) {
         let sky_data = self
             .sky_params_data()

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::CpuAccessibleBuffer;
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, PrimaryCommandBuffer};
 use vulkano::device::Queue;
 use vulkano::format::Format;
 use vulkano::image::{
@@ -47,7 +47,7 @@ pub enum CreateImageError {
 pub fn create_image(
     image: &bf::image::Image,
     queue: Arc<Queue>,
-) -> Result<(Arc<ImmutableImage<Format>>, impl GpuFuture), CreateImageError> {
+) -> Result<(Arc<ImmutableImage>, impl GpuFuture), CreateImageError> {
     // create image on the gpu and allocate memory for it
     let (immutable, init) = ImmutableImage::uninitialized(
         queue.device().clone(),
@@ -112,7 +112,7 @@ pub fn create_image(
 pub fn create_single_pixel_image(
     queue: Arc<Queue>,
     color: [u8; 4],
-) -> Result<(Arc<ImmutableImage<Format>>, impl GpuFuture), CreateImageError> {
+) -> Result<(Arc<ImmutableImage>, impl GpuFuture), CreateImageError> {
     ImmutableImage::from_iter(
         color.iter().cloned(),
         ImageDimensions::Dim2d {

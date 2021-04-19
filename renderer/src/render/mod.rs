@@ -9,15 +9,15 @@ use cgmath::{EuclideanSpace, SquareMatrix, Vector3, Zero};
 use cstr::cstr;
 use std::sync::Arc;
 use vulkano::command_buffer::{
-    AutoCommandBuffer, AutoCommandBufferBuilder, DynamicState, SubpassContents,
+    AutoCommandBufferBuilder, DynamicState, PrimaryAutoCommandBuffer, SubpassContents,
 };
 use vulkano::descriptor::descriptor_set::UnsafeDescriptorSetLayout;
 use vulkano::descriptor::PipelineLayoutAbstract;
 use vulkano::device::{Device, Queue};
 use vulkano::format::ClearValue;
-use vulkano::framebuffer::FramebufferAbstract;
 use vulkano::image::SwapchainImage;
 use vulkano::pipeline::viewport::Viewport;
+use vulkano::render_pass::FramebufferAbstract;
 use winit::window::Window;
 
 // consts to descriptor set binding indices
@@ -72,11 +72,11 @@ pub struct Frame<'r, 's> {
     render_path: &'r mut PBRDeffered,
     game_state: &'s GameState,
     framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
-    builder: Option<AutoCommandBufferBuilder>,
+    builder: Option<AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>>,
 }
 
 impl<'r, 's> Frame<'r, 's> {
-    pub fn build(&mut self) -> AutoCommandBuffer {
+    pub fn build(&mut self) -> PrimaryAutoCommandBuffer {
         let dims = [
             self.framebuffer.dimensions()[0] as f32,
             self.framebuffer.dimensions()[1] as f32,
