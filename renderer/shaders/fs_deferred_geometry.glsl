@@ -38,6 +38,7 @@ void main() {
     float metallic = material_data.metallic * texture(metallic_map, in_uv).r;
     float occlusion = texture(occlusion_map, in_uv).r;
     float opacity = texture(opacity_map, in_uv).r;
+    float displacement = texture(displacement_map, in_uv).r; // todo: remove when vulkano-shaders is fixed
 
     if (opacity < material_data.alpha_cutoff) {
         discard;
