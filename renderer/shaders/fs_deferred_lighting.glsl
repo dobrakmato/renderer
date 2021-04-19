@@ -7,7 +7,7 @@ layout(set = 1, binding = 3, input_attachment_index = 3) uniform subpassInput de
 
 layout(location = 0) out vec4 hdr;
 
-const uint MAX_LIGHTS = 1024;
+const uint MAX_LIGHTS = 100;
 
 struct DirectionalLight {
     vec3 direction;

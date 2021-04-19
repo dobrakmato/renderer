@@ -27,7 +27,7 @@ use vulkano::swapchain::Swapchain;
 use winit::window::Window;
 
 /// Uniform buffer poll for light data.
-pub type LightDataPool = UniformBufferPool<[DirectionalLight; 1024]>;
+pub type LightDataPool = UniformBufferPool<[DirectionalLight; 100]>;
 
 /// Long-lived objects & buffers that **do not** change when resolution
 /// changes.

@@ -146,7 +146,7 @@ impl<'r, 's> Frame<'r, 's> {
             direction: Vector3::zero(),
             intensity: 0.0,
             color: Vector3::zero(),
-        }; 1024];
+        }; 100];
         for (idx, light) in state.directional_lights.iter().enumerate() {
             lights[idx] = *light;
         }
