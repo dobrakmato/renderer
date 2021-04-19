@@ -45,7 +45,7 @@ pub struct RendererState {
     /// Current `Swapchain` object.
     swapchain: Arc<Swapchain<Window>>,
     /// Vector of *swapchain* images.
-    swapchain_images: Vec<Arc<ImageView<SwapchainImage<Window>>>>,
+    swapchain_images: Vec<Arc<ImageView<Arc<SwapchainImage<Window>>>>>,
     /// Vector of current framebuffers.
     framebuffers: SmallVec<[Arc<dyn FramebufferAbstract + Send + Sync>; 4]>,
     /// Whether the vector of framebuffers is out-of-date. Framebuffers may become out-of-date
@@ -254,13 +254,9 @@ impl RendererState {
 /// image resource.
 fn swapchain_imgs_to_views(
     imgs: Vec<Arc<SwapchainImage<Window>>>,
-) -> Vec<Arc<ImageView<SwapchainImage<Window>>>> {
+) -> Vec<Arc<ImageView<Arc<SwapchainImage<Window>>>>> {
     imgs.into_iter()
-        .map(|x| {
-            ImageView::new(Arc::try_unwrap(x).ok().unwrap())
-                .ok()
-                .unwrap()
-        })
+        .map(|x| ImageView::new(x).ok().unwrap())
         .collect()
 }
 

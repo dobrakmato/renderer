@@ -124,7 +124,7 @@ impl FXAA {
 
     pub fn create_framebuffer(
         &self,
-        final_image: Arc<ImageView<SwapchainImage<Window>>>,
+        final_image: Arc<ImageView<Arc<SwapchainImage<Window>>>>,
     ) -> Result<Arc<dyn FramebufferAbstract + Send + Sync>, FramebufferCreationError> {
         Ok(Arc::new(
             Framebuffer::start(self.render_pass.clone())
