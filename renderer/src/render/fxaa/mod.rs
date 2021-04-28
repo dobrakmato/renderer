@@ -14,7 +14,7 @@ use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::{GraphicsPipeline, GraphicsPipelineAbstract};
 use vulkano::render_pass::{Framebuffer, RenderPass};
 use vulkano::render_pass::{FramebufferAbstract, FramebufferCreationError, Subpass};
-use vulkano::sampler::Sampler;
+use vulkano::sampler::{Filter, MipmapMode, Sampler, SamplerAddressMode};
 use winit::window::Window;
 
 pub mod shaders {
@@ -43,7 +43,6 @@ impl FXAA {
         device: Arc<Device>,
         swapchain_format: Format,
         ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
-        sampler: Arc<Sampler>,
     ) -> Self {
         // first we generate some useful resources on the fly
         let (fst, _) = create_full_screen_triangle(queue.clone()).expect("cannot create fst");
@@ -72,6 +71,22 @@ impl FXAA {
 
         let vs = crate::render::shaders::vs_passtrough::Shader::load(device.clone()).unwrap();
         let fs = crate::render::fxaa::shaders::fragment::Shader::load(device.clone()).unwrap();
+
+        // create sampler that does not repeat the texture so we don't anti-alias bottom with top
+        let sampler = Sampler::new(
+            device.clone(),
+            Filter::Nearest,
+            Filter::Nearest,
+            MipmapMode::Nearest,
+            SamplerAddressMode::ClampToEdge,
+            SamplerAddressMode::ClampToEdge,
+            SamplerAddressMode::ClampToEdge,
+            0.0,
+            1.0,
+            0.0,
+            1000.0,
+        )
+        .expect("cannot create sampler for fxaa (reading ldr_buffer)");
 
         let pipeline = Arc::new(
             GraphicsPipeline::start()

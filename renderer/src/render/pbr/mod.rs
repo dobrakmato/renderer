@@ -11,6 +11,7 @@ use crate::render::{
     LIGHTS_UBO_DESCRIPTOR_SET, SUBPASS_UBO_DESCRIPTOR_SET,
 };
 use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
+use log::info;
 use std::sync::Arc;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
@@ -25,6 +26,9 @@ use vulkano::render_pass::{Framebuffer, RenderPass};
 use vulkano::render_pass::{FramebufferAbstract, FramebufferCreationError, Subpass};
 use vulkano::swapchain::Swapchain;
 use winit::window::Window;
+
+// use `R16G16B16A16Sfloat` for high quality and `B10G11R11UfloatPack32` for less memory usage
+const HDR_BUFFER_FORMAT: Format = Format::R32G32B32A32Sfloat;
 
 /// Uniform buffer poll for light data.
 pub type LightDataPool = UniformBufferPool<[DirectionalLight; 100]>;
@@ -145,7 +149,7 @@ impl Buffers {
             Format::D16Unorm,
             ImageUsage::depth_stencil_attachment()
         );
-        let hdr_buffer = buffer!(device, dims, "HDR Buffer", Format::B10G11R11UfloatPack32);
+        let hdr_buffer = buffer!(device, dims, "HDR Buffer", HDR_BUFFER_FORMAT);
         let gbuffer1 = buffer!(device, dims, "GBuffer 1", Format::A2B10G10R10UnormPack32);
         let gbuffer2 = buffer!(device, dims, "GBuffer 2", Format::R8G8B8A8Unorm);
         let gbuffer3 = buffer!(device, dims, "GBuffer 3", Format::R8G8B8A8Unorm);
@@ -232,6 +236,7 @@ impl Buffers {
     }
 
     pub fn dimensions_changed(&mut self, render_pass: Arc<RenderPass>, dims: [u32; 2]) {
+        info!("Dimensions changed to {:?}. Recreating buffers.", dims);
         let device = render_pass.device().clone();
         let depth_buffer = buffer!(
             device,
@@ -240,7 +245,7 @@ impl Buffers {
             Format::D16Unorm,
             ImageUsage::depth_stencil_attachment()
         );
-        let hdr_buffer = buffer!(device, dims, "HDR Buffer", Format::B10G11R11UfloatPack32);
+        let hdr_buffer = buffer!(device, dims, "HDR Buffer", HDR_BUFFER_FORMAT);
         let gbuffer1 = buffer!(device, dims, "GBuffer 1", Format::A2B10G10R10UnormPack32);
         let gbuffer2 = buffer!(device, dims, "GBuffer 2", Format::R8G8B8A8Unorm);
         let gbuffer3 = buffer!(device, dims, "GBuffer 3", Format::R8G8B8A8Unorm);
@@ -344,7 +349,7 @@ impl PBRDeffered {
                     hdr: {
                         load: Clear,
                         store: DontCare,
-                        format: Format::B10G11R11UfloatPack32,
+                        format: HDR_BUFFER_FORMAT,
                         samples: 1,
                     },
                     ldr: {
@@ -400,7 +405,6 @@ impl PBRDeffered {
                 device.clone(),
                 swapchain.format(),
                 buffers.ldr_buffer.clone(),
-                samplers.aniso_repeat.clone(),
             ),
             buffers,
             sky,
