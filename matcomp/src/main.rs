@@ -27,6 +27,12 @@ pub struct MatCompParameters {
     alpha_cutoff: Option<f32>,
 
     #[structopt(long)]
+    opacity: Option<f32>,
+
+    #[structopt(long)]
+    ior: Option<f32>,
+
+    #[structopt(long)]
     albedo_map: Option<String>,
 
     #[structopt(long)]
@@ -88,6 +94,8 @@ fn main() {
         } else {
             1.0
         }),
+        opacity: params.opacity.unwrap_or(1.0),
+        ior: params.opacity.unwrap_or(1.0),
         alpha_cutoff: params.alpha_cutoff.unwrap_or(0.5),
         albedo_map: parse_uuid(params.albedo_map),
         normal_map: parse_uuid(params.normal_map),

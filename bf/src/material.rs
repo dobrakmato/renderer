@@ -14,6 +14,8 @@ pub enum BlendMode {
     /// transparent areas. In this mode, there are no semi-transparent areas, the texture is
     /// either 100% opaque, or invisible.
     Masked,
+    /// Used for objects that require some form of transparency.
+    Translucent,
 }
 
 /// Material is a descriptive asset that contains some properties and links to other assets (maps).
@@ -27,6 +29,10 @@ pub struct Material {
 
     // if using masked shading mode we need to store alpha_cutoff
     pub alpha_cutoff: f32,
+
+    // for materials with refraction
+    pub ior: f32,
+    pub opacity: f32,
 
     pub albedo_map: Option<Uuid>,
     pub normal_map: Option<Uuid>,
@@ -45,6 +51,8 @@ impl Default for Material {
             roughness: 0.5,
             metallic: 0.0,
             alpha_cutoff: 0.0,
+            opacity: 1.0,
+            ior: 1.0,
             albedo_map: None,
             normal_map: None,
             displacement_map: None,

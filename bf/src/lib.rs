@@ -163,7 +163,7 @@ pub enum LoadError {
 pub const BF_MAGIC: u16 = 17986;
 
 /// Version of BF format this version is able to read.
-pub const BF_VERSION: u8 = 4;
+pub const BF_VERSION: u8 = 5;
 
 fn verify_bf_file_header(file: File) -> Result<File, LoadError> {
     if file.magic != BF_MAGIC {
