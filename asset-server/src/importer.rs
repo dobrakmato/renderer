@@ -57,7 +57,7 @@ impl Importer {
             .map(str::to_lowercase)
         {
             Some(t) => match t.as_str() {
-                "jpg" | "png" | "tiff" | "tif" => self.try_import_image(uuid, disk_path)?,
+                "jpg" | "png" | "tiff" | "tif" | "tga" => self.try_import_image(uuid, disk_path)?,
                 "obj" => self.try_import_mesh(uuid, disk_path)?,
                 _ => return Err(ImportError::UnsupportedExtension),
             },
