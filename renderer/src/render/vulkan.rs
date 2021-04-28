@@ -100,6 +100,13 @@ impl VulkanState {
             .nth(conf.gpu)
             .ok_or(VulkanStateError::GPUNotFound(conf.gpu))?;
 
+        info!(
+            "Using device: {} {:?} Vulkan {:?}",
+            physical.name(),
+            physical.ty(),
+            physical.api_version()
+        );
+
         let graphical_queue_family = physical
             .queue_families()
             .find(|&q| q.supports_graphics() && surface.is_supported(q).unwrap())

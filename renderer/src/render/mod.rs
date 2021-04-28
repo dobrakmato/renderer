@@ -117,7 +117,7 @@ impl<'r, 's> Frame<'r, 's> {
         let mut b = self.builder.take().unwrap();
 
         b.begin_render_pass(
-            path.buffers.framebuffer.clone(),
+            path.buffers.main_framebuffer.clone(),
             SubpassContents::Inline,
             vec![
                 ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
@@ -204,11 +204,11 @@ impl<'r, 's> Frame<'r, 's> {
         )
         .unwrap();
         b.draw_indexed(
-            path.fxaa.pipeline.clone(),
+            path.fxaa.fxaa_pipeline.clone(),
             &dynamic_state,
             vec![path.fxaa.fst.vertex_buffer().clone()],
             path.fxaa.fst.index_buffer().clone(),
-            path.fxaa.ldr_buffer_ds.clone(),
+            path.fxaa.fxaa_descriptor_set.clone(),
             fxaa::shaders::fragment::ty::PushConstants { resolution: dims },
             None,
         )

@@ -79,5 +79,5 @@ fn main() {
 fn load(engine: &mut Engine) {
     info!("Loading scene and data...");
 
-    scenes::basic::create(engine);
+    scenes::roughness_test::create(engine);
 }

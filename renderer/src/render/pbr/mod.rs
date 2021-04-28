@@ -49,7 +49,7 @@ pub struct Buffers {
     pub gbuffer3: Arc<ImageView<Arc<AttachmentImage>>>,
     pub depth_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
     pub ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
-    pub framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
+    pub main_framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
 
     // pipelines are dependant on the viewport + buffers
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
@@ -62,8 +62,31 @@ pub struct Buffers {
     pub lights_frame_matrix_pool: FrameMatrixPool,
 }
 
+// create various buffers dependant on the resolution with this
+// simple & useful macro
+macro_rules! buffer {
+    ($device:tt, $dims:tt, $name:tt, $format:expr) => {
+        buffer!($device, $dims, $name, $format, ImageUsage::none())
+    };
+    ($device:tt, $dims:tt, $name:tt, $format:expr, $usage:expr) => {{
+        let x = AttachmentImage::with_usage(
+            ($device).clone(),
+            $dims,
+            $format,
+            ImageUsage {
+                transient_attachment: true,
+                input_attachment: true,
+                ..$usage
+            },
+        )
+        .expect(&format!("cannot create buffer {}", stringify!($format)));
+        // device.set_object_name(&x, cstr::cstr!($name));
+        ImageView::new(x).ok().unwrap()
+    }};
+}
+
 impl Buffers {
-    fn new(render_pass: Arc<RenderPass>, device: Arc<Device>, dimensions: [u32; 2]) -> Self {
+    fn new(render_pass: Arc<RenderPass>, device: Arc<Device>, dims: [u32; 2]) -> Self {
         // we create required shaders for all graphical pipelines we use in this
         // render pass from precompiled (embedded) spri-v binary data from soruces.
         let vs =
@@ -115,41 +138,20 @@ impl Buffers {
                 .expect("cannot build tonemap graphics pipeline"),
         );
 
-        // create various buffers dependant on the resolution with this
-        // simple & useful macro
-        macro_rules! buffer {
-            ($name:tt, $format:expr) => {
-                buffer!($name, $format, ImageUsage::none())
-            };
-            ($name:tt, $format:expr, $usage:expr) => {{
-                let x = AttachmentImage::with_usage(
-                    device.clone(),
-                    dimensions,
-                    $format,
-                    ImageUsage {
-                        transient_attachment: true,
-                        input_attachment: true,
-                        ..$usage
-                    },
-                )
-                .expect(&format!("cannot create buffer {}", stringify!($format)));
-                // device.set_object_name(&x, cstr::cstr!($name));
-                ImageView::new(x).ok().unwrap()
-            }};
-        }
-
         let depth_buffer = buffer!(
+            device,
+            dims,
             "Depth buffer",
             Format::D16Unorm,
             ImageUsage::depth_stencil_attachment()
         );
-        let hdr_buffer = buffer!("HDR Buffer", Format::B10G11R11UfloatPack32);
-        let gbuffer1 = buffer!("GBuffer 1", Format::A2B10G10R10UnormPack32);
-        let gbuffer2 = buffer!("GBuffer 2", Format::R8G8B8A8Unorm);
-        let gbuffer3 = buffer!("GBuffer 3", Format::R8G8B8A8Unorm);
+        let hdr_buffer = buffer!(device, dims, "HDR Buffer", Format::B10G11R11UfloatPack32);
+        let gbuffer1 = buffer!(device, dims, "GBuffer 1", Format::A2B10G10R10UnormPack32);
+        let gbuffer2 = buffer!(device, dims, "GBuffer 2", Format::R8G8B8A8Unorm);
+        let gbuffer3 = buffer!(device, dims, "GBuffer 3", Format::R8G8B8A8Unorm);
         let ldr_buffer = AttachmentImage::with_usage(
             device.clone(),
-            dimensions,
+            dims,
             Format::B10G11R11UfloatPack32,
             ImageUsage {
                 input_attachment: true,
@@ -219,7 +221,7 @@ impl Buffers {
             tonemap_ds: tonemap_descriptor_set as Arc<_>,
             lighting_pipeline: lighting_pipeline as Arc<_>,
             lighting_gbuffer_ds: lighting_gbuffer_ds as Arc<_>,
-            framebuffer: framebuffer as Arc<_>,
+            main_framebuffer: framebuffer as Arc<_>,
             depth_buffer,
             gbuffer1,
             gbuffer2,
@@ -227,6 +229,80 @@ impl Buffers {
             hdr_buffer,
             ldr_buffer,
         }
+    }
+
+    pub fn dimensions_changed(&mut self, render_pass: Arc<RenderPass>, dims: [u32; 2]) {
+        let device = render_pass.device().clone();
+        let depth_buffer = buffer!(
+            device,
+            dims,
+            "Depth buffer",
+            Format::D16Unorm,
+            ImageUsage::depth_stencil_attachment()
+        );
+        let hdr_buffer = buffer!(device, dims, "HDR Buffer", Format::B10G11R11UfloatPack32);
+        let gbuffer1 = buffer!(device, dims, "GBuffer 1", Format::A2B10G10R10UnormPack32);
+        let gbuffer2 = buffer!(device, dims, "GBuffer 2", Format::R8G8B8A8Unorm);
+        let gbuffer3 = buffer!(device, dims, "GBuffer 3", Format::R8G8B8A8Unorm);
+        let ldr_buffer = AttachmentImage::with_usage(
+            device.clone(),
+            dims,
+            Format::B10G11R11UfloatPack32,
+            ImageUsage {
+                input_attachment: true,
+                sampled: true,
+                ..ImageUsage::none()
+            },
+        )
+        .expect(&format!("cannot create buffer {}", stringify!($format)));
+
+        self.depth_buffer = depth_buffer;
+        self.hdr_buffer = hdr_buffer;
+        self.gbuffer1 = gbuffer1;
+        self.gbuffer2 = gbuffer2;
+        self.gbuffer3 = gbuffer3;
+        self.ldr_buffer = ImageView::new(ldr_buffer).ok().unwrap();
+
+        self.tonemap_ds = Arc::new(
+            PersistentDescriptorSet::start(descriptor_set_layout(&self.tonemap_pipeline, 0))
+                .add_image(self.hdr_buffer.clone())
+                .unwrap()
+                .build()
+                .unwrap(),
+        );
+        self.lighting_gbuffer_ds = Arc::new(
+            PersistentDescriptorSet::start(descriptor_set_layout(
+                &self.lighting_pipeline,
+                SUBPASS_UBO_DESCRIPTOR_SET,
+            ))
+            .add_image(self.gbuffer1.clone())
+            .unwrap()
+            .add_image(self.gbuffer2.clone())
+            .unwrap()
+            .add_image(self.gbuffer3.clone())
+            .unwrap()
+            .add_image(self.depth_buffer.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
+        );
+        self.main_framebuffer = Arc::new(
+            Framebuffer::start(render_pass)
+                .add(self.gbuffer1.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(self.gbuffer2.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(self.gbuffer3.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(self.depth_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(self.hdr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(self.ldr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .build()
+                .expect("cannot build framebuffer"),
+        );
     }
 }
 
@@ -339,12 +415,9 @@ impl PBRDeffered {
         self.fxaa.create_framebuffer(final_image)
     }
 
-    pub fn recreate_buffers(&mut self, dimensions: [u32; 2]) {
-        self.buffers = Buffers::new(
-            self.render_pass.clone(),
-            self.render_pass.device().clone(),
-            dimensions,
-        );
+    pub fn dimensions_changed(&mut self, dimensions: [u32; 2]) {
+        self.buffers
+            .dimensions_changed(self.render_pass.clone(), dimensions);
         self.fxaa
             .recreate_descriptor(self.buffers.ldr_buffer.clone());
     }

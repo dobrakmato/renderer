@@ -30,10 +30,10 @@ pub mod shaders {
 const FXAA_DESCRIPTOR_SET: usize = 0;
 
 pub struct FXAA {
-    pub render_pass: Arc<RenderPass>,
-    pub pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+    pub fxaa_render_pass: Arc<RenderPass>,
+    pub fxaa_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+    pub fxaa_descriptor_set: Arc<dyn DescriptorSet + Send + Sync>,
     pub fst: Arc<IndexedMesh<PositionOnlyVertex, u16>>,
-    pub ldr_buffer_ds: Arc<dyn DescriptorSet + Send + Sync>,
     sampler: Arc<Sampler>,
 }
 
@@ -88,7 +88,7 @@ impl FXAA {
                 .expect("cannot create graphics pipeline"),
         );
 
-        let ldr_buffer_ds = Arc::new(
+        let ds = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(&pipeline, FXAA_DESCRIPTOR_SET))
                 .add_sampled_image(ldr_buffer, sampler.clone())
                 .unwrap()
@@ -99,16 +99,16 @@ impl FXAA {
         Self {
             fst,
             sampler,
-            pipeline,
-            render_pass,
-            ldr_buffer_ds: ldr_buffer_ds as Arc<_>,
+            fxaa_pipeline: pipeline,
+            fxaa_render_pass: render_pass,
+            fxaa_descriptor_set: ds as Arc<_>,
         }
     }
 
     pub fn recreate_descriptor(&mut self, ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>) {
-        let new_descriptor_set = Arc::new(
+        self.fxaa_descriptor_set = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(
-                &self.pipeline,
+                &self.fxaa_pipeline,
                 FXAA_DESCRIPTOR_SET,
             ))
             .add_sampled_image(ldr_buffer, self.sampler.clone())
@@ -116,8 +116,6 @@ impl FXAA {
             .build()
             .unwrap(),
         );
-
-        self.ldr_buffer_ds = new_descriptor_set;
     }
 
     pub fn create_framebuffer(
@@ -125,7 +123,7 @@ impl FXAA {
         final_image: Arc<ImageView<Arc<SwapchainImage<Window>>>>,
     ) -> Result<Arc<dyn FramebufferAbstract + Send + Sync>, FramebufferCreationError> {
         Ok(Arc::new(
-            Framebuffer::start(self.render_pass.clone())
+            Framebuffer::start(self.fxaa_render_pass.clone())
                 .add(final_image)?
                 .build()?,
         ))

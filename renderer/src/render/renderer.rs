@@ -9,7 +9,7 @@ use log::error;
 use log::warn;
 use smallvec::SmallVec;
 use std::sync::Arc;
-use vulkano::command_buffer::AutoCommandBufferBuilder;
+use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage};
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;
@@ -20,7 +20,7 @@ use vulkano::swapchain::{
     Capabilities, CapabilitiesError, ColorSpace, FullscreenExclusive, PresentMode, Swapchain,
     SwapchainCreationError,
 };
-use vulkano::sync::{GpuFuture, SharingMode};
+use vulkano::sync::{FlushError, GpuFuture, SharingMode};
 use winit::window::Window;
 
 /// All possible errors that can happen while creating [`RendererState`](struct.RendererState.html).
@@ -51,7 +51,7 @@ pub struct RendererState {
     /// Whether the vector of framebuffers is out-of-date. Framebuffers may become out-of-date
     /// when resolution of the application changes and need to be recreated before rendering
     /// can continue. They are also out-of-date the first time this object is constructed.
-    framebuffers_out_of_date: bool,
+    should_recreate_swapchain: bool,
     /// Future of when the last frame finished rendering & is presented on the screen.
     previous_frame_end: Option<Box<dyn GpuFuture>>,
     /// Current rendering path.
@@ -117,7 +117,7 @@ impl RendererState {
         // todo: move RenderPath creation to constructor params, or something
         Ok(RendererState {
             previous_frame_end: now(device.clone()),
-            framebuffers_out_of_date: true,
+            should_recreate_swapchain: true,
             framebuffers: SmallVec::new(),
             render_path,
             swapchain_images: swapchain_imgs_to_views(swapchain_images),
@@ -132,15 +132,22 @@ impl RendererState {
     /// This function updates internal state of this struct, it is responsible
     /// for freeing unused resources from previous frames.
     pub fn render_frame(&mut self, game_state: &GameState) {
-        // if framebuffers are out-of date, we need to recreate them.
-        if self.framebuffers_out_of_date {
-            self.recreate_framebuffers();
-            self.framebuffers_out_of_date = false;
-        }
-
         // clean-up all resources from the previous frame
         if let Some(t) = self.previous_frame_end.as_mut() {
             t.cleanup_finished();
+        }
+
+        // if framebuffers are out-of date, we need to recreate them.
+        if self.should_recreate_swapchain {
+            self.recreate_swapchain();
+            self.recreate_framebuffers();
+
+            // force recreation of internal buffers and state of the current
+            // render path
+            self.render_path
+                .dimensions_changed(self.swapchain.dimensions());
+
+            self.should_recreate_swapchain = false;
         }
 
         // acquire next image from swapchain that will be used for rendering. if the
@@ -158,6 +165,10 @@ impl RendererState {
                 }
             };
 
+        if suboptimal {
+            self.should_recreate_swapchain = true;
+        }
+
         // build primary command buffer by distributing command buffer
         // recording into multiple threads as parallel job
         let mut frame = Frame {
@@ -165,9 +176,10 @@ impl RendererState {
             game_state,
             framebuffer: self.framebuffers[idx].clone(),
             builder: Some(
-                AutoCommandBufferBuilder::primary_one_time_submit(
+                AutoCommandBufferBuilder::primary(
                     self.device.clone(),
                     self.graphical_queue.family(),
+                    CommandBufferUsage::OneTimeSubmit,
                 )
                 .unwrap(),
             ),
@@ -194,17 +206,14 @@ impl RendererState {
             Ok(f) => {
                 self.previous_frame_end = Some(f.boxed());
             }
+            Err(FlushError::OutOfDate) => {
+                self.should_recreate_swapchain = true;
+                self.previous_frame_end = now(self.device.clone());
+            }
             Err(e) => {
                 error!("Error occurred during rendering a frame {:?}", e);
                 self.previous_frame_end = now(self.device.clone());
             }
-        }
-
-        // if we hit the `suboptimal` flag, recreate the swapchain now, after
-        // the rendering work has been submitted
-        if suboptimal {
-            warn!("Swapchain is suboptimal! Recreating swapchain.");
-            self.recreate_swapchain();
         }
     }
 
@@ -224,13 +233,6 @@ impl RendererState {
 
         self.swapchain = swapchain;
         self.swapchain_images = swapchain_imgs_to_views(imgs);
-
-        // mark framebuffers as out-of-date
-        self.framebuffers_out_of_date = true;
-
-        // force recreation of internal buffers and state of the current
-        // render path
-        self.render_path.recreate_buffers(new_dimensions);
     }
 
     /// Recreates current *framebuffers* by calling `create_framebuffer` method

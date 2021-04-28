@@ -41,7 +41,7 @@ pub fn create(engine: &mut Engine) {
 
     let (floor_mat, f2) = StaticMaterial::from_material_data(
         MaterialData {
-            albedo_color: [0.1; 3],
+            albedo_color: [1.0; 3],
             alpha_cutoff: 0.0,
             roughness: 0.5,
             metallic: 0.0,
@@ -51,8 +51,7 @@ pub fn create(engine: &mut Engine) {
         assets.transfer_queue.clone(),
         fallback_maps.clone(),
     )
-    .ok()
-    .unwrap();
+    .expect("Cannot create material");
 
     f1.join(f2).then_signal_fence().wait(None);
 

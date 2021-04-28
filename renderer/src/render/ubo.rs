@@ -3,6 +3,7 @@
 use cgmath::{Matrix4, Vector3};
 use core::assert_alignment;
 
+// todo: remove and use from shader! generated
 /// UBO struct with data about PBR material that is currently being
 /// used.
 #[derive(Copy, Clone)]

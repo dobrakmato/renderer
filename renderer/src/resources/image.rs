@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::CpuAccessibleBuffer;
-use vulkano::command_buffer::{AutoCommandBufferBuilder, PrimaryCommandBuffer};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryCommandBuffer};
 use vulkano::device::Queue;
 use vulkano::format::Format;
 use vulkano::image::{
@@ -73,7 +73,12 @@ pub fn create_image(
     // times as owned variable in the for loop later
     let init = Arc::new(init);
 
-    let mut cb = AutoCommandBufferBuilder::new(queue.device().clone(), queue.family()).unwrap();
+    let mut cb = AutoCommandBufferBuilder::primary(
+        queue.device().clone(),
+        queue.family(),
+        CommandBufferUsage::OneTimeSubmit,
+    )
+    .unwrap();
 
     for (idx, mipmap) in image.mipmaps().enumerate() {
         let source = CpuAccessibleBuffer::from_iter(

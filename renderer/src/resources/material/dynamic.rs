@@ -11,7 +11,6 @@ use vulkano::descriptor::DescriptorSet;
 use crate::assets::Content;
 use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
-use vulkano::format::Format;
 use vulkano::image::view::ImageView;
 use vulkano::image::ImmutableImage;
 use vulkano::memory::DeviceMemoryAllocError;
