@@ -37,7 +37,7 @@ fn to_vulkan_format(format: bf::image::Format) -> Format {
 /// Errors that may happen when creating an image.
 #[derive(Debug)]
 pub enum CreateImageError {
-    CannotCreateImage(ImageCreationError),
+    CannotCreateImage(Format, ImageCreationError),
     CannotAllocateBuffer(DeviceMemoryAllocError),
 }
 
@@ -49,6 +49,7 @@ pub fn create_image(
     queue: Arc<Queue>,
 ) -> Result<(Arc<ImmutableImage>, impl GpuFuture), CreateImageError> {
     // create image on the gpu and allocate memory for it
+    let format = to_vulkan_format(image.format);
     let (immutable, init) = ImmutableImage::uninitialized(
         queue.device().clone(),
         ImageDimensions::Dim2d {
@@ -56,7 +57,7 @@ pub fn create_image(
             height: image.height as u32,
             array_layers: 1,
         },
-        to_vulkan_format(image.format),
+        format,
         image.mipmap_count(),
         ImageUsage {
             transfer_destination: true,
@@ -67,7 +68,7 @@ pub fn create_image(
         ImageLayout::ShaderReadOnlyOptimal,
         Some(queue.family()),
     )
-    .map_err(CreateImageError::CannotCreateImage)?;
+    .map_err(|e| CreateImageError::CannotCreateImage(format, e))?;
 
     // we need to wrap the init into `Arc` as we need to send it multiple
     // times as owned variable in the for loop later
@@ -129,5 +130,5 @@ pub fn create_single_pixel_image(
         Format::R8G8B8A8Unorm,
         queue,
     )
-    .map_err(CreateImageError::CannotCreateImage)
+    .map_err(|e| CreateImageError::CannotCreateImage(Format::R8G8B8A8Unorm, e))
 }

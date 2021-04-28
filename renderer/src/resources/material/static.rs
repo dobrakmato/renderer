@@ -54,7 +54,7 @@ impl StaticMaterial {
                         let guard = content.request_load(*uuid);
                         let image = guard.wait();
                         let (image, f) = create_image(&image, content.transfer_queue.clone())
-                            .expect("cannot create image");
+                            .expect(&format!("cannot create image for: {}", uuid));
 
                         f.then_signal_fence_and_flush().ok();
 
