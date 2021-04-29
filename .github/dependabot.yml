@@ -1,0 +1,36 @@
+version: 2
+updates:
+- package-ecosystem: cargo
+  directory: "/"
+  schedule:
+    interval: daily
+    time: "04:00"
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: tokio
+    versions:
+    - 1.3.0
+    - 1.4.0
+  - dependency-name: vulkano-win
+    versions:
+    - 0.20.0
+    - 0.21.0
+  - dependency-name: vulkano-shaders
+    versions:
+    - 0.20.0
+    - 0.21.0
+  - dependency-name: rand
+    versions:
+    - 0.8.3
+  - dependency-name: wavefront_obj
+    versions:
+    - 9.0.0
+  - dependency-name: quickcheck
+    versions:
+    - 1.0.3
+  - dependency-name: quickcheck_macros
+    versions:
+    - 1.0.0
+  - dependency-name: winit
+    versions:
+    - 0.24.0
