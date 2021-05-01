@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -24,6 +25,12 @@ pub struct Settings {
 
     /// Whether to watch file system for changes.
     pub watch: bool,
+
+    /// Allows opening of assets source files in external programs on the device the server is running.
+    pub allow_external_tools: bool,
+
+    /// Object of applications that should open specified list of extensions.
+    pub external_tools: Option<HashMap<String, Vec<String>>>,
 }
 
 pub fn load_settings() -> Arc<Settings> {

@@ -1,5 +1,6 @@
 use crate::compiler::Compiler;
 use crate::database::Database;
+use crate::ext_tools::ExtTools;
 use crate::http::models::Event;
 use crate::http::stream::publish_server_event;
 use crate::importer::Importer;
@@ -21,9 +22,26 @@ pub struct Ops {
     settings: Arc<Settings>,
     importer: Arc<Importer>,
     preview: Arc<Preview>,
+    ext_tools: Arc<ExtTools>,
 }
 
 impl Ops {
+    pub fn open_library_root(&self) {
+        self.ext_tools.open_library_root();
+    }
+
+    pub fn edit_in_external_tool(&self, uuid: &Uuid) {
+        match self.database.get_asset(uuid) {
+            None => {}
+            Some(asset) => match asset.input_path() {
+                None => {}
+                Some(path) => self
+                    .ext_tools
+                    .edit_file(self.library.db_path_to_disk_path(path)),
+            },
+        }
+    }
+
     pub fn get_asset_by_path(&self, disk_path: &Path) -> Option<Asset> {
         self.database
             .find_asset_by_path(self.library.disk_path_to_db_path(disk_path))
@@ -106,6 +124,8 @@ impl Ops {
     }
 
     pub fn refresh(&self) {
+        info!("Refreshing & rescanning whole library...");
+
         let results = self.scanner.full_rescan();
 
         publish_server_event(Event::ScanResults(results.clone()));
@@ -138,6 +158,7 @@ pub fn create_ops(
     scanner: Arc<Scanner>,
     importer: Arc<Importer>,
     preview: Arc<Preview>,
+    ext_tools: Arc<ExtTools>,
 ) -> Arc<Ops> {
     Arc::new(Ops {
         settings,
@@ -147,5 +168,6 @@ pub fn create_ops(
         library,
         scanner,
         preview,
+        ext_tools,
     })
 }

@@ -109,6 +109,8 @@ impl Importer {
             ao_map: Option::None,
             metallic_map: Option::None,
             opacity_map: Option::None,
+            opacity: Option::None,
+            ior: Option::None,
         };
 
         for x in std::fs::read_dir(disk_path).map_err(|_| ImportError::ReadDirError)? {

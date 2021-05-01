@@ -1,5 +1,6 @@
 use crate::compiler::create_compiler;
 use crate::database::load_database;
+use crate::ext_tools::create_ext_tools;
 use crate::http::start_server;
 use crate::importer::create_importer;
 use crate::library::create_library;
@@ -13,6 +14,7 @@ use log::info;
 pub mod commands;
 pub mod compiler;
 pub mod database;
+pub mod ext_tools;
 pub mod http;
 pub mod importer;
 pub mod input2uuid;
@@ -35,6 +37,7 @@ async fn main() {
     // create services
     let database = load_database(&settings);
     let library = create_library(&settings);
+    let ext_tools = create_ext_tools(&settings);
     let importer = create_importer(database.clone(), library.clone());
     let scanner = create_scanner(
         &settings,
@@ -57,6 +60,7 @@ async fn main() {
         scanner,
         importer,
         preview,
+        ext_tools,
     );
 
     // start file-system watcher

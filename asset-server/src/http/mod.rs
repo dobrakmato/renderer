@@ -35,12 +35,14 @@ pub async fn start_server(ops: Arc<Ops>) -> std::io::Result<()> {
             .route("/assets/{uuid}", web::put().to(put_asset))
             .route("/assets/{uuid}", web::delete().to(delete_asset))
             .route("/assets/{uuid}/preview", web::get().to(get_asset_preview))
+            .route("/assets/{uuid}/open", web::get().to(open_in_external_tool))
             .route(
                 "/assets/{uuid}/compilations",
                 web::get().to(get_asset_compilations),
             )
             .route("/compile", web::post().to(compile_all))
             .route("/refresh", web::post().to(refresh_all))
+            .route("/open/root", web::post().to(open_library_root))
     })
     .bind("0.0.0.0:8000")?
     .run()
@@ -95,4 +97,12 @@ async fn compile_all(compile: Json<Compile>, ops: Data<Arc<Ops>>) -> impl Respon
 
 async fn refresh_all(ops: Data<Arc<Ops>>) -> impl Responder {
     Json(ops.refresh())
+}
+
+async fn open_library_root(ops: Data<Arc<Ops>>) -> impl Responder {
+    Json(ops.open_library_root())
+}
+
+async fn open_in_external_tool(uuid: Path<Uuid>, ops: Data<Arc<Ops>>) -> impl Responder {
+    Json(ops.edit_in_external_tool(uuid.deref()))
 }
