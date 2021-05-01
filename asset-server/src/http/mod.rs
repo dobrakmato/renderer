@@ -33,6 +33,7 @@ pub async fn start_server(ops: Arc<Ops>) -> std::io::Result<()> {
             .route("/assets/dirty", web::get().to(get_dirty_assets))
             .route("/assets/{uuid}", web::get().to(get_asset))
             .route("/assets/{uuid}", web::put().to(put_asset))
+            .route("/assets/{uuid}", web::delete().to(delete_asset))
             .route("/assets/{uuid}/preview", web::get().to(get_asset_preview))
             .route(
                 "/assets/{uuid}/compilations",
@@ -67,6 +68,10 @@ async fn put_asset(uuid: Path<Uuid>, asset: Json<Asset>, ops: Data<Arc<Ops>>) ->
     }
 
     HttpResponse::Ok().json(ops.update_asset(asset.deref().clone()))
+}
+
+async fn delete_asset(uuid: Path<Uuid>, ops: Data<Arc<Ops>>) -> impl Responder {
+    Json(ops.cancel_tracking(uuid.deref()))
 }
 
 async fn get_dirty_assets(ops: Data<Arc<Ops>>) -> impl Responder {
