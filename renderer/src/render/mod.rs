@@ -4,7 +4,9 @@ use crate::camera::Camera;
 use crate::render::pbr::PBRDeffered;
 use crate::render::pools::UniformBufferPool;
 use crate::render::ubo::{DirectionalLight, FrameMatrixData};
+use crate::resources::mesh::DynamicIndexedMesh;
 use crate::GameState;
+use bf::material::BlendMode;
 use cgmath::{EuclideanSpace, SquareMatrix, Vector3, Zero};
 use cstr::cstr;
 use std::sync::Arc;
@@ -102,7 +104,7 @@ impl<'r, 's> Frame<'r, 's> {
             view,
             projection,
         };
-        let geometry_frame_matrix_data = Arc::new(
+        let frame_matrix_data = Arc::new(
             path.buffers
                 .geometry_frame_matrix_pool
                 .next(fmd)
@@ -113,6 +115,12 @@ impl<'r, 's> Frame<'r, 's> {
             .lights_frame_matrix_pool
             .next(fmd)
             .expect("cannot take next buffer");
+        let transparency_frame_matrix_data = Arc::new(
+            path.buffers
+                .transparency_frame_matrix_pool
+                .next(fmd)
+                .expect("cannot take next buffer"),
+        );
 
         let mut b = self.builder.take().unwrap();
 
@@ -130,11 +138,51 @@ impl<'r, 's> Frame<'r, 's> {
         )
         .unwrap();
 
-        // 1.1. SUBPASS - Geometry
+        // 1.1. SUBPASS - Opaque Geometry
         b.debug_marker_begin(cstr!("Geometry Pass"), [1.0, 0.0, 0.0, 1.0])
             .unwrap();
-        for x in state.objects.iter() {
-            x.draw_indexed(&dynamic_state, geometry_frame_matrix_data.clone(), &mut b)
+        for x in state
+            .objects
+            .iter()
+            .filter(|x| x.material.blend_mode() == BlendMode::Opaque)
+        {
+            let object_matrix_data = x
+                .object_matrix_data()
+                .expect("cannot create ObjectMatrixData for this frame");
+
+            // todo: get rid of this dispatch somehow
+            match &*x.mesh {
+                DynamicIndexedMesh::U16(m) => b
+                    .draw_indexed(
+                        x.pipeline.clone(),
+                        &dynamic_state,
+                        vec![m.vertex_buffer().clone()],
+                        m.index_buffer().clone(),
+                        (
+                            frame_matrix_data.clone(),
+                            x.material.descriptor_set(),
+                            object_matrix_data,
+                        ),
+                        (),
+                        None,
+                    )
+                    .expect("cannot DrawIndexed this mesh"),
+                DynamicIndexedMesh::U32(m) => b
+                    .draw_indexed(
+                        x.pipeline.clone(),
+                        &dynamic_state,
+                        vec![m.vertex_buffer().clone()],
+                        m.index_buffer().clone(),
+                        (
+                            frame_matrix_data.clone(),
+                            x.material.descriptor_set(),
+                            object_matrix_data,
+                        ),
+                        (),
+                        None,
+                    )
+                    .expect("cannot DrawIndexed this mesh"),
+            };
         }
         b.next_subpass(SubpassContents::Inline).unwrap();
         b.debug_marker_end().unwrap();
@@ -150,7 +198,7 @@ impl<'r, 's> Frame<'r, 's> {
         for (idx, light) in state.directional_lights.iter().enumerate() {
             lights[idx] = *light;
         }
-        let lighting_lights_ds = path.lights_buffer_pool.next(lights).unwrap();
+        let lighting_lights_ds = Arc::new(path.lights_buffer_pool.next(lights).unwrap());
         b.draw_indexed(
             path.buffers.lighting_pipeline.clone(),
             &dynamic_state,
@@ -159,7 +207,7 @@ impl<'r, 's> Frame<'r, 's> {
             (
                 lights_frame_matrix_data,
                 path.buffers.lighting_gbuffer_ds.clone(),
-                lighting_lights_ds,
+                lighting_lights_ds.clone(),
             ),
             shaders::fs_deferred_lighting::ty::PushConstants {
                 resolution: dims,
@@ -179,7 +227,64 @@ impl<'r, 's> Frame<'r, 's> {
         b.next_subpass(SubpassContents::Inline).unwrap();
         b.debug_marker_end().unwrap();
 
-        // 1.4. SUBPASS - Tonemap
+        // 1.4. SUBPASS - Transparent Geometry
+        b.debug_marker_begin(cstr!("Transparent Pass"), [1.0, 0.2, 0.5, 1.0])
+            .unwrap();
+        for x in state
+            .objects
+            .iter()
+            .filter(|x| x.material.blend_mode() == BlendMode::Translucent)
+        {
+            let object_matrix_data = x
+                .object_matrix_data()
+                .expect("cannot create ObjectMatrixData for this frame");
+
+            // todo: get rid of this dispatch somehow
+            match &*x.mesh {
+                DynamicIndexedMesh::U16(m) => b
+                    .draw_indexed(
+                        x.pipeline.clone(),
+                        &dynamic_state,
+                        vec![m.vertex_buffer().clone()],
+                        m.index_buffer().clone(),
+                        (
+                            transparency_frame_matrix_data.clone(),
+                            x.material.descriptor_set(),
+                            object_matrix_data,
+                            lighting_lights_ds.clone(),
+                        ),
+                        shaders::fs_transparent::ty::PushConstants {
+                            resolution: dims,
+                            light_count: state.directional_lights.len() as u32,
+                        },
+                        None,
+                    )
+                    .expect("cannot DrawIndexed this mesh"),
+                DynamicIndexedMesh::U32(m) => b
+                    .draw_indexed(
+                        x.pipeline.clone(),
+                        &dynamic_state,
+                        vec![m.vertex_buffer().clone()],
+                        m.index_buffer().clone(),
+                        (
+                            transparency_frame_matrix_data.clone(),
+                            x.material.descriptor_set(),
+                            object_matrix_data,
+                            lighting_lights_ds.clone(),
+                        ),
+                        shaders::fs_transparent::ty::PushConstants {
+                            resolution: dims,
+                            light_count: state.directional_lights.len() as u32,
+                        },
+                        None,
+                    )
+                    .expect("cannot DrawIndexed this mesh"),
+            };
+        }
+        b.next_subpass(SubpassContents::Inline).unwrap();
+        b.debug_marker_end().unwrap();
+
+        // 1.5. SUBPASS - Tonemap
         b.debug_marker_begin(cstr!("Tonemap"), [0.5, 0.5, 1.0, 0.0])
             .unwrap();
         b.draw_indexed(

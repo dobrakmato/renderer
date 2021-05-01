@@ -5,6 +5,7 @@ use crate::render::transform::Transform;
 use crate::render::ubo::MaterialData;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
+use bf::material::BlendMode;
 use cgmath::vec3;
 use log::info;
 use std::time::Instant;
@@ -40,11 +41,14 @@ pub fn create(engine: &mut Engine) {
     let state = &mut engine.game_state;
 
     let (floor_mat, f2) = StaticMaterial::from_material_data(
+        BlendMode::Opaque,
         MaterialData {
             albedo_color: [1.0; 3],
             alpha_cutoff: 0.0,
             roughness: 0.5,
             metallic: 0.0,
+            opacity: 1.0,
+            ior: 1.0,
         },
         path.buffers.geometry_pipeline.clone(),
         path.samplers.aniso_repeat.clone(),
@@ -76,11 +80,14 @@ pub fn create(engine: &mut Engine) {
             let metallic = (m as f32) / (steps as f32) + 0.01;
 
             let (sphere_mat, f) = StaticMaterial::from_material_data(
+                BlendMode::Opaque,
                 MaterialData {
                     albedo_color: [0.8, 0.4, 0.3],
                     alpha_cutoff: 0.0,
                     roughness,
                     metallic,
+                    opacity: 1.0,
+                    ior: 1.0,
                 },
                 path.buffers.geometry_pipeline.clone(),
                 path.samplers.aniso_repeat.clone(),

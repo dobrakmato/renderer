@@ -11,6 +11,7 @@ use vulkano::descriptor::DescriptorSet;
 use crate::assets::Content;
 use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
+use bf::material::BlendMode;
 use vulkano::image::view::ImageView;
 use vulkano::image::ImmutableImage;
 use vulkano::memory::DeviceMemoryAllocError;
@@ -39,6 +40,7 @@ pub enum DynamicMaterialError {
 /// the changes will be reflected in the next frame as `DescriptorSet`
 /// for dynamic materials is rebuild on each frame.
 pub struct DynamicMaterial {
+    blend_mode: BlendMode,
     uniform_buffer_pool: CpuBufferPool<MaterialData>,
     descriptor_set_pool: Mutex<FixedSizeDescriptorSetsPool>,
     // todo: needs &mut reference to work internally
@@ -95,6 +97,7 @@ impl DynamicMaterial {
             .ok_or(DynamicMaterialError::InvalidDescriptorSetNumber)?;
 
         Ok(Arc::new(DynamicMaterial {
+            blend_mode: material.blend_mode,
             albedo_map,
             normal_map,
             displacement_map,
@@ -172,5 +175,9 @@ impl Material for DynamicMaterial {
                 )
             })
             .unwrap()
+    }
+
+    fn blend_mode(&self) -> BlendMode {
+        self.blend_mode
     }
 }

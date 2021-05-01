@@ -4,6 +4,7 @@ use crate::assets::Content;
 use crate::render::ubo::MaterialData;
 use crate::resources::image::create_image;
 use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR_SET};
+use bf::material::BlendMode;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};
 use vulkano::descriptor::descriptor_set::{
@@ -34,6 +35,7 @@ pub enum StaticMaterialError {
 /// textures at run-time. Static materials should be used when
 /// possible as they might be faster and more performant then dynamic.
 pub struct StaticMaterial {
+    blend_mode: BlendMode,
     descriptor_set: Arc<dyn DescriptorSet + Send + Sync>,
 }
 
@@ -108,12 +110,14 @@ impl StaticMaterial {
         Ok((
             Arc::new(Self {
                 descriptor_set: Arc::new(set),
+                blend_mode: material.blend_mode,
             }),
             future,
         ))
     }
 
     pub fn from_material_data(
+        blend_mode: BlendMode,
         parameters: MaterialData,
         pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
@@ -163,6 +167,7 @@ impl StaticMaterial {
         Ok((
             Arc::new(Self {
                 descriptor_set: Arc::new(set),
+                blend_mode,
             }),
             future,
         ))
@@ -172,5 +177,9 @@ impl StaticMaterial {
 impl Material for StaticMaterial {
     fn descriptor_set(&self) -> Arc<dyn DescriptorSet + Send + Sync> {
         self.descriptor_set.clone()
+    }
+
+    fn blend_mode(&self) -> BlendMode {
+        self.blend_mode
     }
 }

@@ -55,15 +55,16 @@ pub struct Buffers {
     pub ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
     pub main_framebuffer: Arc<dyn FramebufferAbstract + Send + Sync>,
 
-    // pipelines are dependant on the viewport + buffers
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub lighting_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub tonemap_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
+    pub transparent_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     // subpass descriptor sets dependant on buffers
     pub tonemap_ds: Arc<dyn DescriptorSet + Send + Sync>,
     pub lighting_gbuffer_ds: Arc<dyn DescriptorSet + Send + Sync>,
     pub geometry_frame_matrix_pool: FrameMatrixPool,
     pub lights_frame_matrix_pool: FrameMatrixPool,
+    pub transparency_frame_matrix_pool: FrameMatrixPool,
 }
 
 // create various buffers dependant on the resolution with this
@@ -102,6 +103,9 @@ impl Buffers {
         let dl_fs =
             crate::render::shaders::fs_deferred_lighting::Shader::load(device.clone()).unwrap();
 
+        let tr_vs = crate::render::shaders::vs_transparent::Shader::load(device.clone()).unwrap();
+        let tr_fs = crate::render::shaders::fs_transparent::Shader::load(device.clone()).unwrap();
+
         // create basic pipeline for drawing
         let geometry_pipeline = Arc::new(
             GraphicsPipeline::start()
@@ -137,9 +141,22 @@ impl Buffers {
                 .fragment_shader(tm_fs.main_entry_point(), ())
                 .triangle_list()
                 .viewports_dynamic_scissors_irrelevant(1)
-                .render_pass(Subpass::from(render_pass.clone(), 3).unwrap())
+                .render_pass(Subpass::from(render_pass.clone(), 4).unwrap())
                 .build(device.clone())
                 .expect("cannot build tonemap graphics pipeline"),
+        );
+
+        let transparency_pipeline = Arc::new(
+            GraphicsPipeline::start()
+                .vertex_input_single_buffer::<NormalMappedVertex>()
+                .vertex_shader(tr_vs.main_entry_point(), ())
+                .fragment_shader(tr_fs.main_entry_point(), ())
+                .triangle_list()
+                .blend_alpha_blending()
+                .viewports_dynamic_scissors_irrelevant(1)
+                .render_pass(Subpass::from(render_pass.clone(), 3).unwrap())
+                .build(device.clone())
+                .expect("cannot build transparency graphics pipeline"),
         );
 
         let depth_buffer = buffer!(
@@ -217,8 +234,12 @@ impl Buffers {
                 descriptor_set_layout(&geometry_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
             ),
             lights_frame_matrix_pool: FrameMatrixPool::new(
-                device,
+                device.clone(),
                 descriptor_set_layout(&lighting_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
+            ),
+            transparency_frame_matrix_pool: FrameMatrixPool::new(
+                device,
+                descriptor_set_layout(&transparency_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
             ),
             geometry_pipeline: geometry_pipeline as Arc<_>,
             tonemap_pipeline: tonemap_pipeline as Arc<_>,
@@ -226,6 +247,7 @@ impl Buffers {
             lighting_pipeline: lighting_pipeline as Arc<_>,
             lighting_gbuffer_ds: lighting_gbuffer_ds as Arc<_>,
             main_framebuffer: framebuffer as Arc<_>,
+            transparent_pipeline: transparency_pipeline as Arc<_>,
             depth_buffer,
             gbuffer1,
             gbuffer2,
@@ -260,13 +282,14 @@ impl Buffers {
             },
         )
         .expect(&format!("cannot create buffer {}", stringify!($format)));
+        let ldr_buffer = ImageView::new(ldr_buffer).ok().unwrap();
 
         self.depth_buffer = depth_buffer;
         self.hdr_buffer = hdr_buffer;
         self.gbuffer1 = gbuffer1;
         self.gbuffer2 = gbuffer2;
         self.gbuffer3 = gbuffer3;
-        self.ldr_buffer = ImageView::new(ldr_buffer).ok().unwrap();
+        self.ldr_buffer = ldr_buffer;
 
         self.tonemap_ds = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(&self.tonemap_pipeline, 0))
@@ -369,6 +392,11 @@ impl PBRDeffered {
                         color: [hdr],
                         depth_stencil: {},
                         input: [gbuffer1, gbuffer2, gbuffer3, depth]
+                    },
+                    {
+                        color: [hdr],
+                        depth_stencil: {depth},
+                        input: []
                     },
                     {
                         color: [hdr],

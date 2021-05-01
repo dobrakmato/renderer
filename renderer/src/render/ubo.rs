@@ -17,6 +17,10 @@ pub struct MaterialData {
     pub roughness: f32,
     /// Metallic PBR parameters.
     pub metallic: f32,
+    /// Opacity of a material.
+    pub opacity: f32,
+    /// Index of refraction.
+    pub ior: f32,
 }
 
 /// UBO struct with data that us uniform for every shader during

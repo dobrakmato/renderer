@@ -114,13 +114,23 @@ impl RendererState {
         let render_path =
             PBRDeffered::new(graphical_queue.clone(), device.clone(), swapchain.clone());
 
+        let swapchain_images = swapchain_imgs_to_views(swapchain_images);
+        let framebuffers = match swapchain_images
+            .iter()
+            .map(|it| render_path.create_framebuffer(it.clone()))
+            .collect()
+        {
+            Ok(t) => t,
+            Err(e) => panic!("cannot (re)create framebuffers: {}", e),
+        };
+
         // todo: move RenderPath creation to constructor params, or something
         Ok(RendererState {
             previous_frame_end: now(device.clone()),
             should_recreate_swapchain: true,
-            framebuffers: SmallVec::new(),
+            framebuffers,
             render_path,
-            swapchain_images: swapchain_imgs_to_views(swapchain_images),
+            swapchain_images,
             swapchain,
             device,
             graphical_queue,

@@ -96,7 +96,7 @@ pub fn create(engine: &mut Engine) {
         device.clone(),
         path.buffers.geometry_pipeline.clone(),
         Transform {
-            scale: vec3(1.0, 1.0, 1.0),
+            scale: vec3(-1.0, -1.0, -1.0),
             position: vec3(0.0, 0.0, -15.0),
             ..Transform::default()
         },
@@ -206,6 +206,54 @@ pub fn create(engine: &mut Engine) {
         Transform {
             scale: vec3(1.0, 1.0, 1.0),
             position: vec3(-5.0, 0.5, -5.0),
+            ..Transform::default()
+        },
+    );
+
+    let tv = Object::new(
+        mesh!("uploads_files_2529155_TV_mesh.obj"),
+        material!("uploads_files_2529155_Textures_Baked.mat"),
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(1.0, 1.0, 1.0),
+            position: vec3(-2.0, 0.5, 2.0),
+            ..Transform::default()
+        },
+    );
+
+    let trashbin = Object::new(
+        mesh!("Trashbin.obj"),
+        material!("Trashbin.mat"),
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(1.0, 1.0, 1.0),
+            position: vec3(1.0, 0.5, 3.0),
+            ..Transform::default()
+        },
+    );
+
+    let church = Object::new(
+        mesh!("Church.obj"),
+        material!("Church4K.mat"),
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(1.0, 1.0, 1.0),
+            position: vec3(-20.0, 0.5, 3.0),
+            ..Transform::default()
+        },
+    );
+
+    let gerl = Object::new(
+        mesh!("Post_Apocalypse_Gerl.obj"),
+        material!("Post_Apocalypse_Gerl.mat"),
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(1.0, 1.0, 1.0),
+            position: vec3(-5.0, 3.0, 3.0),
             ..Transform::default()
         },
     );
@@ -345,5 +393,9 @@ pub fn create(engine: &mut Engine) {
         sneakers,
         red_barn,
         cabinet,
+        tv,
+        trashbin,
+        church,
+        gerl,
     ];
 }

@@ -1,4 +1,5 @@
 #version 450
+#include "inc_structs.glsl"
 
 layout(location = 0) in vec2 in_uv;
 layout(location = 1) in mat3 in_tbn;
@@ -14,12 +15,9 @@ layout(set = 1, binding = 2) uniform sampler2D displacement_map;
 layout(set = 1, binding = 3) uniform sampler2D roughness_map;
 layout(set = 1, binding = 4) uniform sampler2D occlusion_map;
 layout(set = 1, binding = 5) uniform sampler2D metallic_map;
-layout(std140, set = 1, binding = 6) uniform MaterialData {
-    vec3 albedo_color;
-    float alpha_cutoff;
-    float roughness;
-    float metallic;
-} material_data;
+layout(std140, set = 1, binding = 6) uniform TheBlock {
+    MaterialData material_data;
+};
 layout(set = 1, binding = 7) uniform sampler2D opacity_map;
 
 

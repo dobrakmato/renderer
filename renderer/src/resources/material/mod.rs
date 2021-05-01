@@ -8,6 +8,7 @@ mod dynamic;
 mod r#static;
 
 use crate::resources::image::create_single_pixel_image;
+use bf::material::BlendMode;
 pub use dynamic::DynamicMaterial;
 pub use r#static::StaticMaterial;
 use vulkano::descriptor::DescriptorSet;
@@ -24,6 +25,8 @@ pub trait Material {
     /// Returns a descriptor set that will be used for rendering
     /// during this frame.
     fn descriptor_set(&self) -> Arc<dyn DescriptorSet + Send + Sync>;
+
+    fn blend_mode(&self) -> BlendMode;
 }
 
 impl Into<MaterialData> for bf::material::Material {
@@ -33,6 +36,8 @@ impl Into<MaterialData> for bf::material::Material {
             alpha_cutoff: self.alpha_cutoff,
             roughness: self.roughness,
             metallic: self.metallic,
+            opacity: self.opacity,
+            ior: self.ior,
         }
     }
 }

@@ -7,7 +7,6 @@ use crate::render::{descriptor_set_layout, OBJECT_DATA_UBO_DESCRIPTOR_SET};
 use crate::resources::material::Material;
 use crate::resources::mesh::DynamicIndexedMesh;
 use std::sync::Arc;
-use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState, PrimaryAutoCommandBuffer};
 use vulkano::descriptor::DescriptorSet;
 use vulkano::device::Device;
 use vulkano::pipeline::vertex::Vertex;
@@ -19,8 +18,9 @@ pub type ObjectDataPool = UniformBufferPool<ObjectMatrixData>;
 /// Struct that simplifies rendering of meshes with materials.
 pub struct Object<V: Vertex> {
     pool: ObjectDataPool,
-    pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
 
+    /// Pipeline that is used for this object.
+    pub pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     /// Transform of this object.
     pub transform: Transform,
     /// Mesh that is currently being rendered.
@@ -55,54 +55,11 @@ impl<V: Vertex> Object<V> {
 
     /// Returns descriptor set that can be used for rendering in this frame. Returned
     /// `DescriptorSet` may or may not be cached from previous frame(s).
-    fn object_matrix_data(
+    pub fn object_matrix_data(
         &self,
     ) -> Result<impl DescriptorSet + Send + Sync, UniformBufferPoolError> {
         // todo: implement caching
         let data = self.transform.into();
         self.pool.next(data)
-    }
-
-    /// Records the draw command for rendering this object into the specified *CommandBufferBuilder*
-    /// with specified dynamic state and frame matrix data descriptor set.
-    ///
-    /// Parameter `frame_matrix_data` should contain descriptor set that contains frame data
-    /// for this rendering.
-    pub fn draw_indexed(
-        &self,
-        dynamic_state: &DynamicState,
-        frame_matrix_data: Arc<dyn DescriptorSet + Send + Sync>,
-        cmd: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    ) {
-        let object_matrix_data = self
-            .object_matrix_data()
-            .expect("cannot create ObjectMatrixData for this frame");
-
-        // here we need to dispatch the draw_indexed method based on
-        // index type from DynamicIndexedMesh.
-        macro_rules! impl_dynamic_dispatch {
-            ($($typ:ident),+) => {
-                match self.mesh.as_ref() {
-                    $(DynamicIndexedMesh::$typ(t) => {
-                        cmd.draw_indexed(
-                            self.pipeline.clone(),
-                            dynamic_state,
-                            vec![t.vertex_buffer().clone()],
-                            t.index_buffer().clone(),
-                            (
-                                frame_matrix_data,
-                                self.material.descriptor_set(),
-                                object_matrix_data,
-                            ),
-                            (),
-                            None,
-                        )
-                        .expect("cannot DrawIndexed this mesh");
-                    }),+
-                }
-            };
-        }
-
-        impl_dynamic_dispatch!(U16, U32);
     }
 }

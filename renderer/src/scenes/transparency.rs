@@ -5,6 +5,7 @@ use crate::render::transform::Transform;
 use crate::render::ubo::MaterialData;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
+use bf::material::BlendMode;
 use cgmath::vec3;
 use log::info;
 use std::time::Instant;
@@ -86,12 +87,33 @@ pub fn create(engine: &mut Engine) {
         },
     );
 
-    let (glass_mat, f4) = StaticMaterial::from_material_data(
+    let (glass_mat1, f4) = StaticMaterial::from_material_data(
+        BlendMode::Translucent,
         MaterialData {
-            albedo_color: [0.4; 3],
+            albedo_color: [0.1, 0.1, 0.8],
             alpha_cutoff: 0.0,
-            roughness: 0.5,
+            roughness: 0.1,
             metallic: 0.0,
+            opacity: 0.5,
+            ior: 1.5,
+        },
+        path.buffers.geometry_pipeline.clone(),
+        path.samplers.aniso_repeat.clone(),
+        assets.transfer_queue.clone(),
+        fallback_maps.clone(),
+    )
+    .ok()
+    .unwrap();
+
+    let (glass_mat2, f5) = StaticMaterial::from_material_data(
+        BlendMode::Translucent,
+        MaterialData {
+            albedo_color: [0.8, 0.1, 0.1],
+            alpha_cutoff: 0.0,
+            roughness: 0.1,
+            metallic: 0.0,
+            opacity: 0.5,
+            ior: 1.5,
         },
         path.buffers.geometry_pipeline.clone(),
         path.samplers.aniso_repeat.clone(),
@@ -103,9 +125,9 @@ pub fn create(engine: &mut Engine) {
 
     let glass = Object::new(
         glass_mesh.clone(),
-        glass_mat.clone(),
+        glass_mat1,
         device.clone(),
-        path.buffers.geometry_pipeline.clone(),
+        path.buffers.transparent_pipeline.clone(),
         Transform {
             position: vec3(0.0, 5.35, 1.0),
             scale: vec3(0.15, 0.15, 0.15),
@@ -115,9 +137,9 @@ pub fn create(engine: &mut Engine) {
 
     let glass2 = Object::new(
         glass_mesh.clone(),
-        glass_mat,
+        glass_mat2,
         device.clone(),
-        path.buffers.geometry_pipeline.clone(),
+        path.buffers.transparent_pipeline.clone(),
         Transform {
             position: vec3(0.0, 5.35, -1.0),
             scale: vec3(0.15, 0.15, 0.15),
@@ -125,7 +147,7 @@ pub fn create(engine: &mut Engine) {
         },
     );
 
-    f1.join(f4).then_signal_fence().wait(None);
+    f1.join(f4).join(f5).then_signal_fence().wait(None);
 
     state.objects = vec![plane, table, glass, glass2];
 
