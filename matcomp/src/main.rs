@@ -58,6 +58,7 @@ fn parse_blend_mode(src: &str) -> Result<BlendMode, &'static str> {
     match src.to_lowercase().as_str() {
         "opaque" => Ok(BlendMode::Opaque),
         "masked" => Ok(BlendMode::Masked),
+        "translucent" => Ok(BlendMode::Translucent),
         _ => Err("invalid blend mode"),
     }
 }
