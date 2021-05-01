@@ -54,6 +54,8 @@ pub struct Material {
     pub ao_map: Option<Uuid>,
     pub metallic_map: Option<Uuid>,
     pub opacity_map: Option<Uuid>,
+    pub opacity: Option<f32>,
+    pub ior: Option<f32>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

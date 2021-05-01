@@ -182,6 +182,7 @@ impl CompileCommand for Material {
             match t {
                 BlendMode::Opaque => cmd.arg("opaque"),
                 BlendMode::Masked => cmd.arg("masked"),
+                BlendMode::Translucent => cmd.arg("translucent"),
             };
         }
 
@@ -193,6 +194,8 @@ impl CompileCommand for Material {
         cmd_optional_arg!(cmd, "--roughness", self.roughness);
         cmd_optional_arg!(cmd, "--metallic", self.metallic);
         cmd_optional_arg!(cmd, "--alpha-cutoff", self.alpha_cutoff);
+        cmd_optional_arg!(cmd, "--ior", self.ior);
+        cmd_optional_arg!(cmd, "--opacity", self.opacity);
 
         cmd_optional_arg!(cmd, "--albedo-map", self.albedo_map);
         cmd_optional_arg!(cmd, "--normal-map", self.normal_map);
