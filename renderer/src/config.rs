@@ -26,7 +26,7 @@ impl Default for RendererConfiguration {
     fn default() -> Self {
         Self {
             fullscreen: false,
-            resolution: [1600, 900],
+            resolution: [1920, 1080],
             gpu: 0,
             content_roots: vec![PathBuf::from(
                 "C:\\Users\\Matej\\CLionProjects\\renderer\\assets\\target",
