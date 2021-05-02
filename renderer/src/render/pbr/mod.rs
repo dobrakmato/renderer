@@ -19,7 +19,7 @@ use vulkano::device::{Device, DeviceOwned, Queue};
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;
 use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
-use vulkano::pipeline::depth_stencil::DepthStencil;
+use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::render_pass::{Framebuffer, RenderPass};
@@ -29,6 +29,7 @@ use winit::window::Window;
 
 // use `R16G16B16A16Sfloat` for high quality and `B10G11R11UfloatPack32` for less memory usage
 const HDR_BUFFER_FORMAT: Format = Format::R32G32B32A32Sfloat;
+const DEPTH_BUFFER_FORMAT: Format = Format::D32Sfloat;
 
 /// Uniform buffer poll for light data.
 pub type LightDataPool = UniformBufferPool<[DirectionalLight; 100]>;
@@ -153,7 +154,16 @@ impl Buffers {
                 .fragment_shader(tr_fs.main_entry_point(), ())
                 .triangle_list()
                 .blend_alpha_blending()
+                .cull_mode_back()
+                .front_face_clockwise()
                 .viewports_dynamic_scissors_irrelevant(1)
+                .depth_stencil(DepthStencil {
+                    depth_write: false,
+                    depth_compare: Compare::Less,
+                    depth_bounds_test: DepthBounds::Disabled,
+                    stencil_front: Default::default(),
+                    stencil_back: Default::default(),
+                })
                 .render_pass(Subpass::from(render_pass.clone(), 3).unwrap())
                 .build(device.clone())
                 .expect("cannot build transparency graphics pipeline"),
@@ -163,7 +173,7 @@ impl Buffers {
             device,
             dims,
             "Depth buffer",
-            Format::D16Unorm,
+            DEPTH_BUFFER_FORMAT,
             ImageUsage::depth_stencil_attachment()
         );
         let hdr_buffer = buffer!(device, dims, "HDR Buffer", HDR_BUFFER_FORMAT);
@@ -264,7 +274,7 @@ impl Buffers {
             device,
             dims,
             "Depth buffer",
-            Format::D16Unorm,
+            DEPTH_BUFFER_FORMAT,
             ImageUsage::depth_stencil_attachment()
         );
         let hdr_buffer = buffer!(device, dims, "HDR Buffer", HDR_BUFFER_FORMAT);
@@ -366,7 +376,7 @@ impl PBRDeffered {
                     depth: {
                         load: Clear,
                         store: DontCare,
-                        format: Format::D16Unorm,
+                        format: DEPTH_BUFFER_FORMAT,
                         samples: 1,
                     },
                     hdr: {

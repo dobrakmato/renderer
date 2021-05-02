@@ -94,9 +94,9 @@ pub fn create(engine: &mut Engine) {
         mesh!("pbr_cottage\\Cottage_FREE.obj"),
         material!("pbr_cottage.mat"),
         device.clone(),
-        path.buffers.geometry_pipeline.clone(),
+        path.buffers.transparent_pipeline.clone(),
         Transform {
-            scale: vec3(-1.0, -1.0, -1.0),
+            scale: vec3(1.0, 1.0, 1.0),
             position: vec3(0.0, 0.0, -15.0),
             ..Transform::default()
         },
@@ -258,6 +258,18 @@ pub fn create(engine: &mut Engine) {
         },
     );
 
+    let set02shot = Object::new(
+        mesh!("051F_03SET_02SHOT.obj"),
+        material!("051F_03SET_02SHOT.mat"),
+        device.clone(),
+        path.buffers.geometry_pipeline.clone(),
+        Transform {
+            scale: vec3(0.03, 0.03, 0.03),
+            position: vec3(0.0, 0.0, 5.0),
+            ..Transform::default()
+        },
+    );
+
     // todo: rewrite using a pipeline
     let mat_start = Instant::now();
     let mat_reqs = [
@@ -397,5 +409,6 @@ pub fn create(engine: &mut Engine) {
         trashbin,
         church,
         gerl,
+        set02shot,
     ];
 }

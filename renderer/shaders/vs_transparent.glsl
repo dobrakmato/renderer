@@ -8,6 +8,7 @@ layout(location = 3) in vec4 tangent;
 layout(location = 0) out vec2 uv0;
 layout(location = 1) out mat3 tbn0;
 layout(location = 4) out vec3 wsPosition0;
+layout(location = 5) out vec3 normal0;
 
 layout(std140, set = 0, binding = 0) uniform FrameMatrixData {
     mat4 view;
@@ -29,6 +30,7 @@ void main() {
     tbn0 = mat3(T, B, N);
     vec4 wsPosition = object_matrix_data.model * vec4(position, 1.0);
     wsPosition0 = wsPosition.xyz;
+    normal0 = N;
     uv0 = uv;
     gl_Position = frame_matrix_data.projection * frame_matrix_data.view * wsPosition;
 }

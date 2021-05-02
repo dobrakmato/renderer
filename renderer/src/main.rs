@@ -57,11 +57,18 @@ fn main() {
                 far: 100.0,
             },
             objects: vec![],
-            directional_lights: vec![DirectionalLight {
-                direction: vec3(5.0, 1.0, 1.0).normalize(),
-                intensity: 2.5,
-                color: vec3(1.0, 1.0, 0.8),
-            }],
+            directional_lights: vec![
+                DirectionalLight {
+                    direction: vec3(5.0, 5.0, 1.0).normalize(),
+                    intensity: 2.5,
+                    color: vec3(1.0, 1.0, 0.8),
+                },
+                DirectionalLight {
+                    direction: vec3(-5.0, 5.0, 1.0).normalize(),
+                    intensity: 2.5,
+                    color: vec3(0.8, 1.0, 1.0),
+                },
+            ],
             materials: vec![],
             floor_mat: 0,
         },
@@ -79,5 +86,5 @@ fn main() {
 fn load(engine: &mut Engine) {
     info!("Loading scene and data...");
 
-    scenes::roughness_test::create(engine);
+    scenes::transparency::create(engine);
 }

@@ -47,9 +47,9 @@ impl Engine {
         let sec = self.game_state.start.elapsed().as_secs_f32() * 0.1;
         let (s, c) = sec.sin_cos();
 
-        self.game_state.directional_lights[0].direction.x = s;
-        self.game_state.directional_lights[0].direction.z = c;
-        self.game_state.directional_lights[0].direction.normalize();
+        // self.game_state.directional_lights[0].direction.x = s;
+        // self.game_state.directional_lights[0].direction.z = c;
+        // self.game_state.directional_lights[0].direction.normalize();
         // self.game_state.directional_lights[1].direction.x = -s;
         // self.game_state.directional_lights[1].direction.z = -c;
         // self.game_state.directional_lights[1].direction.normalize();

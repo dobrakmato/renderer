@@ -3,6 +3,7 @@ use crate::engine::Engine;
 use crate::render::object::Object;
 use crate::render::transform::Transform;
 use crate::render::ubo::MaterialData;
+use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
 use bf::material::BlendMode;
@@ -60,7 +61,6 @@ pub fn create(engine: &mut Engine) {
 
     let plane_mesh = mesh!("plane.obj");
     let table_mesh = mesh!("TableType_A.obj");
-    let glass_mesh = mesh!("wineglass.obj");
 
     let state = &mut engine.game_state;
 
@@ -90,9 +90,9 @@ pub fn create(engine: &mut Engine) {
     let (glass_mat1, f4) = StaticMaterial::from_material_data(
         BlendMode::Translucent,
         MaterialData {
-            albedo_color: [0.1, 0.1, 0.8],
+            albedo_color: [0.0, 0.0, 0.8],
             alpha_cutoff: 0.0,
-            roughness: 0.1,
+            roughness: 0.2,
             metallic: 0.0,
             opacity: 0.5,
             ior: 1.5,
@@ -108,9 +108,27 @@ pub fn create(engine: &mut Engine) {
     let (glass_mat2, f5) = StaticMaterial::from_material_data(
         BlendMode::Translucent,
         MaterialData {
-            albedo_color: [0.8, 0.1, 0.1],
+            albedo_color: [0.8, 0.0, 0.0],
             alpha_cutoff: 0.0,
-            roughness: 0.1,
+            roughness: 0.2,
+            metallic: 0.0,
+            opacity: 0.5,
+            ior: 1.5,
+        },
+        path.buffers.geometry_pipeline.clone(),
+        path.samplers.aniso_repeat.clone(),
+        assets.transfer_queue.clone(),
+        fallback_maps.clone(),
+    )
+    .ok()
+    .unwrap();
+
+    let (glass_mat3, f6) = StaticMaterial::from_material_data(
+        BlendMode::Translucent,
+        MaterialData {
+            albedo_color: [0.0, 0.0, 0.0],
+            alpha_cutoff: 0.0,
+            roughness: 0.2,
             metallic: 0.0,
             opacity: 0.5,
             ior: 1.5,
@@ -124,7 +142,7 @@ pub fn create(engine: &mut Engine) {
     .unwrap();
 
     let glass = Object::new(
-        glass_mesh.clone(),
+        mesh!("wineglass.obj"),
         glass_mat1,
         device.clone(),
         path.buffers.transparent_pipeline.clone(),
@@ -136,20 +154,32 @@ pub fn create(engine: &mut Engine) {
     );
 
     let glass2 = Object::new(
-        glass_mesh.clone(),
+        mesh!("LithuanianVodka.obj"),
         glass_mat2,
         device.clone(),
         path.buffers.transparent_pipeline.clone(),
         Transform {
             position: vec3(0.0, 5.35, -1.0),
-            scale: vec3(0.15, 0.15, 0.15),
+            scale: vec3(2.0, 2.0, 2.0),
             ..Transform::default()
         },
     );
 
-    f1.join(f4).join(f5).then_signal_fence().wait(None);
+    let glass_sphere: Object<NormalMappedVertex> = Object::new(
+        mesh!("sphere.obj"),
+        glass_mat3,
+        device.clone(),
+        path.buffers.transparent_pipeline.clone(),
+        Transform {
+            position: vec3(0.0, 6.35, 0.0),
+            scale: vec3(0.2, 0.2, 0.2),
+            ..Transform::default()
+        },
+    );
 
-    state.objects = vec![plane, table, glass, glass2];
+    f1.join(f4).join(f5).join(f6).then_signal_fence().wait(None);
+
+    state.objects = vec![plane, table, glass, glass2, glass_sphere];
 
     info!("data loaded after {}s!", start.elapsed().as_secs_f32());
 }

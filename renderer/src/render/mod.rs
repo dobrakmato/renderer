@@ -30,6 +30,7 @@ pub const LIGHTS_UBO_DESCRIPTOR_SET: usize = 2;
 
 pub mod fxaa;
 pub mod hosek;
+pub mod mcguire13;
 pub mod object;
 pub mod pbr;
 pub mod pools;
@@ -37,7 +38,6 @@ pub mod renderer;
 pub mod samplers;
 mod shaders;
 pub mod transform;
-// pub mod txaa;
 pub mod ubo;
 pub mod vertex;
 pub mod vulkan;
@@ -320,6 +320,8 @@ impl<'r, 's> Frame<'r, 's> {
         .expect("cannot do fxaa pass");
         b.end_render_pass();
         b.debug_marker_end();
+
+        std::thread::sleep(std::time::Duration::from_millis(4));
 
         b.build().unwrap()
     }
