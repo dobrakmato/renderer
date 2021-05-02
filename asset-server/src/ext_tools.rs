@@ -1,3 +1,5 @@
+//! Functionality related to launching external applications to work with assets.
+
 use crate::settings::Settings;
 use log::error;
 use std::collections::hash_map::Entry;

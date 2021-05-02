@@ -35,7 +35,7 @@ pub async fn start_server(ops: Arc<Ops>) -> std::io::Result<()> {
             .route("/assets/{uuid}", web::put().to(put_asset))
             .route("/assets/{uuid}", web::delete().to(delete_asset))
             .route("/assets/{uuid}/preview", web::get().to(get_asset_preview))
-            .route("/assets/{uuid}/open", web::get().to(open_in_external_tool))
+            .route("/assets/{uuid}/open", web::post().to(open_in_external_tool))
             .route(
                 "/assets/{uuid}/compilations",
                 web::get().to(get_asset_compilations),

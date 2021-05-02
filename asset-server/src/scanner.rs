@@ -70,6 +70,8 @@ impl Scanner {
             }
         }
 
+        // todo: check file contents (hash) to determine changed file
+
         // last compilation failed
         let last_compilation = self.database.get_last_compilation(uuid);
         if let Some(t) = last_compilation {
