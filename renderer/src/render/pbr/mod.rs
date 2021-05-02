@@ -2,6 +2,7 @@
 
 use crate::render::fxaa::FXAA;
 use crate::render::hosek::HosekSky;
+use crate::render::mcguire13::McGuire13;
 use crate::render::pools::UniformBufferPool;
 use crate::render::samplers::Samplers;
 use crate::render::ubo::DirectionalLight;
@@ -19,7 +20,7 @@ use vulkano::device::{Device, DeviceOwned, Queue};
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;
 use vulkano::image::{AttachmentImage, ImageUsage, SwapchainImage};
-use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
+use vulkano::pipeline::depth_stencil::DepthStencil;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::render_pass::{Framebuffer, RenderPass};
@@ -48,6 +49,8 @@ pub struct PBRDeffered {
 
 /// Long-lived objects & buffers that **do** change when resolution changes.
 pub struct Buffers {
+    pub transparency: McGuire13,
+
     pub hdr_buffer: Arc<ImageView<Arc<AttachmentImage>>>,
     pub gbuffer1: Arc<ImageView<Arc<AttachmentImage>>>,
     pub gbuffer2: Arc<ImageView<Arc<AttachmentImage>>>,
@@ -59,10 +62,10 @@ pub struct Buffers {
     pub geometry_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub lighting_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     pub tonemap_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
-    pub transparent_pipeline: Arc<dyn GraphicsPipelineAbstract + Send + Sync>,
     // subpass descriptor sets dependant on buffers
     pub tonemap_ds: Arc<dyn DescriptorSet + Send + Sync>,
     pub lighting_gbuffer_ds: Arc<dyn DescriptorSet + Send + Sync>,
+
     pub geometry_frame_matrix_pool: FrameMatrixPool,
     pub lights_frame_matrix_pool: FrameMatrixPool,
     pub transparency_frame_matrix_pool: FrameMatrixPool,
@@ -104,9 +107,6 @@ impl Buffers {
         let dl_fs =
             crate::render::shaders::fs_deferred_lighting::Shader::load(device.clone()).unwrap();
 
-        let tr_vs = crate::render::shaders::vs_transparent::Shader::load(device.clone()).unwrap();
-        let tr_fs = crate::render::shaders::fs_transparent::Shader::load(device.clone()).unwrap();
-
         // create basic pipeline for drawing
         let geometry_pipeline = Arc::new(
             GraphicsPipeline::start()
@@ -142,31 +142,9 @@ impl Buffers {
                 .fragment_shader(tm_fs.main_entry_point(), ())
                 .triangle_list()
                 .viewports_dynamic_scissors_irrelevant(1)
-                .render_pass(Subpass::from(render_pass.clone(), 4).unwrap())
+                .render_pass(Subpass::from(render_pass.clone(), 5).unwrap())
                 .build(device.clone())
                 .expect("cannot build tonemap graphics pipeline"),
-        );
-
-        let transparency_pipeline = Arc::new(
-            GraphicsPipeline::start()
-                .vertex_input_single_buffer::<NormalMappedVertex>()
-                .vertex_shader(tr_vs.main_entry_point(), ())
-                .fragment_shader(tr_fs.main_entry_point(), ())
-                .triangle_list()
-                .blend_alpha_blending()
-                .cull_mode_back()
-                .front_face_clockwise()
-                .viewports_dynamic_scissors_irrelevant(1)
-                .depth_stencil(DepthStencil {
-                    depth_write: false,
-                    depth_compare: Compare::Less,
-                    depth_bounds_test: DepthBounds::Disabled,
-                    stencil_front: Default::default(),
-                    stencil_back: Default::default(),
-                })
-                .render_pass(Subpass::from(render_pass.clone(), 3).unwrap())
-                .build(device.clone())
-                .expect("cannot build transparency graphics pipeline"),
         );
 
         let depth_buffer = buffer!(
@@ -194,6 +172,14 @@ impl Buffers {
         // device.set_object_name(&ldr_buffer, cstr::cstr!("LDR Buffer"));
         let ldr_buffer = ImageView::new(ldr_buffer).ok().unwrap();
 
+        // create transparency buffers
+        let transparency = McGuire13::new(
+            device.clone(),
+            Subpass::from(render_pass.clone(), 3).unwrap(),
+            Subpass::from(render_pass.clone(), 4).unwrap(),
+            dims,
+        );
+
         let framebuffer = Arc::new(
             Framebuffer::start(render_pass.clone())
                 .add(gbuffer1.clone())
@@ -207,6 +193,10 @@ impl Buffers {
                 .add(hdr_buffer.clone())
                 .expect("cannot add attachment to framebuffer")
                 .add(ldr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(transparency.accumulation.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(transparency.revealage.clone())
                 .expect("cannot add attachment to framebuffer")
                 .build()
                 .expect("cannot build framebuffer"),
@@ -249,7 +239,10 @@ impl Buffers {
             ),
             transparency_frame_matrix_pool: FrameMatrixPool::new(
                 device,
-                descriptor_set_layout(&transparency_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
+                descriptor_set_layout(
+                    &transparency.accumulation_pipeline,
+                    FRAME_DATA_UBO_DESCRIPTOR_SET,
+                ),
             ),
             geometry_pipeline: geometry_pipeline as Arc<_>,
             tonemap_pipeline: tonemap_pipeline as Arc<_>,
@@ -257,7 +250,7 @@ impl Buffers {
             lighting_pipeline: lighting_pipeline as Arc<_>,
             lighting_gbuffer_ds: lighting_gbuffer_ds as Arc<_>,
             main_framebuffer: framebuffer as Arc<_>,
-            transparent_pipeline: transparency_pipeline as Arc<_>,
+            transparency,
             depth_buffer,
             gbuffer1,
             gbuffer2,
@@ -301,6 +294,8 @@ impl Buffers {
         self.gbuffer3 = gbuffer3;
         self.ldr_buffer = ldr_buffer;
 
+        self.transparency.dimensions_changed(dims);
+
         self.tonemap_ds = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(&self.tonemap_pipeline, 0))
                 .add_image(self.hdr_buffer.clone())
@@ -337,6 +332,10 @@ impl Buffers {
                 .add(self.hdr_buffer.clone())
                 .expect("cannot add attachment to framebuffer")
                 .add(self.ldr_buffer.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(self.transparency.accumulation.clone())
+                .expect("cannot add attachment to framebuffer")
+                .add(self.transparency.revealage.clone())
                 .expect("cannot add attachment to framebuffer")
                 .build()
                 .expect("cannot build framebuffer"),
@@ -390,6 +389,18 @@ impl PBRDeffered {
                         store: Store,
                         format: Format::B10G11R11UfloatPack32,
                         samples: 1,
+                    },
+                    trans_accum: {
+                        load: Clear,
+                        store: DontCare,
+                        format: crate::render::mcguire13::ACCUMULATION_BUFFER_FORMAT,
+                        samples: 1,
+                    },
+                    trans_reveal: {
+                        load: Clear,
+                        store: DontCare,
+                        format: crate::render::mcguire13::REVEALAGE_BUFFER_FORMAT,
+                        samples: 1,
                     }
                 },
                 passes: [
@@ -409,9 +420,14 @@ impl PBRDeffered {
                         input: []
                     },
                     {
-                        color: [hdr],
+                        color: [trans_accum, trans_reveal],
                         depth_stencil: {depth},
                         input: []
+                    },
+                    {
+                        color: [hdr],
+                        depth_stencil: {depth},
+                        input: [trans_accum, trans_reveal]
                     },
                     {
                          color: [ldr],

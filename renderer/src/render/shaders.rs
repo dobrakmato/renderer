@@ -32,17 +32,3 @@ pub mod fs_tonemap {
         path: "shaders/fs_tonemap.glsl"
     }
 }
-
-pub mod vs_transparent {
-    vulkano_shaders::shader! {
-        ty: "vertex",
-        path: "shaders/vs_transparent.glsl"
-    }
-}
-
-pub mod fs_transparent {
-    vulkano_shaders::shader! {
-        ty: "fragment",
-        path: "shaders/fs_transparent.glsl"
-    }
-}

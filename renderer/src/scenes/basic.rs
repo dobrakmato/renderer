@@ -94,7 +94,7 @@ pub fn create(engine: &mut Engine) {
         mesh!("pbr_cottage\\Cottage_FREE.obj"),
         material!("pbr_cottage.mat"),
         device.clone(),
-        path.buffers.transparent_pipeline.clone(),
+        path.buffers.transparency.accumulation_pipeline.clone(),
         Transform {
             scale: vec3(1.0, 1.0, 1.0),
             position: vec3(0.0, 0.0, -15.0),

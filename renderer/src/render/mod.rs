@@ -134,6 +134,9 @@ impl<'r, 's> Frame<'r, 's> {
                 ClearValue::Depth(1.0),
                 ClearValue::Float([0.0, 0.0, 0.0, 1.0]),
                 ClearValue::None,
+                // transparency
+                ClearValue::Float([0.0, 0.0, 0.0, 0.0]),
+                ClearValue::Float([1.0, 0.0, 0.0, 0.0]),
             ],
         )
         .unwrap();
@@ -228,7 +231,7 @@ impl<'r, 's> Frame<'r, 's> {
         b.debug_marker_end().unwrap();
 
         // 1.4. SUBPASS - Transparent Geometry
-        b.debug_marker_begin(cstr!("Transparent Pass"), [1.0, 0.2, 0.5, 1.0])
+        b.debug_marker_begin(cstr!("Accumulate Transparency Pass"), [1.0, 0.2, 0.5, 1.0])
             .unwrap();
         for x in state
             .objects
@@ -243,7 +246,7 @@ impl<'r, 's> Frame<'r, 's> {
             match &*x.mesh {
                 DynamicIndexedMesh::U16(m) => b
                     .draw_indexed(
-                        x.pipeline.clone(),
+                        path.buffers.transparency.accumulation_pipeline.clone(),
                         &dynamic_state,
                         vec![m.vertex_buffer().clone()],
                         m.index_buffer().clone(),
@@ -253,7 +256,7 @@ impl<'r, 's> Frame<'r, 's> {
                             object_matrix_data,
                             lighting_lights_ds.clone(),
                         ),
-                        shaders::fs_transparent::ty::PushConstants {
+                        mcguire13::shaders::accumulation_fs::ty::PushConstants {
                             resolution: dims,
                             light_count: state.directional_lights.len() as u32,
                         },
@@ -262,7 +265,7 @@ impl<'r, 's> Frame<'r, 's> {
                     .expect("cannot DrawIndexed this mesh"),
                 DynamicIndexedMesh::U32(m) => b
                     .draw_indexed(
-                        x.pipeline.clone(),
+                        path.buffers.transparency.accumulation_pipeline.clone(),
                         &dynamic_state,
                         vec![m.vertex_buffer().clone()],
                         m.index_buffer().clone(),
@@ -272,7 +275,7 @@ impl<'r, 's> Frame<'r, 's> {
                             object_matrix_data,
                             lighting_lights_ds.clone(),
                         ),
-                        shaders::fs_transparent::ty::PushConstants {
+                        mcguire13::shaders::accumulation_fs::ty::PushConstants {
                             resolution: dims,
                             light_count: state.directional_lights.len() as u32,
                         },
@@ -281,6 +284,20 @@ impl<'r, 's> Frame<'r, 's> {
                     .expect("cannot DrawIndexed this mesh"),
             };
         }
+        b.next_subpass(SubpassContents::Inline).unwrap();
+        b.debug_marker_end().unwrap();
+        b.debug_marker_begin(cstr!("Resolve Transparency Pass"), [1.0, 0.2, 0.5, 1.0])
+            .unwrap();
+        b.draw_indexed(
+            path.buffers.transparency.resolve_pipeline.clone(),
+            &dynamic_state,
+            vec![path.fst.vertex_buffer().clone()],
+            path.fst.index_buffer().clone(),
+            path.buffers.transparency.resolve_ds.clone(),
+            (),
+            None,
+        )
+        .expect("cannot do transparency resolve pass");
         b.next_subpass(SubpassContents::Inline).unwrap();
         b.debug_marker_end().unwrap();
 

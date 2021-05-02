@@ -3,11 +3,11 @@ use crate::engine::Engine;
 use crate::render::object::Object;
 use crate::render::transform::Transform;
 use crate::render::ubo::MaterialData;
-use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
+use crate::render::vertex::NormalMappedVertex;
 use crate::resources::material::{create_default_fallback_maps, StaticMaterial};
 use crate::resources::mesh::create_mesh_dynamic;
 use bf::material::BlendMode;
-use cgmath::vec3;
+use cgmath::{point3, vec3};
 use log::info;
 use std::time::Instant;
 use vulkano::sync::GpuFuture;
@@ -90,7 +90,7 @@ pub fn create(engine: &mut Engine) {
     let (glass_mat1, f4) = StaticMaterial::from_material_data(
         BlendMode::Translucent,
         MaterialData {
-            albedo_color: [0.0, 0.0, 0.8],
+            albedo_color: [0.0, 0.8, 0.0],
             alpha_cutoff: 0.0,
             roughness: 0.2,
             metallic: 0.0,
@@ -145,7 +145,7 @@ pub fn create(engine: &mut Engine) {
         mesh!("wineglass.obj"),
         glass_mat1,
         device.clone(),
-        path.buffers.transparent_pipeline.clone(),
+        path.buffers.transparency.accumulation_pipeline.clone(),
         Transform {
             position: vec3(0.0, 5.35, 1.0),
             scale: vec3(0.15, 0.15, 0.15),
@@ -157,7 +157,7 @@ pub fn create(engine: &mut Engine) {
         mesh!("LithuanianVodka.obj"),
         glass_mat2,
         device.clone(),
-        path.buffers.transparent_pipeline.clone(),
+        path.buffers.transparency.accumulation_pipeline.clone(),
         Transform {
             position: vec3(0.0, 5.35, -1.0),
             scale: vec3(2.0, 2.0, 2.0),
@@ -169,7 +169,7 @@ pub fn create(engine: &mut Engine) {
         mesh!("sphere.obj"),
         glass_mat3,
         device.clone(),
-        path.buffers.transparent_pipeline.clone(),
+        path.buffers.transparency.accumulation_pipeline.clone(),
         Transform {
             position: vec3(0.0, 6.35, 0.0),
             scale: vec3(0.2, 0.2, 0.2),
@@ -179,6 +179,8 @@ pub fn create(engine: &mut Engine) {
 
     f1.join(f4).join(f5).join(f6).then_signal_fence().wait(None);
 
+    state.camera.position = point3(0.0, 6.0, 4.0);
+    state.camera.forward = vec3(1.0, 0.0, 0.0);
     state.objects = vec![plane, table, glass, glass2, glass_sphere];
 
     info!("data loaded after {}s!", start.elapsed().as_secs_f32());
