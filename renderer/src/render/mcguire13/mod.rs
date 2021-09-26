@@ -5,8 +5,8 @@ use crate::render::mcguire13::shaders::{
 };
 use crate::render::vertex::{NormalMappedVertex, PositionOnlyVertex};
 use std::sync::Arc;
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
-use vulkano::descriptor::DescriptorSet;
+use vulkano::descriptor_set::DescriptorSet;
+use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::Device;
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;

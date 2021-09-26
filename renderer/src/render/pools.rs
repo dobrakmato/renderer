@@ -2,11 +2,11 @@
 
 use std::sync::{Arc, Mutex};
 use vulkano::buffer::{BufferUsage, CpuBufferPool};
-use vulkano::descriptor::descriptor_set::{
+use vulkano::descriptor_set::layout::DescriptorSetLayout;
+use vulkano::descriptor_set::DescriptorSet;
+use vulkano::descriptor_set::{
     FixedSizeDescriptorSetsPool, PersistentDescriptorSetBuildError, PersistentDescriptorSetError,
-    UnsafeDescriptorSetLayout,
 };
-use vulkano::descriptor::DescriptorSet;
 use vulkano::device::Device;
 use vulkano::memory::DeviceMemoryAllocError;
 
@@ -30,7 +30,7 @@ pub struct UniformBufferPool<T> {
 impl<T> UniformBufferPool<T> {
     /// Creates a new `UniformBufferPool` that contains pool for buffers
     /// and pool for descriptor sets.
-    pub fn new(device: Arc<Device>, layout: Arc<UnsafeDescriptorSetLayout>) -> Self {
+    pub fn new(device: Arc<Device>, layout: Arc<DescriptorSetLayout>) -> Self {
         Self {
             buffer_pool: CpuBufferPool::new(device, BufferUsage::uniform_buffer()),
             // todo: FixedSizeDescriptorSetsPool needs &mut reference to work internally

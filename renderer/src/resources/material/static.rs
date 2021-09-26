@@ -7,10 +7,10 @@ use crate::resources::material::{FallbackMaps, Material, MATERIAL_UBO_DESCRIPTOR
 use bf::material::BlendMode;
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, ImmutableBuffer};
-use vulkano::descriptor::descriptor_set::{
+use vulkano::descriptor_set::DescriptorSet;
+use vulkano::descriptor_set::{
     PersistentDescriptorSet, PersistentDescriptorSetBuildError, PersistentDescriptorSetError,
 };
-use vulkano::descriptor::DescriptorSet;
 use vulkano::device::Queue;
 use vulkano::image::view::ImageView;
 use vulkano::memory::DeviceMemoryAllocError;
@@ -75,7 +75,8 @@ impl StaticMaterial {
         // create a descriptor set layout from pipeline
         let layout = pipeline
             .layout()
-            .descriptor_set_layout(MATERIAL_UBO_DESCRIPTOR_SET)
+            .descriptor_set_layouts()
+            .get(MATERIAL_UBO_DESCRIPTOR_SET)
             .ok_or(StaticMaterialError::InvalidDescriptorSetNumber)?;
 
         // use loaded textures or fallbacks
@@ -133,7 +134,8 @@ impl StaticMaterial {
         // create a descriptor set layout from pipeline
         let layout = pipeline
             .layout()
-            .descriptor_set_layout(MATERIAL_UBO_DESCRIPTOR_SET)
+            .descriptor_set_layouts()
+            .get(MATERIAL_UBO_DESCRIPTOR_SET)
             .ok_or(StaticMaterialError::InvalidDescriptorSetNumber)?;
 
         // use loaded textures or fallbacks

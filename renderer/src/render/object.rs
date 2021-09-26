@@ -7,7 +7,7 @@ use crate::render::{descriptor_set_layout, OBJECT_DATA_UBO_DESCRIPTOR_SET};
 use crate::resources::material::Material;
 use crate::resources::mesh::DynamicIndexedMesh;
 use std::sync::Arc;
-use vulkano::descriptor::DescriptorSet;
+use vulkano::descriptor_set::DescriptorSet;
 use vulkano::device::Device;
 use vulkano::pipeline::vertex::Vertex;
 use vulkano::pipeline::GraphicsPipelineAbstract;

@@ -3,10 +3,10 @@
 use crate::render::ubo::MaterialData;
 use std::sync::{Arc, Mutex};
 use vulkano::buffer::{BufferUsage, CpuBufferPool};
-use vulkano::descriptor::descriptor_set::{
+use vulkano::descriptor_set::DescriptorSet;
+use vulkano::descriptor_set::{
     FixedSizeDescriptorSetsPool, PersistentDescriptorSetBuildError, PersistentDescriptorSetError,
 };
-use vulkano::descriptor::DescriptorSet;
 
 use crate::assets::Content;
 use crate::resources::image::create_image;
@@ -94,7 +94,8 @@ impl DynamicMaterial {
         // create a descriptor set layout from pipeline
         let layout = pipeline
             .layout()
-            .descriptor_set_layout(MATERIAL_UBO_DESCRIPTOR_SET)
+            .descriptor_set_layouts()
+            .get(MATERIAL_UBO_DESCRIPTOR_SET)
             .ok_or(DynamicMaterialError::InvalidDescriptorSetNumber)?;
 
         Ok(Arc::new(DynamicMaterial {

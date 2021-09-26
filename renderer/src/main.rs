@@ -8,8 +8,10 @@ use crate::resources::material::StaticMaterial;
 use cgmath::{vec3, Deg, InnerSpace, Point3};
 use log::{info, LevelFilter};
 use std::sync::Arc;
+use std::thread;
 use std::time::Instant;
 use winit::event_loop::EventLoop;
+use winit::platform::windows::EventLoopExtWindows;
 
 mod assets;
 mod camera;
@@ -30,7 +32,20 @@ pub struct GameState {
     floor_mat: usize,
 }
 
+const STACK_SIZE: usize = 8 * 1024 * 1024;
+
 fn main() {
+    // increase default stack size to 8MB
+    let child = thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(boot)
+        .unwrap();
+
+    // Wait for thread to join
+    child.join().unwrap();
+}
+
+fn boot() {
     // initialize logging at start of the application
     simple_logger::SimpleLogger::new()
         .with_level(LevelFilter::Debug)
@@ -41,7 +56,7 @@ fn main() {
     let conf = RendererConfiguration::default();
 
     // start event loop
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new_any_thread();
 
     // initialize engine
     let mut engine = Engine::new(

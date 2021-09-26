@@ -12,7 +12,7 @@ use crate::resources::mesh::{create_icosphere, IndexedMesh};
 use cgmath::Vector3;
 use std::sync::Arc;
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState, PrimaryAutoCommandBuffer};
-use vulkano::descriptor::DescriptorSet;
+use vulkano::descriptor_set::DescriptorSet;
 use vulkano::device::{Device, Queue};
 use vulkano::pipeline::depth_stencil::{Compare, DepthBounds, DepthStencil};
 use vulkano::pipeline::GraphicsPipeline;
@@ -115,7 +115,6 @@ impl HosekSky {
             self.mesh.index_buffer().clone(),
             (frame_matrix_data, sky_data),
             (),
-            None,
         )
         .expect("cannot draw Sky");
     }

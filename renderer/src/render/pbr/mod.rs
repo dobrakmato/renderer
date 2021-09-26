@@ -14,8 +14,8 @@ use crate::render::{
 use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
 use log::info;
 use std::sync::Arc;
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
-use vulkano::descriptor::DescriptorSet;
+use vulkano::descriptor_set::DescriptorSet;
+use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, DeviceOwned, Queue};
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;
@@ -454,7 +454,8 @@ impl PBRDeffered {
                 buffers
                     .lighting_pipeline
                     .layout()
-                    .descriptor_set_layout(LIGHTS_UBO_DESCRIPTOR_SET)
+                    .descriptor_set_layouts()
+                    .get(LIGHTS_UBO_DESCRIPTOR_SET)
                     .unwrap()
                     .clone(),
             ),

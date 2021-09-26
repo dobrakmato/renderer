@@ -13,7 +13,7 @@ use std::sync::Arc;
 use vulkano::command_buffer::{
     AutoCommandBufferBuilder, DynamicState, PrimaryAutoCommandBuffer, SubpassContents,
 };
-use vulkano::descriptor::descriptor_set::UnsafeDescriptorSetLayout;
+use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::device::{Device, Queue};
 use vulkano::format::ClearValue;
 use vulkano::image::SwapchainImage;
@@ -53,19 +53,17 @@ pub trait RenderPath {
     fn recreate_buffers(&self, new_dimensions: [u32; 2]);
 }
 
-/// Helper function to retrieve `UnsafeDescriptorSetLayout` from pipeline
+/// Helper function to retrieve `DescriptorSetLayout` from pipeline
 /// by specifying the index of the layout.
 ///
 /// # Panics
 ///
 /// This function panics if `index` is invalid set index for provided pipeline.
 ///
-pub fn descriptor_set_layout(
-    pipeline: &PipelineLayout,
-    index: usize,
-) -> Arc<UnsafeDescriptorSetLayout> {
+pub fn descriptor_set_layout(pipeline: &PipelineLayout, index: usize) -> Arc<DescriptorSetLayout> {
     pipeline
-        .descriptor_set_layout(index)
+        .descriptor_set_layouts()
+        .get(index)
         .expect("cannot get descriptor set layout")
         .clone()
 }
@@ -167,7 +165,6 @@ impl<'r, 's> Frame<'r, 's> {
                             object_matrix_data,
                         ),
                         (),
-                        None,
                     )
                     .expect("cannot DrawIndexed this mesh"),
                 DynamicIndexedMesh::U32(m) => b
@@ -182,7 +179,6 @@ impl<'r, 's> Frame<'r, 's> {
                             object_matrix_data,
                         ),
                         (),
-                        None,
                     )
                     .expect("cannot DrawIndexed this mesh"),
             };
@@ -216,7 +212,6 @@ impl<'r, 's> Frame<'r, 's> {
                 resolution: dims,
                 light_count: state.directional_lights.len() as u32,
             },
-            None,
         )
         .expect("cannot do lighting pass")
         .next_subpass(SubpassContents::Inline)
@@ -260,7 +255,6 @@ impl<'r, 's> Frame<'r, 's> {
                             resolution: dims,
                             light_count: state.directional_lights.len() as u32,
                         },
-                        None,
                     )
                     .expect("cannot DrawIndexed this mesh"),
                 DynamicIndexedMesh::U32(m) => b
@@ -279,7 +273,6 @@ impl<'r, 's> Frame<'r, 's> {
                             resolution: dims,
                             light_count: state.directional_lights.len() as u32,
                         },
-                        None,
                     )
                     .expect("cannot DrawIndexed this mesh"),
             };
@@ -295,7 +288,6 @@ impl<'r, 's> Frame<'r, 's> {
             path.fst.index_buffer().clone(),
             path.buffers.transparency.resolve_ds.clone(),
             (),
-            None,
         )
         .expect("cannot do transparency resolve pass");
         b.next_subpass(SubpassContents::Inline).unwrap();
@@ -311,7 +303,6 @@ impl<'r, 's> Frame<'r, 's> {
             path.fst.index_buffer().clone(),
             path.buffers.tonemap_ds.clone(),
             (),
-            None,
         )
         .expect("cannot do tonemap pass");
         b.end_render_pass().unwrap();
@@ -332,13 +323,10 @@ impl<'r, 's> Frame<'r, 's> {
             path.fxaa.fst.index_buffer().clone(),
             path.fxaa.fxaa_descriptor_set.clone(),
             fxaa::shaders::fragment::ty::PushConstants { resolution: dims },
-            None,
         )
         .expect("cannot do fxaa pass");
         b.end_render_pass();
         b.debug_marker_end();
-
-        std::thread::sleep(std::time::Duration::from_millis(4));
 
         b.build().unwrap()
     }

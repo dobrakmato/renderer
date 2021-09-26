@@ -11,7 +11,7 @@ use crate::resources::image::create_single_pixel_image;
 use bf::material::BlendMode;
 pub use dynamic::DynamicMaterial;
 pub use r#static::StaticMaterial;
-use vulkano::descriptor::DescriptorSet;
+use vulkano::descriptor_set::DescriptorSet;
 use vulkano::device::Queue;
 use vulkano::image::view::ImageView;
 use vulkano::sync::GpuFuture;
