@@ -94,7 +94,7 @@ pub fn create(engine: &mut Engine) {
             alpha_cutoff: 0.0,
             roughness: 0.2,
             metallic: 0.0,
-            opacity: 0.5,
+            opacity: 0.3,
             ior: 1.5,
         },
         path.buffers.geometry_pipeline.clone(),

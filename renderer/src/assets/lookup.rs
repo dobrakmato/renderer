@@ -21,7 +21,7 @@ use std::collections::HashMap;
 static LOOKUP_MAP: OnceCell<HashMap<String, Uuid>> = OnceCell::new();
 
 // default path searched when no env variable is provided
-const DEFAULT_LOOKUP_DB: &str = "C:\\Users\\Matej\\CLionProjects\\renderer\\assets\\input2uuid.dat";
+const DEFAULT_LOOKUP_DB: &str = "C:\\Users\\dobra\\CLionProjects\\renderer\\assets\\input2uuid.dat";
 
 /// Creates a `HashMap<String, Uuid>` from translation file defined
 /// in `LOOKUP_DB` environment variable and returns it.

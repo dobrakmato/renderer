@@ -29,7 +29,7 @@ impl Default for RendererConfiguration {
             resolution: [1920, 1080],
             gpu: 0,
             content_roots: vec![PathBuf::from(
-                "C:\\Users\\Matej\\CLionProjects\\renderer\\assets\\target",
+                "C:\\Users\\dobra\\CLionProjects\\renderer\\assets\\target",
             )],
         }
     }

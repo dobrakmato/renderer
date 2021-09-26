@@ -12,28 +12,55 @@
 [d] - [content] stores metadata about "imported" files in json
 [d] - [content] can detect changes between "builds" and perform incremental compilation
 [d] - [r] support resizing window / recreating swapchain
+[d] - [r] oddelit winit of vulkano
+[d] - [img2bf] use intel_tex crate to provide BC7 and better compression & image quality
+[d] - [r] support for BC7 and modern DXT compression formats
+[d] - [img2bf] support redirection/swizzling i0.r -> o.r, i1.r -> o.g, i2.r -> o.b
+[w] - [opt][bf] make mipmap_count() O(1) by computing recurrent relation
+[d] - [opt][obj2bf] fix O(n^2) vertex uniqueness algo - store verts in btree instead of Vec
+[d] - [r] decouple perspective camera from fps movements
+[d] - renderer: fxaa
+[d] - asset-server: endpoint to provide previews for files
+[d] - asset-server-ui: Transparent blend mode is missing
+[d] - asset-server-ui: remove asset from tracking
+[d] - asset-server-ui: open asset in (predefined tools)
+[d] - asset-server-ui: unable to change material linked assets
 
-- [opt][bf] make mipmap_count() O(1) by computing recurrent relation
-- [opt][obj2bf] fix O(n^2) vertex compare algo stored in btree instead of Vec
+- asset-server: [bug] refresh should not trigger recompilation for assets that are already being compiled
+- asset-server: [bug] materials are created but not automatically compiled for the first time
+- asset-server: use SQLite db instead of giant json -> update TV material
+- asset-server: add asset import settings history
+- asset-server: update tokio, actix, notify to their new versions
+
+- asset-server-ui: add support for filtering by build status: error, done, building
+- asset-server-ui: duplicate material
+- asset-server-ui: settings history
+
+- renderer: application crashes when resized (after implementing fxaa)
+- renderer: rework (once again) async loading system (use trait objects for storage)
+- renderer: in `Frame` struct use &mut Builder not owned
+- renderer: make dynamic indexed mesh use virtual dispatch trough Box<dyn IndexedMesh>
+
+- [r] change arrays from atd140 to std420 as Vulkan 1.2 supports it https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_KHR_uniform_buffer_standard_layout.html
+- [ref/core] trait for img2bf, obj2bf (Tool::Params, Tool::convert(Self::Params), Tool::options(Self::Params))
+- [obj2bf] support for processing multiple assets in one go (obj2bf -> multiple lods)
 - [obj2bf] decide how does recalculate_normals() work with duped (on import) vertices
 - [gh] revisit gh actions and setup coverage testing
 - [matmake] tool to generate material file from images and configuration
-- [img2bf] use intel_tex crate to provide BC7 and better compression & image quality
 - [inf] consider using `argh` / `pico-arg` instead of `clap` + `structopt` to cut down on build time
 
 - [content] can detect (single colored roughness/metallic) and replace with white texture + color
 
+- [r] refactor camera to use quaternions
 - [r] support for meshes without normal maps (tangents, bitangents)
 - [r] precompute bitangents and store in bf file
 - [opt][r] implement pipeline cache
 - ![r] implement debug line renderer (agregate lines in fluent interface and then batch with ubo color)
 - [r] use debug_markers in rendering pipeline with UnsafeCommandBufferBuilder
 - [r] get rid of .unwrap() from everywhere
-- [r] oddelit winit of vulkano
 - [r] nepouzivat vulkano-shaders
 - [r] vyrobit shader hot-realoding
 - [r] support for sparse memory bindings
-- [r] support for BC7 and modern DXT compression formats
 - [r] remove all panics from the application
 - [r] use reverse-Z / inverted depth buffer to fix precision and z-fighting
 - [opt][r] find all possible caching options to reduce per-frame CPU/GPU
@@ -41,7 +68,12 @@
 - [r/io] rework loading pipeline to reduce copies and time
 
 - [img2bf] support multiple inputs
-- [img2bf] support redirection/swizzling i0.r -> o.r, i1.r -> o.g, i2.r -> o.b
+
+- [obj2bf] refactor to use DCEL as preparation for LOD generation
+- [obj2bf] ear clipping triangulation
+- [obj2bf] delaunay triangulation
+
+- [renderer] try vk-mem / ash
 
 - constraint T: Sync
 - use https://github.com/jonhoo/rust-evmap for storage

@@ -93,23 +93,21 @@ impl RendererState {
         };
 
         // lets create a swapchain and vector of created swapchain images
-        let (swapchain, swapchain_images) = Swapchain::new(
-            device.clone(),
-            surface,
-            caps.min_image_count,
-            format,
-            dimensions,
-            1,
-            ImageUsage::color_attachment(),
-            SharingMode::Exclusive,
-            caps.current_transform,
-            alpha,
-            present_mode,
-            FullscreenExclusive::Default,
-            true,
-            ColorSpace::SrgbNonLinear,
-        )
-        .map_err(RendererStateError::CannotCreateSwapchain)?;
+        let (swapchain, swapchain_images) = Swapchain::start(device.clone(), surface)
+            .num_images(caps.min_image_count)
+            .format(format)
+            .dimensions(dimensions)
+            .layers(1)
+            .usage(ImageUsage::color_attachment())
+            .sharing_mode(SharingMode::Exclusive)
+            .transform(caps.current_transform)
+            .composite_alpha(alpha)
+            .present_mode(present_mode)
+            .fullscreen_exclusive(FullscreenExclusive::Default)
+            .clipped(true)
+            .color_space(ColorSpace::SrgbNonLinear)
+            .build()
+            .map_err(RendererStateError::CannotCreateSwapchain)?;
 
         let render_path =
             PBRDeffered::new(graphical_queue.clone(), device.clone(), swapchain.clone());
@@ -233,7 +231,10 @@ impl RendererState {
         // new dimensions of the swapchain
         let new_dimensions = self.swapchain.surface().window().inner_size().into();
 
-        let (swapchain, imgs) = match self.swapchain.recreate_with_dimensions(new_dimensions) {
+        let (swapchain, imgs) = match Swapchain::recreate(&self.swapchain)
+            .dimensions(new_dimensions)
+            .build()
+        {
             Ok(r) => r,
             // This error tends to happen when the user is manually resizing the window.
             // Simply restarting the loop is the easiest way to fix this issue.

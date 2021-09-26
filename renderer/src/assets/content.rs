@@ -158,6 +158,9 @@ impl Content {
     /// threads.
     pub fn new(worker_count: usize, transfer_queue: Arc<Queue>, roots: Vec<PathBuf>) -> Self {
         info!("Creating a Content with {} worker threads.", worker_count);
+        info!("Using following content roots: ");
+
+        roots.iter().for_each(|x| info!(" - {:?}", x));
 
         let (tx, rx) = unbounded();
 

@@ -48,7 +48,19 @@ vec3 unpack_normal(vec4 packednormal) {
     return normal;
 }
 
-float w(float z, float alpha) {
+float w7(float z, float alpha) {
+    float n1 = abs(z) / 5;
+    float n1_2 = n1 * n1;
+
+    float n2 = abs(z) / 200;
+    float n2_2 = n2 * n2;
+    float n2_6 = n2_2 * n2_2 * n2_2;
+
+    float f = 10 / (0.00001 + (n1_2) + (n2_6));
+    return alpha * max(0.01, min(3000, f));
+}
+
+float w8(float z, float alpha) {
     float n1 = abs(z) / 10;
     float n1_3 = n1 * n1 * n1;
 
@@ -59,6 +71,21 @@ float w(float z, float alpha) {
     float f = 10 / (0.00001 + (n1_3) + (n2_6));
     return alpha * max(0.01, min(3000, f));
 }
+
+float w9(float z, float alpha) {
+    float n1 = abs(z) / 200;
+    float n1_2 = n1 * n1;
+    float n1_4 = n1_2 * n1_2;
+
+    float f = 0.03 / (0.00001 + (n1_4));
+    return alpha * max(0.01, min(3000, f));
+}
+
+float w10(float z, float alpha) {
+    float f = (1 - gl_FragCoord.z);
+    return alpha * max(0.01, 3000 * f*f*f);
+}
+
 
 void main() {
     vec3 albedo = material_data.albedo_color * texture(albedo_map, in_uv).xyz;
@@ -95,6 +122,6 @@ void main() {
     float ai = opacity;
     float zi = gl_FragCoord.z;
 
-    accum = vec4(Ci, ai) * w(zi, ai);
+    accum = vec4(Ci, ai) * w10(zi, ai);
     reveal = vec4(ai);
 }
