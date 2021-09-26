@@ -11,7 +11,12 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 use winit::event_loop::EventLoop;
+
+#[cfg(windows)]
 use winit::platform::windows::EventLoopExtWindows;
+
+#[cfg(unix)]
+use winit::platform::unix::EventLoopExtUnix;
 
 mod assets;
 mod camera;

@@ -131,7 +131,7 @@ impl VulkanState {
                 sampler_anisotropy: true,
                 ..Features::none()
             },
-            &DeviceExtensions::required_extensions(physical).union(&device_extensions),
+            &physical.required_extensions().union(&device_extensions),
             [(graphical_queue_family, 0.5), (transfer_queue_family, 0.5)]
                 .iter()
                 .cloned(),
