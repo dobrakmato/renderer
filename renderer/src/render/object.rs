@@ -44,7 +44,7 @@ impl<V: Vertex> Object<V> {
         Self {
             pool: ObjectDataPool::new(
                 device,
-                descriptor_set_layout(&pipeline, OBJECT_DATA_UBO_DESCRIPTOR_SET),
+                descriptor_set_layout(pipeline.layout(), OBJECT_DATA_UBO_DESCRIPTOR_SET),
             ),
             transform,
             pipeline,

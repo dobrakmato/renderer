@@ -69,8 +69,9 @@ impl HosekSky {
                 .expect("cannot create aky pipeline"),
         );
 
-        let layout_frame_data = descriptor_set_layout(&pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET);
-        let layout_sky_data = descriptor_set_layout(&pipeline, SKY_DATA_UBO_DESCRIPTOR_SET);
+        let layout_frame_data =
+            descriptor_set_layout(pipeline.layout(), FRAME_DATA_UBO_DESCRIPTOR_SET);
+        let layout_sky_data = descriptor_set_layout(pipeline.layout(), SKY_DATA_UBO_DESCRIPTOR_SET);
 
         Self {
             pool: SkyDataPool::new(device.clone(), layout_sky_data),

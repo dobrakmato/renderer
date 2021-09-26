@@ -15,7 +15,7 @@ use crate::resources::mesh::{create_full_screen_triangle, IndexedMesh};
 use log::info;
 use std::sync::Arc;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
-use vulkano::descriptor::{DescriptorSet, PipelineLayoutAbstract};
+use vulkano::descriptor::DescriptorSet;
 use vulkano::device::{Device, DeviceOwned, Queue};
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;
@@ -205,7 +205,7 @@ impl Buffers {
         // create persistent descriptor sets that contains bindings to
         // buffers used in subpasses
         let tonemap_descriptor_set = Arc::new(
-            PersistentDescriptorSet::start(descriptor_set_layout(&tonemap_pipeline, 0))
+            PersistentDescriptorSet::start(descriptor_set_layout(tonemap_pipeline.layout(), 0))
                 .add_image(hdr_buffer.clone())
                 .unwrap()
                 .build()
@@ -213,7 +213,7 @@ impl Buffers {
         );
         let lighting_gbuffer_ds = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(
-                &lighting_pipeline,
+                lighting_pipeline.layout(),
                 SUBPASS_UBO_DESCRIPTOR_SET,
             ))
             .add_image(gbuffer1.clone())
@@ -231,16 +231,16 @@ impl Buffers {
         Self {
             geometry_frame_matrix_pool: FrameMatrixPool::new(
                 device.clone(),
-                descriptor_set_layout(&geometry_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
+                descriptor_set_layout(geometry_pipeline.layout(), FRAME_DATA_UBO_DESCRIPTOR_SET),
             ),
             lights_frame_matrix_pool: FrameMatrixPool::new(
                 device.clone(),
-                descriptor_set_layout(&lighting_pipeline, FRAME_DATA_UBO_DESCRIPTOR_SET),
+                descriptor_set_layout(lighting_pipeline.layout(), FRAME_DATA_UBO_DESCRIPTOR_SET),
             ),
             transparency_frame_matrix_pool: FrameMatrixPool::new(
                 device,
                 descriptor_set_layout(
-                    &transparency.accumulation_pipeline,
+                    transparency.accumulation_pipeline.layout(),
                     FRAME_DATA_UBO_DESCRIPTOR_SET,
                 ),
             ),
@@ -297,15 +297,18 @@ impl Buffers {
         self.transparency.dimensions_changed(dims);
 
         self.tonemap_ds = Arc::new(
-            PersistentDescriptorSet::start(descriptor_set_layout(&self.tonemap_pipeline, 0))
-                .add_image(self.hdr_buffer.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
+            PersistentDescriptorSet::start(descriptor_set_layout(
+                self.tonemap_pipeline.layout(),
+                0,
+            ))
+            .add_image(self.hdr_buffer.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
         );
         self.lighting_gbuffer_ds = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(
-                &self.lighting_pipeline,
+                self.lighting_pipeline.layout(),
                 SUBPASS_UBO_DESCRIPTOR_SET,
             ))
             .add_image(self.gbuffer1.clone())
@@ -450,6 +453,7 @@ impl PBRDeffered {
                 device.clone(),
                 buffers
                     .lighting_pipeline
+                    .layout()
                     .descriptor_set_layout(LIGHTS_UBO_DESCRIPTOR_SET)
                     .unwrap()
                     .clone(),

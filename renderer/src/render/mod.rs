@@ -14,10 +14,10 @@ use vulkano::command_buffer::{
     AutoCommandBufferBuilder, DynamicState, PrimaryAutoCommandBuffer, SubpassContents,
 };
 use vulkano::descriptor::descriptor_set::UnsafeDescriptorSetLayout;
-use vulkano::descriptor::PipelineLayoutAbstract;
 use vulkano::device::{Device, Queue};
 use vulkano::format::ClearValue;
 use vulkano::image::SwapchainImage;
+use vulkano::pipeline::layout::PipelineLayout;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::render_pass::FramebufferAbstract;
 use winit::window::Window;
@@ -60,10 +60,10 @@ pub trait RenderPath {
 ///
 /// This function panics if `index` is invalid set index for provided pipeline.
 ///
-pub fn descriptor_set_layout<T>(pipeline: &T, index: usize) -> Arc<UnsafeDescriptorSetLayout>
-where
-    T: PipelineLayoutAbstract,
-{
+pub fn descriptor_set_layout(
+    pipeline: &PipelineLayout,
+    index: usize,
+) -> Arc<UnsafeDescriptorSetLayout> {
     pipeline
         .descriptor_set_layout(index)
         .expect("cannot get descriptor set layout")

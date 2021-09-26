@@ -4,10 +4,10 @@ use crate::RendererConfiguration;
 use log::info;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
-use vulkano::app_info_from_cargo_toml;
-use vulkano::device::{Device, DeviceCreationError, DeviceExtensions, Queue};
+use vulkano::device::{Device, DeviceCreationError, DeviceExtensions, Features, Queue};
 use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice};
 use vulkano::swapchain::Surface;
+use vulkano::{app_info_from_cargo_toml, Version};
 use vulkano_win::{CreationError, VkSurfaceBuild};
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
@@ -35,6 +35,7 @@ fn get_or_create_instance() -> Arc<Instance> {
             // required to create a windows which we will render to.
             Instance::new(
                 Some(&app_info_from_cargo_toml!()),
+                Version::V1_1,
                 &InstanceExtensions {
                     ext_debug_utils: true,
                     ..vulkano_win::required_extensions()
@@ -96,15 +97,20 @@ impl VulkanState {
         surface.window().set_cursor_grab(true).unwrap();
         surface.window().set_cursor_visible(false);
 
-        let physical = PhysicalDevice::enumerate(&instance)
+        let device_extensions = DeviceExtensions {
+            khr_swapchain: true,
+            ..DeviceExtensions::none()
+        };
+
+        let physical: PhysicalDevice = PhysicalDevice::enumerate(&instance)
             .nth(conf.gpu)
             .ok_or(VulkanStateError::GPUNotFound(conf.gpu))?;
 
+        let props = physical.properties();
+
         info!(
-            "Using device: {} {:?} Vulkan {:?}",
-            physical.name(),
-            physical.ty(),
-            physical.api_version()
+            "Using device: {:?} {:?} Vulkan {:?}",
+            props.device_name, props.device_type, props.api_version
         );
 
         let graphical_queue_family = physical
@@ -119,8 +125,12 @@ impl VulkanState {
 
         let (device, mut queues) = Device::new(
             physical,
-            physical.supported_features(),
-            &DeviceExtensions::supported_by_device(physical),
+            &Features {
+                independent_blend: true,
+                sampler_anisotropy: true,
+                ..Features::none()
+            },
+            &DeviceExtensions::required_extensions(physical).union(&device_extensions),
             [(graphical_queue_family, 0.5), (transfer_queue_family, 0.5)]
                 .iter()
                 .cloned(),

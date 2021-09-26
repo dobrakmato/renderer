@@ -104,11 +104,14 @@ impl FXAA {
         );
 
         let ds = Arc::new(
-            PersistentDescriptorSet::start(descriptor_set_layout(&pipeline, FXAA_DESCRIPTOR_SET))
-                .add_sampled_image(ldr_buffer, sampler.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
+            PersistentDescriptorSet::start(descriptor_set_layout(
+                pipeline.layout(),
+                FXAA_DESCRIPTOR_SET,
+            ))
+            .add_sampled_image(ldr_buffer, sampler.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
         );
 
         Self {
@@ -123,7 +126,7 @@ impl FXAA {
     pub fn recreate_descriptor(&mut self, ldr_buffer: Arc<ImageView<Arc<AttachmentImage>>>) {
         self.fxaa_descriptor_set = Arc::new(
             PersistentDescriptorSet::start(descriptor_set_layout(
-                &self.fxaa_pipeline,
+                self.fxaa_pipeline.layout(),
                 FXAA_DESCRIPTOR_SET,
             ))
             .add_sampled_image(ldr_buffer, self.sampler.clone())

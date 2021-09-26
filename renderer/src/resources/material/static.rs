@@ -74,6 +74,7 @@ impl StaticMaterial {
 
         // create a descriptor set layout from pipeline
         let layout = pipeline
+            .layout()
             .descriptor_set_layout(MATERIAL_UBO_DESCRIPTOR_SET)
             .ok_or(StaticMaterialError::InvalidDescriptorSetNumber)?;
 
@@ -131,6 +132,7 @@ impl StaticMaterial {
 
         // create a descriptor set layout from pipeline
         let layout = pipeline
+            .layout()
             .descriptor_set_layout(MATERIAL_UBO_DESCRIPTOR_SET)
             .ok_or(StaticMaterialError::InvalidDescriptorSetNumber)?;
 

@@ -124,7 +124,7 @@ impl McGuire13 {
             .expect("cannot build transparency graphics pipeline");
 
         let resolve_ds =
-            PersistentDescriptorSet::start(descriptor_set_layout(&resolve_pipeline, 0))
+            PersistentDescriptorSet::start(descriptor_set_layout(resolve_pipeline.layout(), 0))
                 .add_image(accumulation.clone())
                 .unwrap()
                 .add_image(revealage.clone())
@@ -151,13 +151,16 @@ impl McGuire13 {
         self.revealage = make_buffer(self.device.clone(), REVEALAGE_BUFFER_FORMAT, new_dimensions);
 
         self.resolve_ds = Arc::new(
-            PersistentDescriptorSet::start(descriptor_set_layout(&self.resolve_pipeline, 0))
-                .add_image(self.accumulation.clone())
-                .unwrap()
-                .add_image(self.revealage.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
+            PersistentDescriptorSet::start(descriptor_set_layout(
+                self.resolve_pipeline.layout(),
+                0,
+            ))
+            .add_image(self.accumulation.clone())
+            .unwrap()
+            .add_image(self.revealage.clone())
+            .unwrap()
+            .build()
+            .unwrap(),
         );
     }
 }
