@@ -34,6 +34,9 @@ pub struct Material {
     pub ior: f32,
     pub opacity: f32,
 
+    // subsurface scattering strength (1.0 = enabled, 0.0 = disabled)
+    pub sss: f32,
+
     pub albedo_map: Option<Uuid>,
     pub normal_map: Option<Uuid>,
     pub displacement_map: Option<Uuid>,
@@ -60,6 +63,7 @@ impl Default for Material {
             ao_map: None,
             metallic_map: None,
             opacity_map: None,
+            sss: 0.0,
         }
     }
 }
