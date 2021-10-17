@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Image {
     pub uuid: Uuid,
     pub name: String,
@@ -21,7 +21,7 @@ pub struct Image {
     pub h_flip: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Mesh {
     pub uuid: Uuid,
     pub name: String,
@@ -36,7 +36,7 @@ pub struct Mesh {
     pub recalculate_normals: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Material {
     pub uuid: Uuid,
     pub name: String,
@@ -59,7 +59,7 @@ pub struct Material {
     pub sss: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type")]
 pub enum Asset {
     Image(Image),
