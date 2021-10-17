@@ -14,12 +14,13 @@ use uuid::Uuid;
 pub mod models;
 pub mod stream;
 
-pub async fn start_server(ops: Arc<Ops>) -> std::io::Result<()> {
+pub async fn start_server(port: u16, ops: Arc<Ops>) -> std::io::Result<()> {
     let local = tokio::task::LocalSet::new();
     let sys = rt::System::run_in_tokio("server", &local);
     let stream = create_event_stream();
     let ops = Data::new(ops);
 
+    info!("The server is configured to listen on 0.0.0.0:{}!", port);
     info!("Starting API server, you can view the GUI at https://asset-server-ui.surge.sh!");
 
     HttpServer::new(move || {
@@ -44,7 +45,7 @@ pub async fn start_server(ops: Arc<Ops>) -> std::io::Result<()> {
             .route("/refresh", web::post().to(refresh_all))
             .route("/open/root", web::post().to(open_library_root))
     })
-    .bind("0.0.0.0:8000")?
+    .bind(&format!("0.0.0.0:{}", port))?
     .run()
     .await?;
     sys.await?;

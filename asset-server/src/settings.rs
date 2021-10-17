@@ -31,6 +31,9 @@ pub struct Settings {
 
     /// Object of applications that should open specified list of extensions.
     pub external_tools: Option<HashMap<String, Vec<String>>>,
+
+    /// Port to listen for connections on.
+    pub port: Option<u16>,
 }
 
 pub fn load_settings() -> Arc<Settings> {

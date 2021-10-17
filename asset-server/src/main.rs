@@ -33,6 +33,7 @@ async fn main() {
 
     // load settings
     let settings = load_settings();
+    let app_port = settings.port.unwrap_or(8000);
 
     // create services
     let database = load_database(&settings);
@@ -69,5 +70,5 @@ async fn main() {
     // automatically rescan library on start
     ops.refresh();
 
-    start_server(ops).await.unwrap();
+    start_server(app_port, ops).await.unwrap();
 }
