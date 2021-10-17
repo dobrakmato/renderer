@@ -195,6 +195,7 @@ impl CompileCommand for Material {
         cmd_optional_arg!(cmd, "--metallic", self.metallic);
         cmd_optional_arg!(cmd, "--alpha-cutoff", self.alpha_cutoff);
         cmd_optional_arg!(cmd, "--ior", self.ior);
+        cmd_optional_arg!(cmd, "--sss", self.sss);
         cmd_optional_arg!(cmd, "--opacity", self.opacity);
 
         cmd_optional_arg!(cmd, "--albedo-map", self.albedo_map);
